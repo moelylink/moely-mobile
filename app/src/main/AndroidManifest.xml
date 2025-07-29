@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="link.moely.mobile">
+
+    <!-- 互联网权限：应用访问网络所必需 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 访问网络状态权限：检查网络连接状态 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- 存储权限：对于 Android 10 (API 29) 到 Android 12 (API 32) -->
+    <!-- READ_EXTERNAL_STORAGE 用于读取公共存储中的文件。 -->
+    <!-- WRITE_EXTERNAL_STORAGE 用于写入公共存储中的文件。 -->
+    <!-- 在 Android 10+，DownloadManager 写入公共目录通常不需要此运行时权限，但声明它以确保兼容性。 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <!-- 媒体文件访问权限：对于 Android 13 (API 33) 及更高版本 -->
+    <!-- 这些权限取代了 READ_EXTERNAL_STORAGE，提供更细粒度的媒体访问控制。 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MoelyApp"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 处理网页链接 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="www.moely.link" />
+                <data android:scheme="https" android:host="www.moely.link" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".DownloadsActivity"
+            android:exported="false"
+            android:label="@string/title_activity_downloads" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="@string/title_activity_settings" />
+
+        <!-- FileProvider 用于安全地共享下载文件 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>

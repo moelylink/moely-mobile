@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'link.moely.mobile' // 更新包名为 link.moely.mobile
+    compileSdk 34 // 编译目标 Android 14
+
+    defaultConfig {
+        applicationId "link.moely.mobile" // 更新应用 ID 为 link.moely.mobile
+        minSdk 29 // 最低支持 Android 10 (API 29)
+        targetSdk 34 // 目标 Android 14
+        versionCode 1 // 初始版本号
+        versionName "1.0.0-beta.8" // 版本号
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11 // 更新到 Java 11
+        targetCompatibility JavaVersion.VERSION_11 // 更新到 Java 11
+    }
+}
+
+dependencies {
+    // AndroidX Core 用于兼容性
+    implementation 'androidx.core:core:1.13.1'
+    // App Compat 用于向后兼容性
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    // Material Design UI 组件
+    implementation 'com.google.android.material:material:1.12.0'
+    // ConstraintLayout 用于灵活的 UI 布局
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // AndroidX Webkit 用于 WebView 兼容性功能
+    implementation 'androidx.webkit:webkit:1.11.0'
+
+    // Gson 用于 JSON 解析 (用于更新检查)
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // 用于测试
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+}

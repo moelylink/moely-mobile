@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 当项目被启用但未选中时的颜色，强制使用深灰色 -->
+    <item android:state_enabled="true" android:color="#4CAF50" />
+
+    <!-- 当项目被禁用时的颜色 (例如，浅灰色) -->
+    <item android:state_enabled="false" android:color="@android:color/darker_gray" />
+
+</selector>
