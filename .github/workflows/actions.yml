@@ -1,0 +1,26 @@
+name: Create Orphan Branch
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  create-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+
+      - name: Set up Git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create orphan branch
+        run: |
+          git checkout --orphan site
+          git rm -rf .
+          echo "<h1>Hello World</h1>" > index.html
+          git add index.html
+          git commit -m "Initial commit"
+          git push origin site --force
