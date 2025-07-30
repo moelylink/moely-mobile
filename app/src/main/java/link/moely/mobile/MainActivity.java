@@ -34,6 +34,9 @@ import androidx.webkit.WebViewCompat;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.io.File;
@@ -48,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private BottomNavigationView bottomNavigationView;
     private SharedPreferences prefs; // 用于获取下载目录偏好设置
+    private ActivityResultLauncher<String[]> requestPermissionLauncher;
     private static final String PREFS_NAME = "MoelyAppPrefs";
     private static final String PREF_DOWNLOAD_DIRECTORY = "download_directory"; // 下载目录偏好设置键
     private static final String HOME_URL = "https://www.moely.link"; // 您的网站 URL
@@ -59,7 +63,6 @@ public class MainActivity extends AppCompatActivity {
     // 默认公共下载目录的完整路径（用于回退和非 SAF 情况）
     private static final String DEFAULT_PUBLIC_DOWNLOAD_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + File.separator + DEFAULT_DOWNLOAD_SUBDIR;
 
-    private static final int PERMISSION_REQUEST_CODE = 100; // 权限请求代码
 
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -67,6 +70,25 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // --- Modern Permissions API: register the launcher ---
+        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
+            boolean allPermissionsGranted = true;
+            for (Boolean granted : permissions.values()) {
+                if (!granted) {
+                    allPermissionsGranted = false;
+                    break;
+                }
+            }
+
+            if (allPermissionsGranted) {
+                Log.d(TAG, "所有请求的存储/媒体权限已授予。初始化 WebView。");
+                initializeWebView();
+            } else {
+                Log.w(TAG, "一个或多个存储/媒体权限被拒绝。WebView 将不会加载。");
+                Toast.makeText(this, "存储/媒体权限被拒绝，应用部分功能可能受限。", Toast.LENGTH_LONG).show();
+            }
+        });
 
         webView = findViewById(R.id.webView);
         progressBar = findViewById(R.id.progressBar);
@@ -138,6 +160,10 @@ public class MainActivity extends AppCompatActivity {
                 bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(canGoBack);
                 bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(canGoForward);
                 Log.d(TAG, "onPageFinished - canGoBack: " + canGoBack + ", canGoForward: " + canGoForward);
+
+                // 注入脚本拦截网站下载
+                injectDownloadInterceptor(view);
+
             }
 
             @Override
@@ -172,49 +198,8 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "MIME Type: " + mimetype);
                 Log.d(TAG, "Content Length: " + contentLength);
 
-                // --- 关键处理：判断是否是 Blob URL ---
-                if (url.startsWith("blob:")) {
-                    Log.d(TAG, "检测到 Blob URL 下载。尝试通过 JavaScript 接口获取数据。");
-                    // 从 contentDisposition 中提取文件名或从 URL/MIME 类型猜测
-                    String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                    if (fileName == null || fileName.isEmpty() || fileName.equals("downloadfile")) { // 如果未找到，则使用默认名称
-                        String extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimetype);
-                        fileName = "downloaded_blob_" + System.currentTimeMillis() + (extension != null ? "." + extension : "");
-                    }
-
-                    // 注入 JavaScript 来读取 Blob 数据并传递给 Java 接口
-                    // 这里使用 XMLHttpRequest 重新获取 Blob 内容，然后转换为 Base64
-                    // 并通过 Android.processBlobDownload 方法传递给 Java
-                    String script = "javascript: (function() {" +
-                            "    var xhr = new XMLHttpRequest();" +
-                            "    xhr.open('GET', '" + url + "', true);" +
-                            "    xhr.responseType = 'blob';" +
-                            "    xhr.onload = function(e) {" +
-                            "        if (this.status == 200) {" +
-                            "            var blob = this.response;" +
-                            "            var reader = new FileReader();" +
-                            "            reader.onloadend = function() {" +
-                            "                var base64data = reader.result;" +
-                            "                // 移除 'data:mime/type;base64,' 前缀，只保留 Base64 字符串" +
-                            "                var base64string = base64data.split(',')[1];" +
-                            "                Android.processBlobDownload(base64string, '" + fileName + "', '" + mimetype + "');" +
-                            "            };" +
-                            "            reader.readAsDataURL(blob);" +
-                            "        } else {" +
-                            "            Android.logError('XHR 请求失败，状态码: ' + this.status + ' for blob URL: " + url + "');" +
-                            "        }" +
-                            "    };" +
-                            "    xhr.onerror = function() {" +
-                            "        Android.logError('XHR 请求因网络错误失败 for blob URL: " + url + "');" +
-                            "    };" +
-                            "    xhr.send();" +
-                            "})();";
-                    webView.evaluateJavascript(script, null);
-                    runOnUiThread(() -> Toast.makeText(getApplicationContext(), "开始下载文件 (Blob)", Toast.LENGTH_LONG).show());
-                    return; // 消耗下载事件，阻止 DownloadManager 尝试处理 blob URL
-                }
-
                 // --- 处理常规 HTTP/HTTPS URL ---
+                // 注意: Blob URL 下载和 JS 拦截的下载不会进入此流程
                 try {
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
 
@@ -372,7 +357,6 @@ public class MainActivity extends AppCompatActivity {
      */
     private void requestStoragePermissions() {
         String[] permissionsToRequest;
-        boolean allGranted = true;
 
         Log.d(TAG, "开始检查 Android " + Build.VERSION.SDK_INT + " 的权限...");
 
@@ -382,85 +366,30 @@ public class MainActivity extends AppCompatActivity {
                     Manifest.permission.READ_MEDIA_VIDEO,
                     Manifest.permission.READ_MEDIA_AUDIO
             };
-            Log.d(TAG, "目标 Android 13+ (API 33+)。检查媒体权限。");
-            for (String permission : permissionsToRequest) {
-                if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    Log.d(TAG, "权限 " + permission + " 未授予。");
-                } else {
-                    Log.d(TAG, "权限 " + permission + " 已授予。");
-                }
-            }
-            if (!allGranted) {
-                Log.d(TAG, "并非所有媒体权限都已授予。现在请求它们。");
-                runOnUiThread(() -> Toast.makeText(this, "请求媒体访问权限...", Toast.LENGTH_SHORT).show());
-                ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE);
-            } else {
-                runOnUiThread(() -> Toast.makeText(this, "媒体权限已授予。", Toast.LENGTH_SHORT).show());
-                Log.d(TAG, "所有必需的媒体权限已授予。初始化 WebView。");
-                initializeWebView(); // 权限已授予，继续初始化 WebView
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // Android 10 (API 29) 到 Android 12 (API 32)
-            // 对于 Android 10-12，WRITE_EXTERNAL_STORAGE 主要由 DownloadManager 处理公共目录。
-            // READ_EXTERNAL_STORAGE 仍与一般文件读取相关。
+        } else { // Android 12 (API 32) 及以下
             permissionsToRequest = new String[]{
                     Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE // 根据用户意愿，包含用于明确请求。
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
             };
-            Log.d(TAG, "目标 Android 10-12 (API 29-32)。检查存储权限。");
-            for (String permission : permissionsToRequest) {
-                if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    Log.d(TAG, "权限 " + permission + " 未授予。");
-                } else {
-                    Log.d(TAG, "权限 " + permission + " 已授予。");
-                }
+        }
+        
+        boolean allGranted = true;
+        for (String permission : permissionsToRequest) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
             }
-            if (!allGranted) {
-                Log.d(TAG, "并非所有存储权限都已授予。现在请求它们。");
-                runOnUiThread(() -> Toast.makeText(this, "请求存储权限...", Toast.LENGTH_SHORT).show());
-                ActivityCompat.requestPermissions(this, permissionsToRequest, PERMISSION_REQUEST_CODE);
-            } else {
-                runOnUiThread(() -> Toast.makeText(this, "存储权限已授予。", Toast.LENGTH_SHORT).show());
-                Log.d(TAG, "所有必需的存储权限已授予。初始化 WebView。");
-                initializeWebView(); // 权限已授予，继续初始化 WebView
-            }
+        }
+
+        if (allGranted) {
+            Log.d(TAG, "所有必需的权限已授予。初始化 WebView。");
+            initializeWebView();
         } else {
-            // 对于 Android 10 (API 29) 以下的版本，权限在安装时授予
-            // 如果在 Manifest 中声明。不需要运行时提示。
-            Log.d(TAG, "Android 版本 < 10 (API 29)。不需要运行时权限。初始化 WebView。");
-            runOnUiThread(() -> Toast.makeText(this, "存储权限已自动授予 (旧版 Android)。", Toast.LENGTH_SHORT).show());
-            initializeWebView(); // 权限自动授予，继续初始化 WebView
+            Log.d(TAG, "并非所有必需的权限都已授予。现在请求它们。");
+            requestPermissionLauncher.launch(permissionsToRequest);
         }
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            boolean allPermissionsGranted = true;
-            Log.d(TAG, "收到 onRequestPermissionsResult。");
-            for (int i = 0; i < permissions.length; i++) {
-                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
-                    allPermissionsGranted = false;
-                    Log.w(TAG, "在 onRequestPermissionsResult 中拒绝的权限: " + permissions[i]);
-                } else {
-                    Log.d(TAG, "在 onRequestPermissionsResult 中授予的权限: " + permissions[i]);
-                }
-            }
-            if (allPermissionsGranted) {
-                runOnUiThread(() -> Toast.makeText(this, "所有请求的存储/媒体权限已授予。", Toast.LENGTH_SHORT).show());
-                Log.d(TAG, "所有请求的存储/媒体权限已授予。初始化 WebView。");
-                initializeWebView(); // 权限已授予，继续初始化 WebView
-            } else {
-                runOnUiThread(() -> Toast.makeText(this, "存储/媒体权限被拒绝，应用部分功能可能受限。", Toast.LENGTH_LONG).show());
-                Log.w(TAG, "一个或多个存储/媒体权限被拒绝。WebView 将不会加载。");
-                // 或者，您可以显示一个对话框，解释为什么需要权限
-                // 并引导用户到设置，如果他们永久拒绝。
-                // 目前，我们只显示一个 Toast，WebView 将不会加载。
-            }
-        }
-    }
 
     /**
      * JavaScript 接口，用于从 WebView 接收数据。
@@ -476,56 +405,41 @@ public class MainActivity extends AppCompatActivity {
         }
 
         /**
-         * 从 JavaScript 接收 Base64 编码的 Blob 数据，并将其保存到文件。
-         * @param base64Data Base64 编码的 Blob 数据字符串（不含前缀）。
-         * @param fileName 建议的文件名。
-         * @param mimeType 文件的 MIME 类型。
+         * 通过拦截器进行下载
          */
         @JavascriptInterface
-        public void processBlobDownload(final String base64Data, final String fileName, final String mimeType) {
-            Log.d(TAG, "processBlobDownload: 收到 Blob 数据，文件名为 " + fileName + " (" + mimeType + ")");
-            try {
-                // 解码 Base64 数据
-                byte[] data = Base64.decode(base64Data, Base64.DEFAULT);
-                Log.d(TAG, "Blob 数据已解码。大小: " + data.length + " 字节。");
-
-                // 确定最终的保存目录
-                // 从 SharedPreferences 获取保存的目录 URI 字符串
-                String savedUriString = prefs.getString(PREF_DOWNLOAD_DIRECTORY, DEFAULT_PUBLIC_DOWNLOAD_PATH);
-                // 调用 getDownloadDestinationSubPath 方法来解析得到相对路径
-                String finalDestinationSubPath = getDownloadDestinationSubPath(savedUriString);
-                // 构建最终的 File 对象，指向公共 Downloads 目录下的子目录
-                File destinationDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), finalDestinationSubPath);
-
-                // 确保目标目录存在
-                if (!destinationDir.exists()) {
-                    Log.d(TAG, "目标目录不存在，尝试创建: " + destinationDir.getAbsolutePath());
-                    if (!destinationDir.mkdirs()) {
-                        Log.e(TAG, "无法为 Blob 创建目标目录: " + destinationDir.getAbsolutePath());
-                        runOnUiThread(() -> Toast.makeText(mContext, "无法创建下载目录。", Toast.LENGTH_LONG).show());
-                        return;
+        public void startDownload(String url, String contentDisposition, String mimetype) {
+            Log.d(TAG, "startDownload: 通过 JS 拦截器启动下载: " + url);
+            // 在主线程上执行下载操作
+            runOnUiThread(() -> {
+                try {
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                    String cookies = CookieManager.getInstance().getCookie(url);
+                    if (cookies != null && !cookies.isEmpty()) {
+                        request.addRequestHeader("cookie", cookies);
                     }
+                    request.addRequestHeader("User-Agent", webView.getSettings().getUserAgentString());
+                    request.setDescription("正在下载文件...");
+                    String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+                    request.setTitle(fileName);
+                    request.allowScanningByMediaScanner();
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+
+                    String finalDestinationSubPath = getDownloadDestinationSubPath(prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, finalDestinationSubPath + File.separator + fileName);
+
+                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.enqueue(request);
+                        Toast.makeText(getApplicationContext(), "开始下载文件: " + fileName, Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(getApplicationContext(), "下载服务不可用。", Toast.LENGTH_LONG).show();
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(getApplicationContext(), "下载失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "从 JS 拦截器启动下载时出错: ", e);
                 }
-                File outputFile = new File(destinationDir, fileName);
-                Log.d(TAG, "将 Blob 数据写入最终文件: " + outputFile.getAbsolutePath());
-
-                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                    fos.write(data);
-                    Log.d(TAG, "Blob 数据已成功写入文件。");
-
-                    // 通知媒体扫描器文件已创建，以便在图库或文件管理器中可见
-                    MediaScannerConnection.scanFile(mContext, new String[]{outputFile.getAbsolutePath()}, new String[]{mimeType}, null);
-
-                    runOnUiThread(() -> Toast.makeText(mContext, "文件下载完成: " + fileName, Toast.LENGTH_LONG).show());
-
-                } catch (IOException e) {
-                    runOnUiThread(() -> Toast.makeText(mContext, "保存文件失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                    Log.e(TAG, "将 Blob 数据写入文件时出错: " + e.getMessage(), e);
-                }
-            } catch (IllegalArgumentException e) {
-                runOnUiThread(() -> Toast.makeText(mContext, "Blob 数据解码失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                Log.e(TAG, "解码 base64 Blob 数据时出错: " + e.getMessage(), e);
-            }
+            });
         }
 
         /**
@@ -631,5 +545,26 @@ public class MainActivity extends AppCompatActivity {
         }
         Log.d(TAG, "Final download subdirectory determined: " + finalDestinationSubPath);
         return finalDestinationSubPath;
+    }
+
+    private void injectDownloadInterceptor(WebView webView) {
+        String script = "javascript:(" +
+                "function() { " +
+                "    if (typeof window.downloadImg_original === 'undefined') { " +
+                "        window.downloadImg_original = window.downloadImg;" +
+                "        window.downloadImg = function(textId, imgId, url) { " +
+                "            console.log('Intercepted downloadImg call. URL: ' + url);" +
+                "            if (window.Android && typeof window.Android.startDownload === 'function') { " +
+                "                window.Android.startDownload(url, '', '');" +
+                "            } else { " +
+                "                console.log('Android.startDownload not found, falling back to original.');" +
+                "                window.downloadImg_original(textId, imgId, url);" +
+                "            } " +
+                "        }; " +
+                "        console.log('downloadImg function intercepted.'); " +
+                "    } " +
+                "})();";
+        webView.evaluateJavascript(script, null);
+        Log.d(TAG, "已注入 downloadImg 拦截脚本。");
     }
 }

@@ -4,7 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="link.moely.mobile.DownloadsActivity"> <!-- 更新 context 包名 -->
+    android:background="#FF000000"
+    tools:context="link.moely.mobile.DownloadsActivity">
 
     <!-- Material Toolbar for the top bar -->
     <com.google.android.material.appbar.MaterialToolbar
@@ -36,6 +37,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/no_downloads_yet"
+        android:textColor="#FFFFFFFF"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

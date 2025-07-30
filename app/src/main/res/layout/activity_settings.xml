@@ -4,7 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="link.moely.mobile.SettingsActivity"> <!-- 更新 context 包名 -->
+    android:background="#FF000000"
+    tools:context="link.moely.mobile.SettingsActivity">
 
     <!-- Material Toolbar for the top bar -->
     <com.google.android.material.appbar.MaterialToolbar
@@ -70,6 +71,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/cache_size_placeholder"
                 android:textAppearance="?attr/textAppearanceBody2"
+                android:textColor="#FFFFFFFF"
                 android:layout_marginStart="8dp"
                 android:gravity="end"/>
         </LinearLayout>
@@ -97,6 +99,7 @@
             android:layout_height="wrap_content"
             android:text="@string/current_download_directory"
             android:textAppearance="?attr/textAppearanceBody2"
+            android:textColor="#FFFFFFFF"
             android:layout_marginStart="16dp"
             android:layout_marginBottom="8dp"/>
 

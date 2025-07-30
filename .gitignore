@@ -1,0 +1,61 @@
+# Android Studio
+.idea/
+.gradle/
+local.properties
+*.iml
+*.hprof
+
+# Build output
+/build/
+*/build/
+
+# NDK
+obj/
+
+# IntelliJ
+*.iws
+*.ipr
+*.bak
+
+# Kotlin/Java
+*.class
+*.jar
+*.war
+*.ear
+*.apk
+*.ap_
+*.dex
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Crashlytics / Firebase
+crashlytics-build.properties
+fabric.properties
+
+# Keystore files
+*.jks
+*.keystore
+
+# Android Patch
+*.rej
+*.orig
+
+# Gradle cache
+.gradle/
+**/out/
+
+# Others
+.cxx/
+captures/
+.externalNativeBuild/
+
+# VSCode
+.vscode/
+
+# Jetpack Compose
+compose.*

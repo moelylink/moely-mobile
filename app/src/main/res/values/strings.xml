@@ -62,4 +62,15 @@
 
     <!-- Blob Download Specific -->
     <string name="blob_download_description">从萌哩应用下载的文件</string>
+    
+    <!-- Download Delete -->
+    <string name="delete_download">删除</string>
+    <string name="confirm_delete_download">确认删除</string>
+    <string name="delete_download_message">确定要删除文件 "%1$s" 吗？</string>
+    <string name="delete_local_file_option">同时删除本地文件</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="download_deleted">下载已删除</string>
+    <string name="download_record_deleted">下载记录已删除</string>
+    <string name="delete_failed">删除失败</string>
 </resources>
