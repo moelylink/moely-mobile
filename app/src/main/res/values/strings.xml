@@ -63,6 +63,14 @@
     <!-- Blob Download Specific -->
     <string name="blob_download_description">从萌哩应用下载的文件</string>
     
+    <!-- Theme Color -->
+    <string name="theme_color">主题色</string>
+    <string name="select_theme_color">选择主题色</string>
+    <string name="current_theme_color">当前主题色: %1$s</string>
+    <string name="theme_color_changed">主题色已更改为: %1$s</string>
+    <string name="reset_theme">重置主题</string>
+    <string name="theme_reset_successfully">主题已重置为默认设置</string>
+
     <!-- Download Delete -->
     <string name="delete_download">删除</string>
     <string name="confirm_delete_download">确认删除</string>

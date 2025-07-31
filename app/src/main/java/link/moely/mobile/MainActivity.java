@@ -13,13 +13,11 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.util.Base64; // 用于解码 Base64 数据
 import android.util.Log;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
-import android.webkit.JavascriptInterface; // 用于 JavaScript 与 Java 交互
-import android.webkit.MimeTypeMap;
+import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -31,7 +29,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.webkit.WebViewCompat;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -40,10 +37,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import android.Manifest; // 导入权限
-import android.media.MediaScannerConnection; // 用于通知媒体扫描器
+import android.Manifest;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -66,10 +60,16 @@ public class MainActivity extends AppCompatActivity {
 
 
     @SuppressLint("SetJavaScriptEnabled")
-    @Override
+@Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // 初始化主题模式
+        ThemeModeManager.getInstance(this).initializeTheme();
+        
+        // 应用动态主题
+        ThemeUtils.applyTheme(this);
 
         // --- Modern Permissions API: register the launcher ---
         requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
@@ -94,6 +94,9 @@ public class MainActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         bottomNavigationView = findViewById(R.id.bottomNavigationView);
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE); // 初始化 SharedPreferences
+        
+        // 为 BottomNavigationView 应用主题色
+        applyThemeToBottomNavigation();
 
         // --- 启动时请求权限 ---
         requestStoragePermissions();
@@ -341,6 +344,33 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        
+        // 检查并应用最新的主题模式设置
+        ThemeModeManager themeModeManager = ThemeModeManager.getInstance(this);
+        int savedMode = themeModeManager.getThemeMode();
+        
+        // 获取当前主题模式进行平滑切换
+        int nightMode;
+        switch (savedMode) {
+            case ThemeModeManager.MODE_LIGHT:
+                nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO;
+                break;
+            case ThemeModeManager.MODE_DARK:
+                nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES;
+                break;
+            case ThemeModeManager.MODE_SYSTEM:
+            default:
+                nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
+                break;
+        }
+        
+        // 应用到当前Activity的Delegate，实现平滑切换
+        getDelegate().setLocalNightMode(nightMode);
+        
+        // 重新应用主题（以防主题在其他Activity中被更改）
+        ThemeUtils.applyTheme(this);
+        applyThemeToBottomNavigation();
+        
         // 仅在 WebView 未加载任何内容时尝试重新请求权限并初始化 WebView。
         // 避免在每次 Activity 恢复时都重新加载页面。
         if (webView.getUrl() == null) {
@@ -566,5 +596,56 @@ public class MainActivity extends AppCompatActivity {
                 "})();";
         webView.evaluateJavascript(script, null);
         Log.d(TAG, "已注入 downloadImg 拦截脚本。");
+    }
+    
+    /**
+     * 为 BottomNavigationView 应用主题色
+     */
+    private void applyThemeToBottomNavigation() {
+        ThemeManager themeManager = ThemeManager.getInstance(this);
+        int primaryColor = themeManager.getPrimaryColor();
+        
+        // 创建颜色状态列表用于图标着色
+        android.content.res.ColorStateList colorStateList = android.content.res.ColorStateList.valueOf(primaryColor);
+        bottomNavigationView.setItemIconTintList(colorStateList);
+        bottomNavigationView.setItemTextColor(colorStateList);
+        
+        // 为 ProgressBar 应用主题色
+        if (progressBar != null) {
+            progressBar.getProgressDrawable().setTint(primaryColor);
+        }
+    }
+    
+    /**
+     * 检查并请求存储权限以支持动态颜色提取
+     */
+    public void checkAndRequestStoragePermission() {
+        String[] permissionsToRequest;
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33) 及以上
+            permissionsToRequest = new String[]{
+                    Manifest.permission.READ_MEDIA_IMAGES
+            };
+        } else { // Android 12 (API 32) 及以下
+            permissionsToRequest = new String[]{
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            };
+        }
+        
+        boolean allGranted = true;
+        for (String permission : permissionsToRequest) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+        
+        if (!allGranted) {
+            // 直接请求权限
+            requestPermissionLauncher.launch(permissionsToRequest);
+            Log.d(TAG, "Requesting media permissions for dynamic color extraction.");
+        } else {
+            Log.i(TAG, "Media permissions already granted for dynamic color extraction.");
+        }
     }
 }

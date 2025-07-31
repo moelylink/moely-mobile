@@ -22,6 +22,8 @@ import android.webkit.CookieManager;
 import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.widget.Button;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -31,20 +33,28 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.webkit.WebViewCompat; // Import WebViewCompat
 import android.provider.DocumentsContract; // Import DocumentsContract for SAF URI parsing
+import androidx.core.content.ContextCompat;
+import android.Manifest;
 
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.button.MaterialButton;
 
 import java.io.File;
 
 public class SettingsActivity extends AppCompatActivity {
 
     private MaterialToolbar toolbar;
-    private Button clearCacheButton;
+    private MaterialButton clearCacheButton;
     private TextView cacheSizeTextView;
-    private Button downloadDirectoryButton;
+    private MaterialButton downloadDirectoryButton;
     private TextView currentDownloadDirectoryTextView;
-    private Button checkUpdateButton;
-    private Button aboutAppButton;
+    private MaterialButton themeColorButton;
+    private MaterialButton checkUpdateButton;
+    private MaterialButton aboutAppButton;
+    private RadioGroup themeModeRadioGroup;
+    private RadioButton radioLight;
+    private RadioButton radioDark;
+    private RadioButton radioSystem;
 
     private SharedPreferences prefs;
     private static final String PREFS_NAME = "MoelyAppPrefs";
@@ -58,6 +68,7 @@ public class SettingsActivity extends AppCompatActivity {
 
 
     private ActivityResultLauncher<Uri> openDirectoryLauncher;
+    private ActivityResultLauncher<String[]> requestPermissionLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,10 +80,48 @@ public class SettingsActivity extends AppCompatActivity {
         cacheSizeTextView = findViewById(R.id.cacheSizeTextView);
         downloadDirectoryButton = findViewById(R.id.downloadDirectoryButton);
         currentDownloadDirectoryTextView = findViewById(R.id.currentDownloadDirectoryTextView);
+        themeColorButton = findViewById(R.id.themeColorButton);
         checkUpdateButton = findViewById(R.id.checkUpdateButton);
         aboutAppButton = findViewById(R.id.aboutAppButton);
+        themeModeRadioGroup = findViewById(R.id.themeModeRadioGroup);
+        radioLight = findViewById(R.id.radioLight);
+        radioDark = findViewById(R.id.radioDark);
+        radioSystem = findViewById(R.id.radioSystem);
+
+        // 应用主题到当前 Activity
+        ThemeUtils.applyTheme(this);
+        ThemeUtils.applyThemeToToolbar(toolbar);
+        
+        // 应用主题到所有按钮
+        applyThemeToButtons();
+        
+        // 初始化主题模式选择
+        initializeThemeModeSelection();
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        // 初始化权限请求启动器
+        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
+            boolean mediaPermissionGranted = false;
+            
+            // 检查对应的权限是否被授予
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                mediaPermissionGranted = permissions.getOrDefault(Manifest.permission.READ_MEDIA_IMAGES, false);
+            } else {
+                mediaPermissionGranted = permissions.getOrDefault(Manifest.permission.READ_EXTERNAL_STORAGE, false);
+            }
+            
+            if (mediaPermissionGranted) {
+                Log.d(TAG, "媒体/存储权限已授予，可以进行动态颜色提取。");
+                // 权限已授予，可以安全地显示颜色选择器对话框
+                openColorPickerDialog();
+            } else {
+                Log.w(TAG, "媒体/存储权限被拒绝，动态颜色提取将不可用。");
+                Toast.makeText(this, "媒体/存储权限被拒绝，动态颜色提取将不可用，但您仍可以选择预设颜色。", Toast.LENGTH_LONG).show();
+                // 即使没有权限，也显示颜色选择器对话框，只是动态颜色功能不可用
+                openColorPickerDialog();
+            }
+        });
 
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
@@ -82,9 +131,7 @@ public class SettingsActivity extends AppCompatActivity {
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
         // --- 清除缓存 ---
-        clearCacheButton.setOnClickListener(v -> {
-            clearAppCache();
-        });
+        // 点击事件在 handleCacheClick 中处理
 
         // --- 下载目录 ---
         openDirectoryLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocumentTree(), uri -> {
@@ -108,9 +155,7 @@ public class SettingsActivity extends AppCompatActivity {
             }
         });
 
-        downloadDirectoryButton.setOnClickListener(v -> {
-            openDirectoryLauncher.launch(null); // 启动目录选择器
-        });
+        // 点击事件在 handleDirectoryClick 中处理
 
         // 更新当前下载目录显示
         String savedUriString = prefs.getString(PREF_DOWNLOAD_DIRECTORY, null);
@@ -128,6 +173,10 @@ public class SettingsActivity extends AppCompatActivity {
             updateDownloadDirectoryDisplay(savedUriString);
         }
 
+        // --- 主题色选择 ---
+        themeColorButton.setOnClickListener(v -> {
+            showColorPickerDialog();
+        });
 
         // --- 检查更新 ---
         checkUpdateButton.setOnClickListener(v -> {
@@ -421,5 +470,159 @@ public class SettingsActivity extends AppCompatActivity {
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> dialog.dismiss())
                 .show();
+    }
+
+    /**
+     * 显示颜色选择器对话框
+     * 首先检查存储权限，如果需要则请求权限
+     */
+    private void showColorPickerDialog() {
+        // 检查存储权限
+        String[] permissionsToRequest;
+         
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33) 及以上
+            permissionsToRequest = new String[]{
+                    Manifest.permission.READ_MEDIA_IMAGES
+            };
+        } else { // Android 12 (API 32) 及以下
+            permissionsToRequest = new String[]{
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            };
+        }
+
+        boolean allGranted = true;
+        for (String permission : permissionsToRequest) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+
+        if (!allGranted) {
+            // 没有权限，请求权限
+            Log.d(TAG, "未授予所有权限，正在请求权限...");
+            requestPermissionLauncher.launch(permissionsToRequest);
+        } else {
+            Log.d(TAG, "所有权限已授予，直接打开颜色选择器对话框。");
+            openColorPickerDialog();
+        }
+    }
+
+    /**
+     * 打开颜色选择器对话框
+     * 该方法在权限检查完成后调用
+     */
+    private void openColorPickerDialog() {
+        try {
+            // 使用当前主题颜色初始化对话框
+            int currentColor = ThemeManager.getInstance(this).getPrimaryColor();
+            ColorPickerDialog colorPickerDialog = new ColorPickerDialog(this, currentColor);
+            colorPickerDialog.setOnColorSelectedListener((color, colorName) -> {
+                // 用户选择颜色后的回调
+                Log.d(TAG, "用户选择了颜色: " + colorName + " (" + String.format("#%06X", (0xFFFFFF & color)) + ")");
+                
+                // 保存选择的颜色
+                ThemeManager themeManager = ThemeManager.getInstance(this);
+                themeManager.setPrimaryColor(color, colorName);
+                
+                // 重新创建 Activity 以应用新主题
+                recreate();
+            });
+            
+            colorPickerDialog.show();
+            Log.d(TAG, "颜色选择器对话框已显示。");
+        } catch (Exception e) {
+            Log.e(TAG, "显示颜色选择器对话框时出错: ", e);
+            Toast.makeText(this, "无法打开颜色选择器，请稍后重试。", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 应用主题色到所有按钮
+     */
+    private void applyThemeToButtons() {
+        ThemeManager themeManager = ThemeManager.getInstance(this);
+        int primaryColor = themeManager.getPrimaryColor();
+        
+        // 设置按钮文本颜色为主题色
+        clearCacheButton.setTextColor(primaryColor);
+        downloadDirectoryButton.setTextColor(primaryColor);
+        themeColorButton.setTextColor(primaryColor);
+        checkUpdateButton.setTextColor(primaryColor);
+        aboutAppButton.setTextColor(primaryColor);
+        
+        Log.d(TAG, "Applied theme color to all buttons: " + String.format("#%06X", (0xFFFFFF & primaryColor)));
+    }
+    
+    /**
+     * 初始化主题模式选择
+     */
+    private void initializeThemeModeSelection() {
+        ThemeModeManager themeModeManager = ThemeModeManager.getInstance(this);
+        int currentMode = themeModeManager.getThemeMode();
+        
+        // 根据当前模式设置选中状态
+        switch (currentMode) {
+            case ThemeModeManager.MODE_LIGHT:
+                radioLight.setChecked(true);
+                break;
+            case ThemeModeManager.MODE_DARK:
+                radioDark.setChecked(true);
+                break;
+            case ThemeModeManager.MODE_SYSTEM:
+            default:
+                radioSystem.setChecked(true);
+                break;
+        }
+        
+        // 设置监听器
+        themeModeRadioGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            int newMode;
+            if (checkedId == R.id.radioLight) {
+                newMode = ThemeModeManager.MODE_LIGHT;
+            } else if (checkedId == R.id.radioDark) {
+                newMode = ThemeModeManager.MODE_DARK;
+            } else {
+                newMode = ThemeModeManager.MODE_SYSTEM;
+            }
+            
+            // 先保存设置但不立即应用全局主题
+            themeModeManager.setThemeModeOnly(newMode);
+            
+            // 获取当前主题模式进行平滑切换
+            int nightMode;
+            switch (newMode) {
+                case ThemeModeManager.MODE_LIGHT:
+                    nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO;
+                    break;
+                case ThemeModeManager.MODE_DARK:
+                    nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES;
+                    break;
+                case ThemeModeManager.MODE_SYSTEM:
+                default:
+                    nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
+                    break;
+            }
+            
+            // 应用到当前Activity的Delegate，实现平滑切换
+            getDelegate().setLocalNightMode(nightMode);
+            
+            Log.d(TAG, "主题模式已更改为: " + themeModeManager.getThemeModeDescription(newMode));
+            Toast.makeText(this, "主题模式已更改为: " + themeModeManager.getThemeModeDescription(newMode), Toast.LENGTH_SHORT).show();
+        });
+    }
+    
+    /**
+     * 处理清除缓存区域的点击事件
+     */
+    public void handleCacheClick(View view) {
+        clearAppCache();
+    }
+    
+    /**
+     * 处理下载目录设置区域的点击事件
+     */
+    public void handleDirectoryClick(View view) {
+        openDirectoryLauncher.launch(null); // 启动目录选择器
     }
 }

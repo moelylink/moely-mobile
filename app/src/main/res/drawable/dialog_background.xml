@@ -3,10 +3,7 @@
     android:shape="rectangle">
     
     <!-- 渐变背景 -->
-    <gradient
-        android:startColor="#FF2D2D2D"
-        android:endColor="#FF1A1A1A"
-        android:angle="135" />
+<solid android:color="?attr/colorSurface" />
     
     <!-- 圆角 -->
     <corners android:radius="16dp" />
@@ -14,6 +11,6 @@
     <!-- 轻微的边框 -->
     <stroke
         android:width="1dp"
-        android:color="#FF444444" />
+        android:color="?attr/colorOutline" />
         
 </shape>

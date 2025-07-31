@@ -64,6 +64,10 @@ public class DownloadsActivity extends AppCompatActivity implements DownloadsAda
 
         // 设置返回按钮的点击监听器
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
+        
+        // 应用主题
+        ThemeUtils.applyTheme(this);
+        ThemeUtils.applyThemeToToolbar(toolbar);
 
 
         downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
