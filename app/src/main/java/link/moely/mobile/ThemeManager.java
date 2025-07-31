@@ -10,8 +10,8 @@ public class ThemeManager {
     private static final String KEY_COLOR_NAME = "color_name";
     
     // 默认主题色
-    private static final int DEFAULT_PRIMARY_COLOR = Color.parseColor("#6200EE");
-    private static final String DEFAULT_COLOR_NAME = "深紫";
+    private static final int DEFAULT_PRIMARY_COLOR = Color.parseColor("#ba85fb");
+    private static final String DEFAULT_COLOR_NAME = "淡紫";
     
     private static ThemeManager instance;
     private SharedPreferences prefs;

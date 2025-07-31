@@ -656,7 +656,6 @@ public class SettingsActivity extends AppCompatActivity {
             getDelegate().setLocalNightMode(nightMode);
             
             Log.d(TAG, "主题模式已更改为: " + themeModeManager.getThemeModeDescription(newMode));
-            Toast.makeText(this, "主题模式已更改为: " + themeModeManager.getThemeModeDescription(newMode), Toast.LENGTH_SHORT).show();
         });
     }
     

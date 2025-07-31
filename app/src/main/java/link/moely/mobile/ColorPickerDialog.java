@@ -41,7 +41,7 @@ public class ColorPickerDialog {
 
     // 预定义颜色数组
     private static final ColorItem[] PREDEFINED_COLORS = {
-        new ColorItem("深紫", "#6200EE"),
+        new ColorItem("淡紫", "#ba85fb"),
         new ColorItem("蓝紫", "#9C27B0"),
         new ColorItem("深蓝", "#3F51B5"),
         new ColorItem("蓝色", "#2196F3"),
@@ -307,7 +307,7 @@ public class ColorPickerDialog {
                         if (palette != null) {
                             Log.d("ColorPickerDialog", "Palette generated");
                             // 获取鲜艳主色，如果没有则获取主色
-                            int dominantColor = palette.getVibrantColor(palette.getDominantColor(Color.parseColor("#6200EE")));
+                            int dominantColor = palette.getVibrantColor(palette.getDominantColor(Color.parseColor("#ba85fb")));
                             Log.d("ColorPickerDialog", "Dominant color extracted: " + String.format("#%06X", (0xFFFFFF & dominantColor)));
                             // 更新选中的颜色
                             selectedColor = dominantColor;
@@ -337,7 +337,7 @@ public class ColorPickerDialog {
         } catch (Exception e) {
             Log.e("ColorPickerDialog", "Error extracting color", e);
             // 如果找不到图片或出现错误，使用默认颜色
-            selectedColor = Color.parseColor("#6200EE");
+            selectedColor = Color.parseColor("#ba85fb");
             selectedColorName = "动态提取色";
             updateSelectedColorDisplay(selectedColorText);
             updateCardSelection(parent, dynamicCard);

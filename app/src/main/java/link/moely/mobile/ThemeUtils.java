@@ -60,7 +60,7 @@ public class ThemeUtils {
         
         ThemeManager themeManager = ThemeManager.getInstance(toolbar.getContext());
         int primaryColor = themeManager.getPrimaryColor();
-        int textColor = themeManager.getTextColorOnPrimary();
+        int textColor = android.graphics.Color.WHITE;
         
         toolbar.setBackgroundColor(primaryColor);
         toolbar.setTitleTextColor(textColor);
