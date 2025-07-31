@@ -225,12 +225,17 @@ public class ColorPickerDialog {
         );
         colorView.setLayoutParams(colorParams);
         
-        // 设置渐变背景
+        // 设置渐变背景 - 更舒适的渐变色彩
         GradientDrawable background = new GradientDrawable();
-        int[] colors = {Color.parseColor("#FF5722"), Color.parseColor("#4CAF50"), Color.parseColor("#2196F3")};
+        // 使用更柔和的渐变色：紫色到蓝色到青色的线性渐变
+        int[] colors = {
+            Color.parseColor("#667eea"), // 柔和的紫蓝色
+            Color.parseColor("#764ba2"), // 优雅的紫色
+            Color.parseColor("#f093fb")  // 温和的粉紫色
+        };
         background.setColors(colors);
-        background.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-        background.setGradientRadius(dpToPx(30));
+        background.setGradientType(GradientDrawable.LINEAR_GRADIENT);
+        background.setOrientation(GradientDrawable.Orientation.TL_BR); // 从左上到右下的线性渐变
         background.setCornerRadius(dpToPx(8));
         colorView.setBackground(background);
         

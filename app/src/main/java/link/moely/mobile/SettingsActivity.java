@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor; // Import Cursor
@@ -24,6 +25,7 @@ import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -443,31 +445,77 @@ public class SettingsActivity extends AppCompatActivity {
      * 显示关于应用的对话框。
      */
     private void showAboutAppDialog() {
-        String appVersion = "未知";
-        String webViewVersion = "未知";
-        String androidVersion = Build.VERSION.RELEASE; // 获取 Android 系统版本号
-
+        StringBuilder messageBuilder = new StringBuilder();
+        
         try {
-            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-            appVersion = pInfo.versionName;
+            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            
+            // 基本应用信息
+            String appVersion = packageInfo.versionName != null ? packageInfo.versionName : "未知";
+            String versionCode = String.valueOf(packageInfo.versionCode);
+            
+            // 获取安装和更新时间
+            long firstInstallTime = packageInfo.firstInstallTime;
+            long lastUpdateTime = packageInfo.lastUpdateTime;
+            String installTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                    .format(new java.util.Date(firstInstallTime));
+            String updateTime = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                    .format(new java.util.Date(lastUpdateTime));
+            
+            
+            // 获取WebView版本
+            String webViewVersion = "未知";
+            PackageInfo webViewPackageInfo = WebViewCompat.getCurrentWebViewPackage(this);
+            if (webViewPackageInfo != null) {
+                webViewVersion = webViewPackageInfo.versionName;
+            }
+            
+            // 获取设备信息
+            String deviceModel = Build.MODEL;
+            String deviceManufacturer = Build.MANUFACTURER;
+            String androidVersion = Build.VERSION.RELEASE;
+            String androidSdkVersion = String.valueOf(Build.VERSION.SDK_INT);
+            
+            // 构建信息显示
+            // 应用信息部分
+            messageBuilder.append("● 应用信息").append("\n");
+            messageBuilder.append(getString(R.string.app_version, appVersion + " (" + versionCode + ")")).append("\n");
+            messageBuilder.append(getString(R.string.app_install_time, installTime)).append("\n");
+            if (!installTime.equals(updateTime)) {
+                messageBuilder.append(getString(R.string.app_last_update, updateTime)).append("\n");
+            }
+            messageBuilder.append("\n");
+            
+            // 系统信息部分
+            messageBuilder.append("● 系统信息").append("\n");
+            messageBuilder.append(getString(R.string.android_version, androidVersion + " (API " + androidSdkVersion + ")")).append("\n");
+            messageBuilder.append(getString(R.string.webview_version, webViewVersion)).append("\n");
+            messageBuilder.append(getString(R.string.device_manufacturer, deviceManufacturer)).append("\n");
+            messageBuilder.append(getString(R.string.device_model, deviceModel)).append("\n\n");
+            
+            // 版权信息
+            messageBuilder.append(getString(R.string.copyright_info));
+            
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "无法获取应用版本: " + e.getMessage());
+            Log.e(TAG, "无法获取应用信息: " + e.getMessage());
+            messageBuilder.append("无法获取应用信息");
+        } catch (Exception e) {
+            Log.e(TAG, "显示关于对话框时出错: " + e.getMessage());
+            messageBuilder.append("获取信息时发生错误");
         }
-
-        PackageInfo webViewPackageInfo = WebViewCompat.getCurrentWebViewPackage(this);
-        if (webViewPackageInfo != null) {
-            webViewVersion = webViewPackageInfo.versionName;
-        } else {
-            Log.e(TAG, "无法检测到 Android System WebView 包。");
-        }
-
-        String message = getString(R.string.app_version, appVersion) + "\n" +
-                         getString(R.string.webview_version, webViewVersion) + "\n" +
-                         getString(R.string.android_version, androidVersion); // 添加 Android 版本号
-
+        
+        // 创建带有滚动功能的对话框
+        ScrollView scrollView = new ScrollView(this);
+        TextView textView = new TextView(this);
+        textView.setText(messageBuilder.toString());
+        textView.setTextSize(14);
+        textView.setPadding(24, 24, 24, 24);
+        textView.setTextIsSelectable(true); // 允许选中和复制文本
+        scrollView.addView(textView);
+        
         new AlertDialog.Builder(this)
                 .setTitle(R.string.about_app)
-                .setMessage(message)
+                .setView(scrollView)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> dialog.dismiss())
                 .show();
     }

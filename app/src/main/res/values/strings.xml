@@ -53,6 +53,13 @@
     <string name="app_version">应用版本: %1$s</string>
     <string name="webview_version">WebView版本: %1$s</string>
     <string name="android_version">Android系统版本: %1$s</string>
+    <string name="device_model">设备型号: %1$s</string>
+    <string name="device_manufacturer">设备制造商: %1$s</string>
+    <string name="app_install_time">安装时间: %1$s</string>
+    <string name="app_last_update">最后更新: %1$s</string>
+    <string name="build_time">构建时间: %1$s</string>
+    <string name="developer_info">开发者信息</string>
+    <string name="copyright_info">© 2025 萌哩. 保留所有权利</string>
 
     <!-- WebView Version Check -->
     <string name="webview_version_warning_title">WebView 版本过低</string>
