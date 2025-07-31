@@ -20,7 +20,7 @@
     <!-- 深色主题的文本颜色 -->
     <color name="textColorPrimary">#FFFFFF</color>
     <color name="textColorSecondary">#B3FFFFFF</color>
-    <color name="textColorTertiary">#80FFFFFF</color>
+    <color name="textColorHint">#80FFFFFF</color>
     
     <!-- 深色主题的分割线颜色 -->
     <color name="dividerColor">#2C2C2C</color>

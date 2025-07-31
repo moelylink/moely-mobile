@@ -10,8 +10,8 @@ android {
         applicationId "link.moely.mobile" // 更新应用 ID 为 link.moely.mobile
         minSdk 29 // 最低支持 Android 10 (API 29)
         targetSdk 34 // 目标 Android 14
-        versionCode 1 // 初始版本号
-        versionName "1.0.2" // 版本号
+        versionCode 9 // 初始版本号
+        versionName "1.0.1-beta" // 版本号
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -49,8 +49,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" android:host="www.moely.link" />
-                <data android:scheme="https" android:host="www.moely.link" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="www.moely.link" />
+                <data android:host="mobile.moely.link" />
             </intent-filter>
         </activity>
 
