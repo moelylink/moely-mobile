@@ -27,9 +27,8 @@
     <string name="no_app_to_open_file">没有应用可以打开此文件</string>
 
     <!-- Settings Activity -->
-    <!-- <string name="night_mode">夜间模式</string> Removed night mode -->
     <string name="clear_cache">清除缓存</string>
-    <string name="cache_size_placeholder">缓存大小: %1$s</string> <!-- Cache size placeholder -->
+    <string name="cache_size_placeholder">缓存大小: %1$s</string>
     <string name="check_for_updates">检查更新</string>
     <string name="cache_cleared">缓存已清除</string>
     <string name="update_available_title">有新版本可用</string>
@@ -39,7 +38,7 @@
     <string name="update_now">立即更新</string>
     <string name="later">稍后</string>
 
-    <!-- New: Download Directory Option -->
+    <!-- Download Directory Option -->
     <string name="download_directory">下载目录</string>
     <string name="select_download_directory">选择下载目录</string>
     <string name="current_download_directory">当前目录: %1$s</string>
@@ -47,7 +46,7 @@
     <string name="directory_selection_failed">目录选择失败</string>
     <string name="directory_set_successfully">下载目录已设置为: %1$s</string>
 
-    <!-- New: About App -->
+    <!-- About App -->
     <string name="about_app">关于应用</string>
     <string name="app_info">应用信息</string>
     <string name="app_version">应用版本: %1$s</string>
@@ -58,7 +57,6 @@
     <string name="app_install_time">安装时间: %1$s</string>
     <string name="app_last_update">最后更新: %1$s</string>
     <string name="build_time">构建时间: %1$s</string>
-    <string name="developer_info">开发者信息</string>
     <string name="copyright_info">© 2025 萌哩. 保留所有权利</string>
 
     <!-- WebView Version Check -->
