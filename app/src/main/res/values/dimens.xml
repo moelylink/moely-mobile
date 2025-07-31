@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自定义工具栏高度 - 比默认的actionBarSize矮一些 -->
+    <dimen name="custom_toolbar_height">48dp</dimen>
+    
+    <!-- 默认的actionBarSize通常是56dp，我们设置为48dp让它矮一点 -->
+    
+</resources>

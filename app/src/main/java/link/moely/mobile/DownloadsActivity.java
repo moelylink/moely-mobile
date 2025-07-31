@@ -241,6 +241,14 @@ public class DownloadsActivity extends AppCompatActivity implements DownloadsAda
 
         dialog.show();
         
+        // 应用主题色到对话框按钮
+        com.google.android.material.button.MaterialButton deleteButton = dialog.findViewById(R.id.delete_button_dialog);
+        com.google.android.material.button.MaterialButton cancelButton = dialog.findViewById(R.id.cancel_button);
+        
+        if (deleteButton != null) {
+            ThemeUtils.applyThemeToButton(deleteButton, false);
+        }
+        
         // 在对话框显示后设置自定义按钮的点击事件
         dialog.findViewById(R.id.delete_button_dialog).setOnClickListener(v -> {
             boolean shouldDeleteFile = fileExists && deleteFileCheckBox.isChecked();
@@ -256,27 +264,42 @@ public class DownloadsActivity extends AppCompatActivity implements DownloadsAda
      */
     private void deleteDownload(DownloadItem item, boolean deleteFile) {
         try {
+            boolean recordDeleted = false;
+            boolean fileDeleted = false;
+            
             // 从 DownloadManager 中删除记录
             if (item.getDownloadId() != -1) {
                 int removed = downloadManager.remove(item.getDownloadId());
+                recordDeleted = removed > 0;
                 Log.d(TAG, "Removed " + removed + " download record(s) for ID: " + item.getDownloadId());
+            } else {
+                recordDeleted = true; // 如果没有有效的下载ID，认为记录删除成功
             }
             
-            // 删除文件（如果实际存在）
-            boolean fileDeleted = false;
+            // 删除文件（如果需要且实际存在）
             if (deleteFile) {
                 File file = new File(item.getFilePath());
                 if (file.exists()) {
                     fileDeleted = file.delete();
                     Log.d(TAG, "File deletion result: " + fileDeleted + " for file: " + item.getFilePath());
+                } else {
+                    // 文件不存在，但用户选择了删除文件，我们认为这是成功的
+                    fileDeleted = true;
+                    Log.d(TAG, "File does not exist, considering deletion successful: " + item.getFilePath());
                 }
+            } else {
+                fileDeleted = true; // 不需要删除文件时，文件删除状态为true
             }
             
             // 显示结果消息
-            if (deleteFile && fileDeleted) {
+            if (deleteFile && fileDeleted && recordDeleted) {
                 Toast.makeText(this, R.string.download_deleted, Toast.LENGTH_SHORT).show();
-            } else if (!deleteFile) {
+            } else if (!deleteFile && recordDeleted) {
                 Toast.makeText(this, R.string.download_record_deleted, Toast.LENGTH_SHORT).show();
+            } else if (recordDeleted && !fileDeleted) {
+                Toast.makeText(this, "下载记录已删除，但文件删除失败", Toast.LENGTH_SHORT).show();
+            } else if (!recordDeleted && fileDeleted) {
+                Toast.makeText(this, "文件已删除，但下载记录删除失败", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(this, R.string.delete_failed, Toast.LENGTH_SHORT).show();
             }

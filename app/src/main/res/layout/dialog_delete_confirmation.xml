@@ -12,7 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/confirm_delete_download"
-        android:textColor="#FFFFFFFF"
+        android:textColor="?attr/colorOnSurface"
         android:textSize="18sp"
         android:textStyle="bold"
         android:layout_marginBottom="12dp"
@@ -22,14 +22,14 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#33FFFFFF"
+        android:background="?attr/colorOutline"
         android:layout_marginBottom="16dp"/>
 
     <TextView
         android:id="@+id/delete_message"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#FFCCCCCC"
+        android:textColor="?attr/colorOnSurfaceVariant"
         android:textSize="16sp"
         android:lineSpacingExtra="2dp"
         android:layout_marginBottom="20dp"
@@ -40,7 +40,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/delete_local_file_option"
-        android:textColor="#FFCCCCCC"
+        android:textColor="?attr/colorOnSurfaceVariant"
         android:textSize="14sp"
         android:checked="true"
         android:visibility="gone"
@@ -63,7 +63,7 @@
             android:layout_height="wrap_content"
             android:text="@string/cancel"
             style="@style/Widget.Material3.Button.TextButton"
-            android:textColor="#FFCCCCCC"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginEnd="8dp"/>
 
         <com.google.android.material.button.MaterialButton
@@ -72,7 +72,7 @@
             android:layout_height="wrap_content"
             android:text="@string/delete"
             style="@style/Widget.Material3.Button"
-            android:backgroundTint="@color/purple_500"/>
+            android:backgroundTint="?attr/colorError"/>
     </LinearLayout>
 
 </LinearLayout>
