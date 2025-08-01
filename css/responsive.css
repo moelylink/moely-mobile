@@ -1,0 +1,988 @@
+/*		Wide Display Layout: 1600px. */
+
+@media only screen and (min-width: 1600px) {
+.apps-craft-position-rel {
+    bottom: -200px;
+}
+body.apps-craft-v7 .apps-craft-position-rel {
+    top: -100px;
+}
+.apps-craft-welcome-section-v5 .apps-craft-position-rel {
+    right: 15%;
+}
+
+}
+
+/*		Wide Display Layout: 1200px. */
+
+@media only screen and (max-width: 1200px) {
+.apps-craft-welcome-section {
+    height: 800px;
+}
+.apps-craft-welcome-section-v5.apps-craft-welcome-section {
+    height: 600px;
+}
+.apps-craft-welcome-section.apps-craft-welcome-section-v5:after {
+    height: 400px;
+}
+.apps-craft-welcome-section .apps-craft-welcome-tbl, .apps-craft-welcome-screenshort .apps-craft-welcome-tbl {
+    height: 630px;
+}
+.apps-craft-welcome-content h1 {
+    font-size: 3.0em;
+    line-height: 1.2;
+    margin-bottom: 30px;
+}
+.apps-craft-welcome-section-v5 .apps-craft-position-rel {
+    width: 230px;
+    bottom: 100px;
+    right: 10%;
+}
+.apps-craft-welcome-section-v18 .apps-craft-position-rel {
+    bottom: 5%;
+}
+.apps-craft-btn.play-store-btn, .apps-craft-btn.app-store-btn {
+    width: 155px;
+    height: 60px;
+    line-height: 60px;
+}
+.apps-craft-welcome-screenshort img {
+    height: 430px;
+}
+.apps-craft-about-section {
+    bottom: 40px;
+}
+.apps-craft-single-about span {
+    font-size: 2.3em;
+    height: 80px;
+    width: 80px;
+    margin-bottom: 25px;
+    line-height: 80px;
+}
+.apps-craft-single-about h3 {
+    font-size: 1.502em;
+    margin-bottom: 20px;
+}
+.apps-craft-section-heading h2 {
+    font-size: 3.72em;
+}
+.section-padding, .apps-craft-why-chose-us-section.section-padding {
+    padding: 100px 0;
+}
+.apps-craft-feature-img {
+	transform: scale(.9);
+}
+.apps-craft-single-feature {
+    width: 50%;
+    float: left;
+    padding: 7px;
+    text-align: center;
+}
+.apps-craft-feature-content {
+    box-shadow: 0 0 25px rgba(0,0,0,.08);
+    padding: 15px 15px;
+}
+.apps-craft-feature-content i {
+    font-size: 2.500em;
+    width: 65px;
+    height: 65px;
+    box-shadow: 0 12px 24px rgba(0,0,0,.28);
+    line-height: 65px;
+    margin-bottom: 15px;
+}
+.apps-craft-feature-content h3 {
+    font-size: 1.414em;
+}
+.apps-craft-video-section{
+	height: 550px;
+}
+.apps-craft-fun-factory-section div.apps-craft-tbl {
+    height: 500px;
+}
+.apps-craft-why-chose-us-section .content-margin-top {
+    margin-top: 60px;
+}
+.apps-craft-why-choose-us-container {
+    width: 100%;
+}
+.content-margin-top {
+    margin-top: 80px;
+}
+.apps-craft-menu ul li a {
+    font-size: 1.0em;
+    margin: 0 12px;
+    font-weight: 400;
+}
+.apps-craft-pricing-head h3 {
+    font-size: 1.214em;
+}
+.apps-craft-pricing-body h2 {
+    font-size: 3.286em;
+    margin-bottom: 30px;
+}
+.apps-craft-subscribe-content h2 {
+    font-size: 2.201em;
+}
+.apps-craft-accordion .panel-title a {
+    font-size: 1.31em;
+    padding: 0 0 0 50px;
+}
+.apps-craft-accordion .panel-title {
+    height: 70px;
+}
+.apps-craft-accordion .panel-default>.panel-heading+.panel-collapse>.panel-body {
+    padding: 18px 25px;
+}
+.apps-craft-contact-form-content-inner {
+    width: calc(100% - 90px);
+    padding: 45px 0;
+}
+.apps-craft-contact-form-content h2 {
+    font-size: 2.32em;
+}
+.apps-craft-footer-logo {
+    padding-bottom: 35px;
+}
+.apps-craft-footer-section .apps-craft-subscribe-content {
+    margin-bottom: 65px;
+}
+.apps-craft-screenshort {
+    -webkit-perspective: 950px;
+    -moz-perspective: 950px;
+    -o-perspective: 950px;
+    perspective: 950px;
+}
+.apps-craft-subscribe-wraper:before, .apps-craft-subscribe-wraper:after {
+    top: -45px;
+    left: 45px;
+    width: 15px;
+    height: 200px;
+}
+.apps-craft-subscribe-wraper:after {
+    left: inherit;
+    right: 45px;
+}
+.apps-carft-screen-short-ssection {
+    overflow: hidden;
+}
+.apps-craft-footer-logo-and-social {
+    padding-bottom: 90px;
+}
+.apps-craft-social-link {
+    margin-top: 50px;
+}
+.apps-craft-welcome-section-v4.apps-craft-welcome-section .apps-craft-welcome-tbl, .apps-craft-welcome-section-v4.apps-craft-welcome-section {
+    max-height: 800px;
+}
+.apps-craft-welcome-section.apps-craft-video-bg, .apps-craft-welcome-section.apps-craft-video-bg .apps-craft-welcome-tbl {
+    max-height: 100vh;
+}
+body.apps-craft-v7 .apps-craft-welcome-section,
+body.apps-craft-v7 .apps-craft-welcome-section .apps-craft-welcome-tbl, 
+body.apps-craft-v7 .apps-craft-welcome-screenshort .apps-craft-welcome-tbl {
+    max-height: 800px;
+}
+body.apps-craft-v7 .apps-craft-welcome-screenshort img {
+    max-height: 560px;
+}
+.device {
+    top: -100px;
+    left: 10%;
+}
+.apps-craft-banner-swiper:before {
+    border-bottom: 30vh solid #F4F4F4;
+}
+body.apps-craft-v9 .apps-craft-welcome-section .apps-craft-welcome-tbl {
+    height: 500px;
+}
+body.apps-craft-v9 .apps-craft-welcome-section {
+    height: 900px;
+}
+.apps-craft-18-banner-bg-wrap {
+    top: 72%;
+}
+
+
+
+}
+
+/*		Tablet Layout: 768px */
+
+@media only screen and (min-width: 768px) and (max-width: 991px) {
+	
+.apps-craft-menu ul li a {
+    margin: 0 5px;
+}
+.apps-craft-welcome-content h1,
+.apps-craft-welcome-section-v18 .apps-craft-welcome-content h1 {
+    font-size: 2em;
+    margin-bottom: 25px;
+}
+.apps-craft-welcome-section-v18 .apps-craft-position-rel-v2 .background img {
+    min-height: 700px;
+}
+.apps-craft-welcome-section-v18.apps-craft-welcome-section {
+    height: 700px;
+}
+.apps-craft-18-banner-bg-wrap {
+    top: 55%;
+}
+.apps-craft-btn.play-store-btn, .apps-craft-btn.app-store-btn {
+    width: 150px;
+    height: 60px;
+    line-height: 30px;
+    padding: 14px;
+}
+.apps-craft-btn {
+    margin: 0 25px 0 0;
+}
+.apps-craft-position-rel {
+    bottom: -50px;
+}
+.apps-craft-single-about span {
+    font-size: 2em;
+    height: 65px;
+    width: 65px;
+    margin-bottom: 20px;
+    line-height: 65px;
+}
+.apps-craft-single-about h3 {
+    font-size: 1.202em;
+    margin-bottom: 15px;
+}
+.apps-craft-single-about p {
+    margin: 0;
+    padding: 0px 0px;
+    color: #E3E3E3;
+}
+.apps-craft-section-heading h2 {
+    font-size: 2.9em;
+}
+.section-padding, .apps-craft-why-chose-us-section.section-padding {
+    padding: 80px 0;
+}
+.apps-craft-feature-section .content-margin-top {
+    margin-top: 150px;
+}
+.apps-craft-feature-img {
+    margin-bottom: 25px;
+}
+.apps-craft-single-feature {
+    padding: 20px;
+}
+.apps-craft-feature-content {
+    padding: 20px 20px;
+}
+.apps-craft-video-section {
+    height: 450px;
+}
+.apps-craft-video-content a i {
+    font-size: 6em;
+}
+.apps-craft-video-content h4 {
+    margin-bottom: 30px;
+}
+.apps-craft-fun-factory-section div.apps-craft-tbl {
+    height: 425px;
+}
+.apps-craft-why-chose-ico span.apps-craft-round {
+    width: 65px;
+    height: 65px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.28);
+    line-height: 70px;
+    font-size: 2.0em;
+}
+.apps-craft-why-chose-single {
+    margin-bottom: 15px;
+}
+.apps-craft-why-chose-txt h3 {
+    font-size: 1.514em;
+    margin: 15px 0 15px;
+}
+.apps-craft-dash-border {
+    height: 120%;
+}
+figure.apps-craft-why-chose-img img:first-child {
+    width: 290px;
+}
+.apps-craft-why-chose-us-section .content-margin-top {
+    margin-top: 80px;
+}
+.apps-craft-screenshort {
+    width: 250px;
+    transform: scale(1.0);
+}
+.app-screen-mobile-image {
+    width: 370px;
+    top: -87px;
+}
+.apps-craft-testimonial-content {
+    width: calc(100% - 100px);
+    padding: 20px 0;
+}
+.apps-craft-commentor-img-continer {
+    width: 30%;
+}
+.apps-craft-rating-and-bio {
+    width: 66%;
+}
+.apps-craft-rating-and-bio:before, .apps-craft-rating-and-bio:after {
+    top: -25px;
+    left: -30px;
+}
+.apps-craft-commentor-img img {
+    width: 95px;
+    height: 95px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.28);
+}
+.apps-craft-commentor-img figcaption {
+    width: 45px;
+    height: 45px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.17);
+    line-height: 50px;
+    font-size: 1.29em;
+    top: 5px;
+    right: -35px;
+}
+.apps-craft-commentor-bio h3 {
+    font-size: 1.0em;
+}
+.content-margin-top {
+    margin-top: 50px;
+}
+.apps-craft-single-pricing {
+    padding: 40px 0px;
+}
+.apps-craft-pricing-head {
+    padding-bottom: 20px;
+    margin: 0 auto 20px auto;
+}
+.apps-craft-pricing-body h2 {
+    font-size: 2.5em;
+    margin-bottom: 20px;
+}
+.apps-craft-pricing-body p {
+    margin: 0 auto 10px auto;
+    width: calc(100% - 20px);
+    line-height: 1.5;
+}
+.apps-craft-btn.solid-color {
+    width: 120px;
+    height: 40px;
+    line-height: 30px;
+}
+.apps-craft-team-member-pic {
+    width: 100px;
+    height: 100px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.08);
+    line-height: 100px;
+}
+.apps-craft-team-member-pic img {
+    width: 85px;
+    height: 85px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.28);
+}
+.apps-craft-team-member-pic:before {
+    width: 100px;
+    height: 100px;
+}
+.apps-craft-social-link ul li {
+    margin: 0 0px 0 0;
+}
+.apps-craft-social-link ul li a {
+    font-size: 1.2em;
+}
+.apps-craft-team-member-pic:before {
+    opacity: .83;
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=83)";
+}
+.apps-craft-team-member-pic .apps-craft-team-hover {
+    top: 50%;
+    opacity: 1;
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=100)";
+}
+.apps-craft-team-img {
+    margin-bottom: 50px;
+}
+.apps-craft-team-img:before {
+    height: 45px;
+}
+.apps-craft-team-bio h2 {
+    font-size: 1.4em;
+    margin-bottom: 10px;
+}
+.apps-craft-team-bio h5 {
+    font-size: .9em;
+}
+.apps-craft-now-available-content {
+    width: 90%;
+}
+.apps-craft-now-available-section div.apps-craft-tbl {
+    height: 430px;
+}
+.apps-craft-now-available-content h3 {
+    font-size: 2.171em;
+    margin-bottom: 30px;
+}
+.apps-craft-now-available-content p {
+    margin-bottom: 30px;
+}
+.apps-craft-app-secreenshort {
+    bottom: 80px;
+}
+.apps-craft-sub-scribe-section.section-padding {
+    padding: 110px 0 80px 0;
+}
+.apps-craft-subscribe-wraper {
+    padding: 100px 0;
+}
+.apps-craft-accordion .panel-title {
+    height: 55px;
+    padding: 0 15px;
+}
+.apps-craft-accordion .panel-title a {
+    font-size: 1.2em;
+    padding: 0 0 0 45px;
+}
+.apps-craft-accordion .panel-title a.collapsed:before {
+    width: 28px;
+    height: 28px;
+    font-size: 1.0em;
+    line-height: 31px;
+}
+.apps-craft-accordion .panel-title a:before {
+    width: 28px;
+    height: 28px;
+    font-size: 1.0em;
+    line-height: 32px;
+}
+.apps-craft-accordion .panel {
+    margin-bottom: 15px;
+}
+.apps-craft-contact-form-content-inner {
+    width: calc(100% - 40px);
+    padding: 25px 0;
+}
+.apps-craft-contact-form-content h2 {
+    font-size: 2.0em;
+}
+.apps-craft-contact-form input[type="email"], .apps-craft-contact-form textarea {
+    height: 45px;
+}
+.apps-craft-contact-form textarea {
+    height: 155px;
+    padding: 15px;
+}
+.apps-craft-footer-section {
+    padding-top: 250px;
+}
+.apps-craft-subscribe-content {
+    width: 80%;
+    margin: 0 auto;
+    color: #FFFFFF;
+}
+.apps-craft-footer-logo {
+    padding-bottom: 0px;
+}
+.apps-craft-footer-logo-and-social {
+    padding-bottom: 70px;
+}
+.apps-craft-social-link {
+    margin-top: 10px;
+}
+.apps-craft-welcome-section-v4.apps-craft-welcome-section .apps-craft-welcome-tbl, .apps-craft-welcome-section-v4.apps-craft-welcome-section {
+    max-height: 700px;
+}
+.apps-craft-welcome-screenshort img {
+    height: 400px;
+}
+.apps-craft-welcome-section.apps-craft-video-bg, .apps-craft-welcome-section.apps-craft-video-bg .apps-craft-welcome-tbl {
+    max-height: 100vh;
+}
+body.apps-craft-v7 .apps-craft-welcome-section,
+body.apps-craft-v7 .apps-craft-welcome-section .apps-craft-welcome-tbl, 
+body.apps-craft-v7 .apps-craft-welcome-screenshort .apps-craft-welcome-tbl {
+    max-height: 600px;
+    min-height: 600px;
+}
+body.apps-craft-v7 .apps-craft-welcome-screenshort img {
+    max-height: 450px;
+}
+body.apps-craft-v7 .apps-craft-position-rel {
+    top: -40px;
+}
+body.apps-craft-v6 .apps-craft-video-content {
+    padding: 70px 0;
+}
+.device {
+    left: 0%;
+}
+
+
+
+}
+
+
+
+/*		Mobile Layout: 320px. */
+
+@media only screen and (max-width: 767px) {
+	
+#apps-craft-main-menu-icon {
+    display: block;
+    font-size: 22px;
+    line-height: 1;
+    text-align: right;
+}
+#apps-craft-menu {
+    min-width: 200px;
+    right: 0;
+    display: none;
+    position: absolute;
+    margin-top: 20px;
+    top: 20px;
+    background-color: #f2504d;
+    background-image: -webkit-linear-gradient( -20deg, rgb(242,81,76) 0%, rgb(242,81,76) 0%, rgb(242,81,77) 0%, rgb(242,80,77) 1%, rgb(246,65,94) 57%, rgb(250,50,111) 100%);
+    background-image: -ms-linear-gradient( -20deg, rgb(242,81,76) 0%, rgb(242,81,76) 0%, rgb(242,81,77) 0%, rgb(242,80,77) 1%, rgb(246,65,94) 57%, rgb(250,50,111) 100%);
+}
+body.apps-craft-solid-color #apps-craft-menu {
+    background-color: #1DA1F2;
+    background-image: -webkit-linear-gradient( -20deg, rgb(29, 161, 242) 0%, rgb(29, 161, 242) 0%, rgb(29, 161, 242) 0%, rgb(29, 161, 242) 1%, rgb(29, 161, 242) 57%, rgb(29, 161, 242) 100%);
+    background-image: -ms-linear-gradient( -20deg, rgb(29, 161, 242) 0%, rgb(29, 161, 242) 0%, rgb(29, 161, 242) 0%, rgb(29, 161, 242) 1%, rgb(29, 161, 242) 57%, rgb(29, 161, 242) 100%);
+}
+/* apps craft version 6*/
+.apps-craft-v5 #apps-craft-menu {
+    background-color: #232838;
+    background-image: none;
+    color: #FFFFFF;
+}
+.apps-craft-v5 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #232838 !important;
+}
+
+/* apps craft version 2,3,4,6,7,8 & 9 */
+.apps-craft-v9 #apps-craft-menu ,
+.apps-craft-v8 #apps-craft-menu ,
+.apps-craft-v7 #apps-craft-menu ,
+.apps-craft-v6 #apps-craft-menu ,
+.apps-craft-v4 #apps-craft-menu ,
+.apps-craft-v3 #apps-craft-menu ,
+.apps-craft-v2 #apps-craft-menu {
+    background-color: #F2504D;
+    background-image: -webkit-linear-gradient( 63deg, rgb(250,50,111) 0%, rgb(246,66,94) 53%, rgb(242,81,76) 100%, rgb(242,80,77) 100%);
+    background-image: -ms-linear-gradient( 63deg, rgb(250,50,111) 0%, rgb(246,66,94) 53%, rgb(242,81,76) 100%, rgb(242,80,77) 100%);
+}
+.apps-craft-v9 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate ,
+.apps-craft-v8 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate ,
+.apps-craft-v7 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate ,
+.apps-craft-v6 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate ,
+.apps-craft-v4 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate ,
+.apps-craft-v3 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate ,
+.apps-craft-v2 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #F2504D !important;
+}
+
+/* apps craft version 10*/
+.apps-craft-v10 #apps-craft-menu {
+    background-color: #01C9FC;
+    background-image: -webkit-linear-gradient( 0deg, rgb(1,201,252) 0%, rgb(123,237,147) 100%);
+    background-image: -ms-linear-gradient( 0deg, rgb(1,201,252) 0%, rgb(123,237,147) 100%);
+}
+.apps-craft-v10 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #01C9FC !important;
+}
+
+/* apps craft version 11*/
+.apps-craft-v11 #apps-craft-menu {
+    background-color: #5288ED;
+    background-image: -webkit-linear-gradient( 0deg, rgb(85,127,235) 0%, rgb(42,237,255) 100%);
+    background-image: -ms-linear-gradient( 0deg, rgb(85,127,235) 0%, rgb(42,237,255) 100%);
+}
+.apps-craft-v11 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #5288ED !important;
+}
+
+/* apps craft version 12*/
+.apps-craft-v12 #apps-craft-menu {
+    background-color: #FDBE39;
+    background-image: -webkit-linear-gradient( 35deg, rgb(239,61,136) 0%, rgb(253,190,57) 100%);
+    background-image: -ms-linear-gradient( 35deg, rgb(239,61,136) 0%, rgb(253,190,57) 100%);
+}
+.apps-craft-v12 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #FDBE39 !important;
+}
+
+/* apps craft version 13*/
+.apps-craft-v13 #apps-craft-menu {
+    background-color: #1DA1F2;
+    background-image: -webkit-linear-gradient(left, #00c9fd 0%, #81ee8e 100%);
+    background-image: linear-gradient(to right, #00c9fd 0%, #81ee8e 100%);
+}
+.apps-craft-v13 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #00C9FD !important;
+}
+.apps-craft-v13 .apps-craft-welcome-section:before {
+    display: none;
+}
+/* apps craft version 16 */
+.apps-craft-solid-color-v3 #apps-craft-menu {
+    background-color: #2BB4CA;
+    background-image: none;
+}
+.apps-craft-solid-color-v3 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #2BB4CA !important;
+}
+/* apps craft version 17 */
+.apps-craft-v17 #apps-craft-menu {
+    background-color: #f2504d;
+    background-image: -webkit-linear-gradient( 63deg, rgb(250,50,111) 0%, rgb(246,66,94) 53%, rgb(242,81,76) 100%, rgb(242,80,77) 100%);
+    background-image: -ms-linear-gradient( 63deg, rgb(250,50,111) 0%, rgb(246,66,94) 53%, rgb(242,81,76) 100%, rgb(242,80,77) 100%);
+}
+.apps-craft-v17 #apps-craft-menus .la-ball-elastic-dots.la-2x.item-generate {
+    color: #f2504d !important;
+}
+
+/* apps craft version 19 */
+.apps-craft-welcome-section-v19.apps-craft-welcome-section {
+    height: 650px;
+}
+.apps-craft-welcome-section-v19.apps-craft-welcome-section .apps-craft-welcome-tbl {
+    height: 600px;
+}
+
+
+.apps-craft-menu-and-serach {
+    position: relative;
+}
+.apps-craft-menu ul li {
+    width: 100%;
+    padding: 6px 12px;
+    border-bottom: 1px solid #FFFFFF;
+}
+.apps-craft-menu ul li:last-child {
+    border-bottom: 0px solid #FFFFFF;
+}
+.apps-craft-main-menu-area.sticky-menu .apps-craft-menu ul li a, .apps-craft-main-menu-area.sticky-menu .apps-craft-search-bar a i {
+    color: #fff;
+}
+.apps-craft-welcome-section {
+    height: inherit;
+}
+.apps-craft-about-section {
+    position: static;
+}
+.apps-craft-welcome-section .apps-craft-welcome-tbl, .apps-craft-welcome-screenshort .apps-craft-welcome-tbl {
+    height: 430px;
+}
+.apps-craft-welcome-content {
+    text-align: center;
+}
+.apps-craft-single-about {
+    margin-bottom: 40px;
+}
+.apps-craft-welcome-content h1,
+.apps-craft-welcome-section-v18 .apps-craft-welcome-content h1 {
+    font-size: 2.0em;
+}
+.apps-craft-btn.play-store-btn, .apps-craft-btn.app-store-btn {
+    width: 115px;
+    height: 45px;
+    line-height: 30px;
+    padding: 8px 15px;
+}
+.apps-craft-btn {
+    margin: 0 10px 0 0;
+}
+.apps-craft-section-heading h2 {
+    font-size: 2.5em;
+}
+.section-padding, .apps-craft-why-chose-us-section.section-padding {
+    padding: 80px 0;
+}
+.apps-craft-feature-section .content-margin-top {
+    margin-top: 150px;
+}
+.apps-craft-feature-section {
+    overflow: hidden;
+}
+.apps-craft-feature-img {
+    transform: scale(.8);
+}
+.apps-craft-single-feature {
+    width: 100%;
+    padding: 10px 6px;
+}
+.apps-craft-video-section {
+    height: 350px;
+}
+.apps-craft-video-content h4 {
+    margin: 0;
+    font-size: 2.071em;
+    margin-bottom: 25px;
+}
+.apps-craft-video-content a i {
+    font-size: 6em;
+}
+.content-margin-top {
+    margin-top: 30px;
+}
+.apps-craft-why-chose-img {
+    position: relative;
+    width: 100%;
+    margin: auto;
+    float: none;
+}
+.apps-craft-why-choose-us-container {
+    max-height: 550px;
+}
+figure.apps-craft-why-chose-img img:first-child {
+    width: 80%;
+}
+figure.apps-craft-why-chose-img img:last-child {
+    width: 100%;
+}
+.apps-craft-why-chose-txt h3 {
+    margin: 0px 0 20px;
+}
+.apps-craft-testimonial-content {
+    width: calc(100% - 0px);
+    padding: 15px 0;
+}
+.apps-craft-commentor-img-continer {
+    width: 100%;
+    float: none;
+    margin: 0px auto 20px;
+    text-align: center;
+}
+.apps-craft-rating-and-bio {
+    width: 100%;
+}
+.apps-craft-rating-and-bio:before, .apps-craft-rating-and-bio:after {
+    top: -50px;
+    left: 0px;
+}
+.apps-craft-rating-and-bio:after {
+    bottom: 20px;
+    right: 0px;
+    top: auto;
+    left: auto;
+}
+.apps-craft-rating {
+    width: 28%;
+}
+.apps-craft-commentor-bio {
+    width: 72%;
+}
+.apps-craft-testimonial-slider-wraper .customNavigation .prev, .apps-craft-testimonial-slider-wraper .customNavigation .next {
+    top: auto;
+    bottom: 0;
+}
+.apps-craft-single-pricing {
+    margin-top: 35px;
+    max-width: 450px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.apps-craft-team {
+    margin-top: 35px;
+}
+.apps-craft-team-img:before {
+    height: 55px;
+}
+.apps-craft-team-img {
+    margin-bottom: 58px;
+}
+.apps-craft-now-available-content {
+    width: 100%;
+}
+.apps-craft-now-available-section div.apps-craft-tbl {
+    height: 430px;
+}
+.apps-craft-now-available-content h3 {
+    font-size: 2.071em;
+    margin-bottom: 25px;
+}
+.apps-craft-now-available-content p {
+    margin-bottom: 30px;
+    line-height: 1.8;
+}
+.apps-craft-app-secreenshort {
+    width: calc(100% - 0px);
+    bottom: 90px;
+}
+.apps-craft-sub-scribe-section.section-padding {
+    padding: 100px 0 70px 0;
+    overflow: hidden;
+}
+.apps-craft-subscribe-content {
+    width: 90%;
+}
+.apps-craft-subscribe-content h2 {
+    font-size: 1.5em;
+}
+.apps-craft-subscribe-form input[type="email"] {
+    width: calc(100% - 0px);
+    height: 55px;
+    padding: 0 15px;
+}
+.apps-craft-subscribe-form input[type="submit"] {
+    width: 100px;
+    height: 40px;
+    margin-left: -108px;
+    font-size: 1.0em;
+    margin-top: 8px;
+}
+.apps-craft-subscribe-wraper {
+    padding: 115px 0;
+    min-height: 340px;
+}
+.apps-craft-subscribe-wraper:before, .apps-craft-subscribe-wraper:after {
+    top: -55px;
+    left: 49px;
+    width: 10px;
+    height: 180px;
+}
+.apps-craft-subscribe-wraper:after {
+    left: inherit;
+    right: 49px;
+}
+.apps-craft-accordion {
+    margin-top: 35px;
+}
+.apps-craft-footer-section {
+    padding-top: 230px;
+}
+.apps-craft-contact-form-content-inner {
+    width: calc(100% - 40px);
+}
+.apps-craft-contact-form-content h2 {
+    font-size: 2.0em;
+}
+.apps-craft-team-member-pic:before {
+    opacity: .83;
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=83)";
+}
+.apps-craft-team-member-pic .apps-craft-team-hover {
+    top: 50%;
+    opacity: 1;
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=100)";
+}
+.apps-craft-single-fun {
+    margin: 15px 0;
+}
+.apps-craft-fun-factory-wraper {
+    padding: 25px 0;
+}
+.apps-craft-fun-factory-section div.apps-craft-tbl {
+    height: 450px;
+}
+.apps-carft-screen-short-content {
+    margin: 80px 0;
+}
+.apps-craft-footer-logo-and-social {
+    padding-bottom: 25px;
+}
+.apps-craft-social-link {
+    margin-top: 20px;
+}
+.apps-craft-footer-logo {
+    padding-bottom: 5px;
+}
+.apps-craft-footer-menu-and-copyright-txt .apps-craft-copyright-txt {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 20px;
+}
+.apps-craft-footer-menu-and-copyright-txt .apps-craft-footer-menu {
+    width: 100%;
+    text-align: center;
+}
+.apps-craft-footer-menu ul li a {
+    margin: 0 5px;
+}
+body.apps-craft-v3 .apps-craft-welcome-section .apps-craft-welcome-tbl {
+    margin-top: 90px;
+}
+.apps-craft-welcome-section-v3 .apps-craft-welcome-content p {
+    width: 90%;
+    margin: 0 auto 20px auto;
+    font-size: 1.1em;
+}
+.apps-craft-welcome-section-v3.apps-craft-welcome-section {
+    height: auto;
+    min-height: 450px;
+}
+.apps-craft-welcome-section-v4.apps-craft-welcome-section .apps-craft-welcome-tbl, .apps-craft-welcome-section-v4.apps-craft-welcome-section {
+    max-height: 550px;
+    min-height: 0;
+}
+.apps-craft-video-bg .apps-craft-welcome-content p, .apps-craft-welcome-section-v3 .apps-craft-welcome-content p {
+    width: 90%;
+}
+body.apps-craft-v7 .apps-craft-welcome-section,
+body.apps-craft-v7 .apps-craft-welcome-section .apps-craft-welcome-tbl, 
+body.apps-craft-v7 .apps-craft-welcome-screenshort .apps-craft-welcome-tbl {
+    max-height: 500px;
+    min-height: 500px;
+}
+body.apps-craft-v6 .apps-craft-video-content {
+    padding: 50px 0;
+}
+.device {
+    top: 0;
+    left: 0;
+    position: relative;
+    margin: auto;
+}
+.showcase-wrap {
+    padding: 30px 0;
+}
+.apps-craft-banner-swiper:before {
+	display: none;
+}
+.apps-craft-side-bar-menu.active .apps-craft-side-menu  {
+    overflow-y: scroll;
+}
+.apps-craft-welcome-section-v18 .apps-craft-position-rel,
+.apps-craft-welcome-section-v5 .apps-craft-position-rel,
+.apps-craft-18-banner-bg-wrap {
+    display: none;
+}
+.apps-craft-welcome-section-v18 .apps-craft-position-rel-v2 .background img,
+.apps-craft-welcome-section-v5 .apps-craft-position-rel-v2 .background img {
+    max-height: 0;
+    min-height: 430px;
+}
+.apps-craft-welcome-section-v18.apps-craft-welcome-section,
+.apps-craft-welcome-section-v5.apps-craft-welcome-section {
+    min-height: 0;
+    max-height: 430px;
+}
+.apps-craft-welcome-section.apps-craft-welcome-section-v5:after {
+    background-position: bottom center;
+}
+
+
+	
+}
+
+
+
+/*		Wide Mobile Layout: 480px. */
+
+@media only screen and (min-width: 480px) and (max-width: 767px) {
+	
+	
+
+}
+
+
+/*      Small Mobile Layout: 320px. */
+@media only screen and (max-width: 479px) {
+.apps-craft-team {
+    width: 100%;
+    margin-top: 35px;
+}
+
+
+}
