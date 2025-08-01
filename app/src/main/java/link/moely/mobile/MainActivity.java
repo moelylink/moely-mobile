@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     @SuppressLint("SetJavaScriptEnabled")
-@Override
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -100,6 +100,8 @@ public class MainActivity extends AppCompatActivity {
 
         // --- 启动时请求权限 ---
         requestStoragePermissions();
+
+        handleDeepLink(getIntent());
     }
 
     /**
@@ -292,6 +294,39 @@ public class MainActivity extends AppCompatActivity {
 
         // --- WebView 版本检查 ---
         checkWebViewVersion();
+    }
+
+    
+    // 解析链接并打开相应页面
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleDeepLink(intent);
+    }
+    private void handleDeepLink(Intent intent) {
+        Uri data = intent.getData();
+        if (data == null || webView == null) return;
+
+        String scheme = data.getScheme();
+        String host = data.getHost();
+        String path = data.getPath() != null ? data.getPath() : "";
+
+        String urlToLoad = null;
+
+        if (("https".equals(scheme) || "http".equals(scheme)) && ("www.moely.link".equals(host) || "mobile.moely.link".equals(host))) {
+            urlToLoad = data.toString();
+        } else if ("moely".equalsIgnoreCase(scheme)) {
+            // 将 moely://abc/123 转换为 https://www.moely.link/abc/123
+            if (host != null) {
+                urlToLoad = "https://www.moely.link/" + host + path;
+            } else {
+                urlToLoad = "https://www.moely.link" + path;
+            }
+        }
+        if (urlToLoad != null) {
+            webView.loadUrl(urlToLoad);
+        }
     }
 
     @Override

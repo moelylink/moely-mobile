@@ -54,6 +54,13 @@
                 <data android:host="www.moely.link" />
                 <data android:host="mobile.moely.link" />
             </intent-filter>
+            <!-- 自定义 Scheme -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="moely"/>
+            </intent-filter>
         </activity>
 
         <activity

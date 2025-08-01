@@ -17,7 +17,7 @@ android {
     }
 
     signingConfigs {
-        defaultConfig {
+        release {
             storeFile file(System.getenv("MY_KEYSTORE_PATH") ?: project.findProperty("MY_KEYSTORE_PATH"))
             storePassword System.getenv("MY_KEYSTORE_PASSWORD") ?: project.findProperty("MY_KEYSTORE_PASSWORD")
             keyAlias System.getenv("MY_KEY_ALIAS") ?: project.findProperty("MY_KEY_ALIAS")
@@ -27,6 +27,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
