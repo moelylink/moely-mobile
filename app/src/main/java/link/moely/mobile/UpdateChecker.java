@@ -3,6 +3,8 @@ package link.moely.mobile;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.google.gson.Gson;
@@ -18,10 +20,12 @@ import java.util.concurrent.Executors;
 public class UpdateChecker {
 
     private static final String TAG = "MoelyUpdate"; // 更新 Logcat 标签
-    private static final String UPDATE_URL = "https://mobile.moely.link/app/version.json"; // 您的更新 JSON URL
+    private static final String UPDATE_URL = "https://mobile.moely.link/app/version.txt"; // 您的更新 JSON URL
+    private static final String FIXED_DOWNLOAD_URL = "https://mobile.moely.link/"; // 固定下载链接
     private Context context;
     private OnUpdateCheckListener listener;
     private ExecutorService executorService;
+    private Handler mainHandler;
 
     public interface OnUpdateCheckListener {
         void onUpdateCheckComplete(UpdateInfo updateInfo);
@@ -29,9 +33,10 @@ public class UpdateChecker {
     }
 
     public UpdateChecker(Context context, OnUpdateCheckListener listener) {
-        this.context = context;
+        this.context = context.getApplicationContext(); // Use application context to prevent leaks
         this.listener = listener;
         this.executorService = Executors.newSingleThreadExecutor();
+        this.mainHandler = new Handler(Looper.getMainLooper()); // Initialize Handler for UI thread
     }
 
     /**
@@ -39,9 +44,10 @@ public class UpdateChecker {
      */
     public void checkForUpdates() {
         executorService.execute(() -> {
+            HttpURLConnection connection = null; // Declare connection outside try block
             try {
                 URL url = new URL(UPDATE_URL);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection = (HttpURLConnection) url.openConnection(); // Assign value here
                 connection.setRequestMethod("GET");
                 connection.setConnectTimeout(5000);
                 connection.setReadTimeout(5000);
@@ -49,15 +55,13 @@ public class UpdateChecker {
                 int responseCode = connection.getResponseCode();
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String inputLine;
-                    while ((inputLine = in.readLine()) != null) {
-                        response.append(inputLine);
-                    }
+                    String remoteVersionString = in.readLine(); // Read the version string directly
                     in.close();
 
-                    Gson gson = new Gson();
-                    UpdateInfo remoteUpdateInfo = gson.fromJson(response.toString(), UpdateInfo.class);
+                    UpdateInfo remoteUpdateInfo = new UpdateInfo();
+                    remoteUpdateInfo.setLatestVersionName(remoteVersionString != null ? remoteVersionString.trim() : "");
+                    remoteUpdateInfo.setDownloadUrl(FIXED_DOWNLOAD_URL); // Set the fixed download URL
+                    // releaseNotes will not be available from version.txt
 
                     // 获取当前应用版本
                     PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
@@ -70,20 +74,24 @@ public class UpdateChecker {
                         // 有更新可用
                         remoteUpdateInfo.setCurrentVersionName(currentVersionName);
                         remoteUpdateInfo.setUpdateAvailable(true);
-                        listener.onUpdateCheckComplete(remoteUpdateInfo);
+                        mainHandler.post(() -> listener.onUpdateCheckComplete(remoteUpdateInfo));
                     } else {
                         // 没有更新可用或远程版本更旧/相同
                         UpdateInfo noUpdateInfo = new UpdateInfo();
                         noUpdateInfo.setUpdateAvailable(false);
                         noUpdateInfo.setCurrentVersionName(currentVersionName);
-                        listener.onUpdateCheckComplete(noUpdateInfo);
+                        mainHandler.post(() -> listener.onUpdateCheckComplete(noUpdateInfo));
                     }
                 } else {
-                    listener.onUpdateCheckFailed("服务器响应码: " + responseCode);
+                    mainHandler.post(() -> listener.onUpdateCheckFailed("服务器响应码: " + responseCode));
                 }
             } catch (Exception e) {
                 Log.e(TAG, "检查更新失败: " + e.getMessage(), e);
-                listener.onUpdateCheckFailed("网络错误或解析失败: " + e.getMessage());
+                mainHandler.post(() -> listener.onUpdateCheckFailed("网络错误或解析失败: " + e.getMessage()));
+            } finally {
+                if (connection != null) {
+                    connection.disconnect(); // Ensure connection is closed
+                }
             }
         });
     }
@@ -101,8 +109,13 @@ public class UpdateChecker {
 
         int length = Math.max(parts1.length, parts2.length);
         for (int i = 0; i < length; i++) {
-            int v1 = i < parts1.length ? Integer.parseInt(parts1[i]) : 0;
-            int v2 = i < parts2.length ? Integer.parseInt(parts2[i]) : 0;
+            // Extract only numeric part before parsing to handle suffixes like "-beta"
+            String p1 = i < parts1.length ? parts1[i].replaceAll("\\D+", "") : "0";
+            String p2 = i < parts2.length ? parts2[i].replaceAll("\\D+", "") : "0";
+
+            int v1 = Integer.parseInt(p1);
+            int v2 = Integer.parseInt(p2);
+
             if (v1 < v2) {
                 return -1;
             } else if (v1 > v2) {
@@ -130,8 +143,16 @@ public class UpdateChecker {
             return latestVersionName;
         }
 
+        public void setLatestVersionName(String latestVersionName) {
+            this.latestVersionName = latestVersionName;
+        }
+
         public String getDownloadUrl() {
             return downloadUrl;
+        }
+
+        public void setDownloadUrl(String downloadUrl) {
+            this.downloadUrl = downloadUrl;
         }
 
         public String getReleaseNotes() {
