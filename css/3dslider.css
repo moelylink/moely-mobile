@@ -20,7 +20,7 @@
     left: 50%;
     transform: translateX(-50%);
     top: -78px;
-    z-index: 200;
+    z-index: 1;
 }
 
 #carousel {
@@ -63,6 +63,7 @@
      -webkit-backface-visibility: hidden;
      -moz-backface-visibility: hidden;
      -o-backface-visibility: hidden;
+     z-index: -1;
 }
 
 .ready #carousel figure {

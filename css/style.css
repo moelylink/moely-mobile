@@ -1882,6 +1882,7 @@ figure.apps-craft-why-chose-img img:last-child {
 	background-color: transparent;
 	border: 0px solid;
 	font-size: 2.571em;
+	z-index: 99;
 }
 .apps-carft-screen-short-content #options #next {
 	left: inherit;
