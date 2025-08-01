@@ -69,6 +69,7 @@
                         android:gravity="center_vertical"
                         android:paddingVertical="12dp"
                         android:background="?android:attr/selectableItemBackground"
+                        android:foreground="?attr/selectableItemBackground"
                         android:onClick="handleCacheClick"
                         android:focusable="true"
                         android:clickable="true">
@@ -83,9 +84,7 @@
                             android:textSize="14sp"
                             android:gravity="start|center_vertical"
                             android:paddingHorizontal="0dp"
-                            android:paddingVertical="8dp"
-                            android:focusable="false"
-                            android:clickable="false"/>
+                            android:paddingVertical="8dp"/>
 
                         <TextView
                             android:id="@+id/cacheSizeTextView"
@@ -111,6 +110,7 @@
                         android:orientation="vertical"
                         android:paddingVertical="12dp"
                         android:background="?android:attr/selectableItemBackground"
+                        android:foreground="?attr/selectableItemBackground"
                         android:onClick="handleDirectoryClick"
                         android:focusable="true"
                         android:clickable="true">
@@ -124,9 +124,7 @@
                             android:textSize="14sp"
                             android:gravity="start|center_vertical"
                             android:paddingHorizontal="0dp"
-                            android:paddingVertical="8dp"
-                            android:focusable="false"
-                            android:clickable="false"/>
+                            android:paddingVertical="8dp"/>
 
                         <TextView
                             android:id="@+id/currentDownloadDirectoryTextView"
@@ -224,7 +222,8 @@
                         android:gravity="start|center_vertical"
                         android:paddingHorizontal="0dp"
                         android:paddingVertical="12dp"
-                        android:background="?android:attr/selectableItemBackground"/>
+                        android:background="?android:attr/selectableItemBackground"
+                        android:foreground="?attr/selectableItemBackground"/>
 
                 </LinearLayout>
 
@@ -265,7 +264,8 @@
                         android:gravity="start|center_vertical"
                         android:paddingHorizontal="0dp"
                         android:paddingVertical="16dp"
-                        android:background="?android:attr/selectableItemBackground"/>
+                        android:background="?android:attr/selectableItemBackground"
+                        android:foreground="?attr/selectableItemBackground"/>
 
                     <View
                         android:layout_width="match_parent"
@@ -284,7 +284,8 @@
                         android:gravity="start|center_vertical"
                         android:paddingHorizontal="0dp"
                         android:paddingVertical="16dp"
-                        android:background="?android:attr/selectableItemBackground"/>
+                        android:background="?android:attr/selectableItemBackground"
+                        android:foreground="?attr/selectableItemBackground"/>
 
                 </LinearLayout>
 

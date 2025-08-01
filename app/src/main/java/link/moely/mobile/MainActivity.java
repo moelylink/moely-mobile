@@ -1,5 +1,3 @@
-// D:\AndroidStudioProject\moely\app\src\main\java\link\moely\mobile\MainActivity.java
-
 package link.moely.mobile;
 
 import android.annotation.SuppressLint;
@@ -56,8 +54,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String DEFAULT_DOWNLOAD_SUBDIR = "Moely";
     // 默认公共下载目录的完整路径（用于回退和非 SAF 情况）
     private static final String DEFAULT_PUBLIC_DOWNLOAD_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + File.separator + DEFAULT_DOWNLOAD_SUBDIR;
-
-
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -159,13 +155,6 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "onPageFinished: " + url);
                 progressBar.setVisibility(View.GONE); // 页面加载后隐藏进度条
 
-                // 更新工具栏按钮状态
-                boolean canGoBack = webView.canGoBack();
-                boolean canGoForward = webView.canGoForward();
-                bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(canGoBack);
-                bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(canGoForward);
-                Log.d(TAG, "onPageFinished - canGoBack: " + canGoBack + ", canGoForward: " + canGoForward);
-
                 // 注入脚本拦截网站下载
                 injectDownloadInterceptor(view);
 
@@ -190,6 +179,13 @@ public class MainActivity extends AppCompatActivity {
                     progressBar.setProgress(newProgress);
                 }
                 Log.d(TAG, "页面进度: " + newProgress);
+
+                // 更新工具栏按钮状态
+                boolean canGoBack = webView.canGoBack();
+                boolean canGoForward = webView.canGoForward();
+                bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(canGoBack);
+                bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(canGoForward);
+                Log.d(TAG, "onProgressChanged - canGoBack: " + canGoBack + ", canGoForward: " + canGoForward);
             }
         });
 
@@ -640,8 +636,16 @@ public class MainActivity extends AppCompatActivity {
         ThemeManager themeManager = ThemeManager.getInstance(this);
         int primaryColor = themeManager.getPrimaryColor();
         
-        // 创建颜色状态列表用于图标着色
-        android.content.res.ColorStateList colorStateList = android.content.res.ColorStateList.valueOf(primaryColor);
+        // 创建颜色状态列表用于图标着色，区分可用和不可用状态
+        int[][] states = new int[][] {
+            new int[] { android.R.attr.state_enabled}, // enabled
+            new int[] {-android.R.attr.state_enabled}  // disabled
+        };
+        int[] colors = new int[] {
+            primaryColor, // enabled color
+            ContextCompat.getColor(this, android.R.color.darker_gray) // disabled color
+        };
+        android.content.res.ColorStateList colorStateList = new android.content.res.ColorStateList(states, colors);
         bottomNavigationView.setItemIconTintList(colorStateList);
         bottomNavigationView.setItemTextColor(colorStateList);
         

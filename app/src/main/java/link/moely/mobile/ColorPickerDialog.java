@@ -123,22 +123,23 @@ public class ColorPickerDialog {
         colorGrid.setRowCount((PREDEFINED_COLORS.length + 3) / 4);
         
         for (ColorItem item : PREDEFINED_COLORS) {
-            MaterialCardView colorCard = createColorCard(item, selectedColorText);
+            SquareMaterialCardView colorCard = createColorCard(item, selectedColorText);
             colorGrid.addView(colorCard);
         }
         
         // 添加动态颜色提取卡片
-        MaterialCardView dynamicCard = createDynamicColorCard(selectedColorText);
+        SquareMaterialCardView dynamicCard = createDynamicColorCard(selectedColorText);
         colorGrid.addView(dynamicCard);
     }
 
-    private MaterialCardView createColorCard(ColorItem colorItem, TextView selectedColorText) {
-        MaterialCardView card = new MaterialCardView(context);
+    private SquareMaterialCardView createColorCard(ColorItem colorItem, TextView selectedColorText) {
+        SquareMaterialCardView card = new SquareMaterialCardView(context);
         
         // 设置卡片布局参数
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = dpToPx(60);
-        params.height = dpToPx(60);
+        params.width = 0; // Make width dynamic
+        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); // Distribute space evenly
+        params.height = ViewGroup.LayoutParams.WRAP_CONTENT; // Explicitly set height to wrap content
         params.setMargins(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         card.setLayoutParams(params);
         
@@ -181,10 +182,10 @@ public class ColorPickerDialog {
         return card;
     }
     
-    private void updateCardSelection(GridLayout parent, MaterialCardView selectedCard) {
+    private void updateCardSelection(GridLayout parent, SquareMaterialCardView selectedCard) {
         // 重置所有卡片的边框
         for (int i = 0; i < parent.getChildCount(); i++) {
-            MaterialCardView card = (MaterialCardView) parent.getChildAt(i);
+            SquareMaterialCardView card = (SquareMaterialCardView) parent.getChildAt(i);
             card.setStrokeWidth(0);
         }
         
@@ -201,13 +202,14 @@ public class ColorPickerDialog {
         textView.setTextColor(selectedColor);
     }
     
-    private MaterialCardView createDynamicColorCard(TextView selectedColorText) {
-        MaterialCardView card = new MaterialCardView(context);
+    private SquareMaterialCardView createDynamicColorCard(TextView selectedColorText) {
+        SquareMaterialCardView card = new SquareMaterialCardView(context);
         
         // 设置卡片布局参数
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = dpToPx(60);
-        params.height = dpToPx(60);
+        params.width = 0; // Make width dynamic
+        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); // Distribute space evenly
+        params.height = ViewGroup.LayoutParams.WRAP_CONTENT; // Explicitly set height to wrap content
         params.setMargins(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         card.setLayoutParams(params);
         
@@ -290,7 +292,7 @@ public class ColorPickerDialog {
         return card;
     }
     
-    private void extractDynamicColor(TextView selectedColorText, GridLayout parent, MaterialCardView dynamicCard) {
+    private void extractDynamicColor(TextView selectedColorText, GridLayout parent, SquareMaterialCardView dynamicCard) {
         try {
             Log.d("ColorPickerDialog", "Starting dynamic color extraction...");
             // 加载当前壁纸

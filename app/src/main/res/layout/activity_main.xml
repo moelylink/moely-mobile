@@ -30,7 +30,7 @@
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottomNavigationView"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="50dp"
         android:layout_marginStart="0dp"
         android:layout_marginEnd="0dp"
         android:background="?android:attr/windowBackground"
@@ -40,6 +40,8 @@
         app:layout_constraintRight_toRightOf="parent"
         app:menu="@menu/bottom_nav_menu"
         app:itemActiveIndicatorStyle="@null"
-        app:itemIconTint="@color/bottom_nav_icon_color" /> <!-- 重新添加：应用图标颜色选择器 -->
+        app:itemIconTint="@color/bottom_nav_icon_color"
+        app:itemPaddingTop="0dp"
+        app:itemPaddingBottom="0dp" /> <!-- 重新添加：应用图标颜色选择器 -->
 
 </androidx.constraintlayout.widget.ConstraintLayout>
