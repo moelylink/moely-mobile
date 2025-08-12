@@ -39,6 +39,7 @@
 
             <!-- 存储和缓存设置卡片 -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/storage_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -58,7 +59,7 @@
                         android:text="存储与缓存"
                         android:textSize="16sp"
                         android:textStyle="bold"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="@android:color/black"
                         android:layout_marginBottom="16dp" />
 
                     <!-- 清除缓存按钮和缓存大小显示 -->
@@ -81,6 +82,7 @@
                             android:layout_weight="1"
                             android:text="@string/clear_cache"
                             style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:textColor="@android:color/black"
                             android:textSize="14sp"
                             android:gravity="start|center_vertical"
                             android:paddingHorizontal="0dp"
@@ -92,7 +94,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/cache_size_placeholder"
                             android:textSize="12sp"
-                            android:textColor="?attr/colorOnSurface"
+                            android:textColor="@android:color/black"
                             android:layout_marginStart="8dp"
                             android:gravity="end"/>
                     </LinearLayout>
@@ -121,6 +123,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/download_directory"
                             style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:textColor="@android:color/black"
                             android:textSize="14sp"
                             android:gravity="start|center_vertical"
                             android:paddingHorizontal="0dp"
@@ -132,7 +135,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/current_download_directory"
                             android:textSize="12sp"
-                            android:textColor="?attr/colorOnSurface"
+                            android:textColor="@android:color/black"
                             android:alpha="0.7"
                             android:layout_marginStart="0dp"
                             android:layout_marginTop="4dp"/>
@@ -144,6 +147,7 @@
 
             <!-- 外观设置卡片 -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/appearance_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -163,7 +167,7 @@
                         android:text="外观设置"
                         android:textSize="16sp"
                         android:textStyle="bold"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="@android:color/black"
                         android:layout_marginBottom="16dp" />
                     <TextView
                         android:layout_width="match_parent"
@@ -171,7 +175,7 @@
                         android:text="主题模式"
                         android:textSize="16sp"
                         android:textStyle="bold"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="@android:color/black"
                         android:layout_marginBottom="16dp" />
                     
                     <RadioGroup
@@ -185,7 +189,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="浅色"
-                            android:textColor="?attr/colorOnSurface"
+                            android:textColor="@android:color/black"
                             android:layout_marginEnd="16dp" />
 
                         <RadioButton
@@ -193,7 +197,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="深色"
-                            android:textColor="?attr/colorOnSurface"
+                            android:textColor="@android:color/black"
                             android:layout_marginEnd="16dp" />
 
                         <RadioButton
@@ -201,7 +205,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="跟随系统"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:textColor="@android:color/black" />
 
                     </RadioGroup>
 
@@ -218,6 +222,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/theme_color"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:textColor="@android:color/black"
                         android:textSize="14sp"
                         android:gravity="start|center_vertical"
                         android:paddingHorizontal="0dp"
@@ -231,6 +236,7 @@
 
             <!-- 应用信息卡片 -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/app_info_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -250,7 +256,7 @@
                         android:text="应用信息"
                         android:textSize="16sp"
                         android:textStyle="bold"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="@android:color/black"
                         android:layout_marginBottom="16dp" />
 
                     <!-- 检查更新按钮 -->
@@ -260,6 +266,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/check_for_updates"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:textColor="@android:color/black"
                         android:textSize="14sp"
                         android:gravity="start|center_vertical"
                         android:paddingHorizontal="0dp"
@@ -280,6 +287,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/about_app"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:textColor="@android:color/black"
                         android:textSize="14sp"
                         android:gravity="start|center_vertical"
                         android:paddingHorizontal="0dp"

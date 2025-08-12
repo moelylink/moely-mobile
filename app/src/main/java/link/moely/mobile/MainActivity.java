@@ -37,7 +37,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import java.io.File;
 import android.Manifest;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity {
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -60,12 +60,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        // 初始化主题模式
-        ThemeModeManager.getInstance(this).initializeTheme();
-        
-        // 应用动态主题
-        ThemeUtils.applyTheme(this);
 
         // --- Modern Permissions API: register the launcher ---
         requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
@@ -399,7 +393,6 @@ public class MainActivity extends AppCompatActivity {
         getDelegate().setLocalNightMode(nightMode);
         
         // 重新应用主题（以防主题在其他Activity中被更改）
-        ThemeUtils.applyTheme(this);
         applyThemeToBottomNavigation();
         
         // 仅在 WebView 未加载任何内容时尝试重新请求权限并初始化 WebView。

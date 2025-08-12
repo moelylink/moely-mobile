@@ -28,7 +28,7 @@ import java.util.List;
 import android.os.Handler;
 import android.os.Looper;
 
-public class DownloadsActivity extends AppCompatActivity implements DownloadsAdapter.OnItemClickListener {
+public class DownloadsActivity extends BaseActivity implements DownloadsAdapter.OnItemClickListener {
 
     private RecyclerView downloadsRecyclerView;
     private TextView noDownloadsText;
@@ -66,7 +66,6 @@ public class DownloadsActivity extends AppCompatActivity implements DownloadsAda
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
         
         // 应用主题
-        ThemeUtils.applyTheme(this);
         ThemeUtils.applyThemeToToolbar(toolbar);
 
 

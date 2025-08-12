@@ -40,10 +40,11 @@ import android.Manifest;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 
 import java.io.File;
 
-public class SettingsActivity extends AppCompatActivity {
+public class SettingsActivity extends BaseActivity {
 
     private MaterialToolbar toolbar;
     private MaterialButton clearCacheButton;
@@ -90,13 +91,11 @@ public class SettingsActivity extends AppCompatActivity {
         radioDark = findViewById(R.id.radioDark);
         radioSystem = findViewById(R.id.radioSystem);
 
-        // 应用主题到当前 Activity
-        ThemeUtils.applyTheme(this);
         ThemeUtils.applyThemeToToolbar(toolbar);
         
-        // 应用主题到所有按钮
-        applyThemeToButtons();
-        
+        // 应用主题到所有卡片
+        applyThemeToCards();
+
         // 初始化主题模式选择
         initializeThemeModeSelection();
 
@@ -586,20 +585,16 @@ public class SettingsActivity extends AppCompatActivity {
     }
     
     /**
-     * 应用主题色到所有按钮
+     * 应用主题色到所有卡片
      */
-    private void applyThemeToButtons() {
+    private void applyThemeToCards() {
         ThemeManager themeManager = ThemeManager.getInstance(this);
-        int primaryColor = themeManager.getPrimaryColor();
+        int primaryLightColor = themeManager.getPrimaryLightColor();
         
-        // 设置按钮文本颜色为主题色
-        clearCacheButton.setTextColor(primaryColor);
-        downloadDirectoryButton.setTextColor(primaryColor);
-        themeColorButton.setTextColor(primaryColor);
-        checkUpdateButton.setTextColor(primaryColor);
-        aboutAppButton.setTextColor(primaryColor);
-        
-        Log.d(TAG, "Applied theme color to all buttons: " + String.format("#%06X", (0xFFFFFF & primaryColor)));
+        // 设置卡片背景颜色
+        ((MaterialCardView) findViewById(R.id.storage_card)).setCardBackgroundColor(primaryLightColor);
+        ((MaterialCardView) findViewById(R.id.appearance_card)).setCardBackgroundColor(primaryLightColor);
+        ((MaterialCardView) findViewById(R.id.app_info_card)).setCardBackgroundColor(primaryLightColor);
     }
     
     /**
@@ -634,28 +629,10 @@ public class SettingsActivity extends AppCompatActivity {
                 newMode = ThemeModeManager.MODE_SYSTEM;
             }
             
-            // 先保存设置但不立即应用全局主题
-            themeModeManager.setThemeModeOnly(newMode);
-            
-            // 获取当前主题模式进行平滑切换
-            int nightMode;
-            switch (newMode) {
-                case ThemeModeManager.MODE_LIGHT:
-                    nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO;
-                    break;
-                case ThemeModeManager.MODE_DARK:
-                    nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES;
-                    break;
-                case ThemeModeManager.MODE_SYSTEM:
-                default:
-                    nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
-                    break;
+            if (themeModeManager.getThemeMode() != newMode) {
+                themeModeManager.setThemeMode(newMode);
+                recreate();
             }
-            
-            // 应用到当前Activity的Delegate，实现平滑切换
-            getDelegate().setLocalNightMode(nightMode);
-            
-            Log.d(TAG, "主题模式已更改为: " + themeModeManager.getThemeModeDescription(newMode));
         });
     }
     

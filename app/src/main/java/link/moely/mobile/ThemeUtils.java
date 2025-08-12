@@ -11,46 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
-
 public class ThemeUtils {
-    
-    /**
-     * 应用主题色到Activity
-     */
-    public static void applyTheme(Activity activity) {
-        ThemeManager themeManager = ThemeManager.getInstance(activity);
-        int primaryColor = themeManager.getPrimaryColor();
-        int primaryDarkColor = themeManager.getPrimaryDarkColor();
-        
-        // 设置状态栏颜色
-        Window window = activity.getWindow();
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-        window.setStatusBarColor(primaryDarkColor);
-        
-        // 根据状态栏颜色亮度设置状态栏图标颜色
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            View decorView = window.getDecorView();
-            int flags = decorView.getSystemUiVisibility();
-            if (isLightColor(primaryDarkColor)) {
-                // 深色状态栏图标（用于浅色背景）
-                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            } else {
-                // 浅色状态栏图标（用于深色背景）
-                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            }
-            decorView.setSystemUiVisibility(flags);
-        }
-        
-        // 设置ActionBar颜色（如果存在）
-        if (activity instanceof AppCompatActivity) {
-            AppCompatActivity appCompatActivity = (AppCompatActivity) activity;
-            ActionBar actionBar = appCompatActivity.getSupportActionBar();
-            if (actionBar != null) {
-                actionBar.setBackgroundDrawable(new ColorDrawable(primaryColor));
-            }
-        }
-    }
     
     /**
      * 应用主题色到MaterialToolbar
