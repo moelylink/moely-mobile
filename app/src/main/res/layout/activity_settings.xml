@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/windowBackground"
+    android:fitsSystemWindows="true"
     tools:context="link.moely.mobile.SettingsActivity">
 
     <!-- Material Toolbar for the top bar -->
@@ -17,7 +18,7 @@
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
         app:title="@string/title_activity_settings"
-        app:titleTextColor="@android:color/white"
+        app:titleTextColor="?attr/colorOnPrimary"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -37,267 +38,220 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- 存储和缓存设置卡片 -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/storage_card"
+            <!-- 存储和缓存设置 -->
+            <LinearLayout
+                android:id="@+id/storage_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
                 android:layout_marginBottom="16dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="6dp"
-                app:cardBackgroundColor="?attr/colorSurface">
+                android:background="?attr/colorSurfaceVariant"
+                >
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="存储与缓存"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 清除缓存按钮和缓存大小显示 -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:onClick="handleCacheClick"
+                    android:paddingVertical="12dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/clear_cache"
+                        android:textSize="16sp"
+                        android:textColor="?attr/colorOnSurface"
+                        android:layout_alignParentStart="true"
+                        android:layout_centerVertical="true"/>
+
+                    <TextView
+                        android:id="@+id/cacheSizeTextView"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/cache_size_placeholder"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"/>
+                </RelativeLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorOutline"
+                    android:layout_marginVertical="8dp"/>
+
+                <!-- 下载目录选项 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    android:onClick="handleDirectoryClick"
+                    android:paddingVertical="12dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
 
                     <TextView
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="存储与缓存"
+                        android:text="@string/download_directory"
                         android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/black"
-                        android:layout_marginBottom="16dp" />
+                        android:textColor="?attr/colorOnSurface"/>
 
-                    <!-- 清除缓存按钮和缓存大小显示 -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
+                    <TextView
+                        android:id="@+id/currentDownloadDirectoryTextView"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:paddingVertical="12dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:foreground="?attr/selectableItemBackground"
-                        android:onClick="handleCacheClick"
-                        android:focusable="true"
-                        android:clickable="true">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/clearCacheButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="@string/clear_cache"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
-                            android:textColor="@android:color/black"
-                            android:textSize="14sp"
-                            android:gravity="start|center_vertical"
-                            android:paddingHorizontal="0dp"
-                            android:paddingVertical="8dp"/>
-
-                        <TextView
-                            android:id="@+id/cacheSizeTextView"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/cache_size_placeholder"
-                            android:textSize="12sp"
-                            android:textColor="@android:color/black"
-                            android:layout_marginStart="8dp"
-                            android:gravity="end"/>
-                    </LinearLayout>
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="?attr/colorOutline"
-                        android:layout_marginVertical="8dp"/>
-
-                    <!-- 下载目录选项 -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:paddingVertical="12dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:foreground="?attr/selectableItemBackground"
-                        android:onClick="handleDirectoryClick"
-                        android:focusable="true"
-                        android:clickable="true">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/downloadDirectoryButton"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/download_directory"
-                            style="@style/Widget.MaterialComponents.Button.TextButton"
-                            android:textColor="@android:color/black"
-                            android:textSize="14sp"
-                            android:gravity="start|center_vertical"
-                            android:paddingHorizontal="0dp"
-                            android:paddingVertical="8dp"/>
-
-                        <TextView
-                            android:id="@+id/currentDownloadDirectoryTextView"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/current_download_directory"
-                            android:textSize="12sp"
-                            android:textColor="@android:color/black"
-                            android:alpha="0.7"
-                            android:layout_marginStart="0dp"
-                            android:layout_marginTop="4dp"/>
-                    </LinearLayout>
-
+                        android:text="@string/current_download_directory"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginTop="4dp"/>
                 </LinearLayout>
 
-            </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
-            <!-- 外观设置卡片 -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/appearance_card"
+            <!-- 外观设置 -->
+            <LinearLayout
+                android:id="@+id/appearance_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
                 android:layout_marginBottom="16dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="6dp"
-                app:cardBackgroundColor="?attr/colorSurface">
+                android:background="?attr/colorSurfaceVariant">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
+                    android:text="外观设置"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface"
+                    android:layout_marginBottom="16dp" />
 
-                    <TextView
-                        android:layout_width="match_parent"
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="主题模式"
+                    android:textSize="16sp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioGroup
+                    android:id="@+id/themeModeRadioGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/radioLight"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="外观设置"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/black"
-                        android:layout_marginBottom="16dp" />
-                    <TextView
-                        android:layout_width="match_parent"
+                        android:text="浅色"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <RadioButton
+                        android:id="@+id/radioDark"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="主题模式"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/black"
-                        android:layout_marginBottom="16dp" />
-                    
-                    <RadioGroup
-                        android:id="@+id/themeModeRadioGroup"
-                        android:layout_width="match_parent"
+                        android:text="深色"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <RadioButton
+                        android:id="@+id/radioSystem"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:text="跟随系统"
+                        android:textColor="?attr/colorOnSurface" />
 
-                        <RadioButton
-                            android:id="@+id/radioLight"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="浅色"
-                            android:textColor="@android:color/black"
-                            android:layout_marginEnd="16dp" />
+                </RadioGroup>
 
-                        <RadioButton
-                            android:id="@+id/radioDark"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="深色"
-                            android:textColor="@android:color/black"
-                            android:layout_marginEnd="16dp" />
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorOutline"
+                    android:layout_marginVertical="16dp"/>
 
-                        <RadioButton
-                            android:id="@+id/radioSystem"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="跟随系统"
-                            android:textColor="@android:color/black" />
+                <TextView
+                    android:id="@+id/themeColorButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/theme_color"
+                    android:textSize="16sp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:paddingVertical="12dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"/>
 
-                    </RadioGroup>
+            </LinearLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="?attr/colorOutline"
-                        android:layout_marginVertical="16dp"/>
-
-                    
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/themeColorButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/theme_color"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:textColor="@android:color/black"
-                        android:textSize="14sp"
-                        android:gravity="start|center_vertical"
-                        android:paddingHorizontal="0dp"
-                        android:paddingVertical="12dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:foreground="?attr/selectableItemBackground"/>
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- 应用信息卡片 -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/app_info_card"
+            <!-- 应用信息 -->
+            <LinearLayout
+                android:id="@+id/app_info_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="6dp"
-                app:cardBackgroundColor="?attr/colorSurface">
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:background="?attr/colorSurfaceVariant">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp">
+                    android:text="应用信息"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorOnSurface"
+                    android:layout_marginBottom="16dp" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="应用信息"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/black"
-                        android:layout_marginBottom="16dp" />
+                <TextView
+                    android:id="@+id/checkUpdateButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/check_for_updates"
+                    android:textSize="16sp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:paddingVertical="12dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"/>
 
-                    <!-- 检查更新按钮 -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/checkUpdateButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/check_for_updates"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:textColor="@android:color/black"
-                        android:textSize="14sp"
-                        android:gravity="start|center_vertical"
-                        android:paddingHorizontal="0dp"
-                        android:paddingVertical="16dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:foreground="?attr/selectableItemBackground"/>
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorOutline"
+                    android:layout_marginVertical="8dp"/>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="?attr/colorOutline"
-                        android:layout_marginVertical="8dp"/>
+                <TextView
+                    android:id="@+id/aboutAppButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/about_app"
+                    android:textSize="16sp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:paddingVertical="12dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"/>
 
-                    <!-- 关于应用按钮 -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/aboutAppButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/about_app"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:textColor="@android:color/black"
-                        android:textSize="14sp"
-                        android:gravity="start|center_vertical"
-                        android:paddingHorizontal="0dp"
-                        android:paddingVertical="16dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:foreground="?attr/selectableItemBackground"/>
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
         </LinearLayout>
 

@@ -11,5 +11,6 @@ public class BaseActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         ThemeManager.getInstance(this);
         ThemeModeManager.getInstance(this).initializeTheme();
+        ThemeUtils.applyThemeToStatusBar(this);
     }
 }

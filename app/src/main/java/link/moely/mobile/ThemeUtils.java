@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
+import android.os.Build;
 public class ThemeUtils {
     
     /**
@@ -21,7 +22,7 @@ public class ThemeUtils {
         
         ThemeManager themeManager = ThemeManager.getInstance(toolbar.getContext());
         int primaryColor = themeManager.getPrimaryColor();
-        int textColor = android.graphics.Color.WHITE;
+        int textColor = themeManager.getTextColorOnPrimary();
         
         toolbar.setBackgroundColor(primaryColor);
         toolbar.setTitleTextColor(textColor);
@@ -69,6 +70,27 @@ public class ThemeUtils {
         int primaryColor = themeManager.getPrimaryColor();
         
         card.setStrokeColor(primaryColor);
+    }
+
+    public static void applyThemeToStatusBar(Activity activity) {
+        if (activity == null) return;
+
+        Window window = activity.getWindow();
+        ThemeManager themeManager = ThemeManager.getInstance(activity);
+        int primaryColor = themeManager.getPrimaryColor();
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.setStatusBarColor(primaryColor);
+
+        // Set status bar icon colors based on background color
+        View decorView = window.getDecorView();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (isLightColor(primaryColor)) {
+                decorView.setSystemUiVisibility(decorView.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            } else {
+                decorView.setSystemUiVisibility(decorView.getSystemUiVisibility() & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
     }
     
     /**

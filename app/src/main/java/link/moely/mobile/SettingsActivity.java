@@ -40,20 +40,17 @@ import android.Manifest;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.card.MaterialCardView;
 
 import java.io.File;
 
 public class SettingsActivity extends BaseActivity {
 
     private MaterialToolbar toolbar;
-    private MaterialButton clearCacheButton;
     private TextView cacheSizeTextView;
-    private MaterialButton downloadDirectoryButton;
     private TextView currentDownloadDirectoryTextView;
-    private MaterialButton themeColorButton;
-    private MaterialButton checkUpdateButton;
-    private MaterialButton aboutAppButton;
+    private TextView themeColorButton;
+    private TextView checkUpdateButton;
+    private TextView aboutAppButton;
     private RadioGroup themeModeRadioGroup;
     private RadioButton radioLight;
     private RadioButton radioDark;
@@ -79,9 +76,7 @@ public class SettingsActivity extends BaseActivity {
         setContentView(R.layout.activity_settings);
 
         toolbar = findViewById(R.id.toolbar_settings);
-        clearCacheButton = findViewById(R.id.clearCacheButton);
         cacheSizeTextView = findViewById(R.id.cacheSizeTextView);
-        downloadDirectoryButton = findViewById(R.id.downloadDirectoryButton);
         currentDownloadDirectoryTextView = findViewById(R.id.currentDownloadDirectoryTextView);
         themeColorButton = findViewById(R.id.themeColorButton);
         checkUpdateButton = findViewById(R.id.checkUpdateButton);
@@ -92,9 +87,6 @@ public class SettingsActivity extends BaseActivity {
         radioSystem = findViewById(R.id.radioSystem);
 
         ThemeUtils.applyThemeToToolbar(toolbar);
-        
-        // 应用主题到所有卡片
-        applyThemeToCards();
 
         // 初始化主题模式选择
         initializeThemeModeSelection();
@@ -320,6 +312,10 @@ public class SettingsActivity extends BaseActivity {
             if (uri.getScheme().equals("file")) {
                 // For file:// URIs, directly use the path
                 displayPath = uri.getPath();
+                String externalStoragePath = Environment.getExternalStorageDirectory().getPath();
+                if (displayPath != null && displayPath.startsWith(externalStoragePath)) {
+                    displayPath = displayPath.substring(externalStoragePath.length());
+                }
                 Log.d(TAG, "getDisplayPathForUri: File URI, path: " + displayPath);
             } else if (uri.getScheme().equals("content")) {
                 Log.d(TAG, "getDisplayPathForUri: Content URI, path: " + uri.getPath());
@@ -347,7 +343,7 @@ public class SettingsActivity extends BaseActivity {
                                 String relativePath = documentId.substring("primary:".length());
                                 // Decode URL-encoded characters like %2F back to /
                                 relativePath = Uri.decode(relativePath);
-                                displayPath = "/storage/emulated/0/" + relativePath;
+                                displayPath = "/" + relativePath;
                                 Log.d(TAG, "getDisplayPathForUri: Resolved primary storage path: " + displayPath);
                             }
                             // Handle other common document providers (e.g., SD cards, USB drives)
@@ -358,10 +354,10 @@ public class SettingsActivity extends BaseActivity {
                                     String folderPath = parts[1];
                                     // A very basic attempt to make it more readable for external volumes
                                     if (volumeId.matches("[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}")) { // Common format for SD card IDs
-                                        displayPath = "SD Card/" + folderPath;
+                                        displayPath = folderPath;
                                     } else {
                                         // Generic fallback for other volume IDs
-                                        displayPath = volumeId + "/" + folderPath;
+                                        displayPath = folderPath;
                                     }
                                     Log.d(TAG, "getDisplayPathForUri: Resolved non-primary document ID: " + displayPath);
                                 } else {
@@ -582,19 +578,6 @@ public class SettingsActivity extends BaseActivity {
             Log.e(TAG, "显示颜色选择器对话框时出错: ", e);
             Toast.makeText(this, "无法打开颜色选择器，请稍后重试。", Toast.LENGTH_SHORT).show();
         }
-    }
-    
-    /**
-     * 应用主题色到所有卡片
-     */
-    private void applyThemeToCards() {
-        ThemeManager themeManager = ThemeManager.getInstance(this);
-        int primaryLightColor = themeManager.getPrimaryLightColor();
-        
-        // 设置卡片背景颜色
-        ((MaterialCardView) findViewById(R.id.storage_card)).setCardBackgroundColor(primaryLightColor);
-        ((MaterialCardView) findViewById(R.id.appearance_card)).setCardBackgroundColor(primaryLightColor);
-        ((MaterialCardView) findViewById(R.id.app_info_card)).setCardBackgroundColor(primaryLightColor);
     }
     
     /**
