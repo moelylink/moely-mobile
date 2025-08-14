@@ -4,7 +4,5 @@
 
 开发不易，喜欢的给个Star支持下吧！
 
-萌哩手机客户端（Moely Mobile）源代码已全部开源，使用请遵守开源协议！
-
 应用介绍： https://mobile.moely.link/
 
