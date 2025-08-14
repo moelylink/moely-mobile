@@ -112,6 +112,8 @@ public class MainActivity extends BaseActivity {
         webSettings.setBuiltInZoomControls(true); // 显示内置缩放控件
         webSettings.setDisplayZoomControls(false); // 隐藏屏幕上的缩放控件
         webSettings.setMediaPlaybackRequiresUserGesture(false); // 允许媒体自动播放
+        webSettings.setTextZoom(100); // 禁止调整文本大小
+        webView.setInitialScale(0); // 避免比例错误
 
         // --- 设置自定义 User-Agent ---
         try {
@@ -138,6 +140,26 @@ public class MainActivity extends BaseActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 Log.d(TAG, "shouldOverrideUrlLoading: " + url);
+                if (url.contains("google.com")) {
+                    // 由于安全策略限制，Google 登录使用系统默认 UA
+                    String systemUA = System.getProperty("http.agent");
+                    webSettings.setUserAgentString(systemUA);
+                } else {
+                    // 恢复自定义 UA
+                    try {
+                        String originalUserAgent = webSettings.getUserAgentString();
+                        PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+                        String versionName = pInfo.versionName;
+                        // 防止重复添加
+                        if(!originalUserAgent.contains("MoelyMobile")){
+                            String customUserAgent = originalUserAgent + " MoelyMobile/" + versionName;
+                            webSettings.setUserAgentString(customUserAgent);
+                        }
+                        Log.d(TAG, "自定义 User-Agent 设置成功");
+                    } catch (PackageManager.NameNotFoundException e) {
+                        Log.e(TAG, "无法自定义 User-Agent。", e);
+                    }
+                }
                 // 处理外部链接或特定方案
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     view.loadUrl(url);
