@@ -113,6 +113,18 @@ public class MainActivity extends BaseActivity {
         webSettings.setDisplayZoomControls(false); // 隐藏屏幕上的缩放控件
         webSettings.setMediaPlaybackRequiresUserGesture(false); // 允许媒体自动播放
 
+        // --- 设置自定义 User-Agent ---
+        try {
+            String originalUserAgent = webSettings.getUserAgentString();
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            String versionName = pInfo.versionName;
+            String customUserAgent = originalUserAgent + " MoelyMobile/" + versionName;
+            webSettings.setUserAgentString(customUserAgent);
+            Log.d(TAG, "自定义 User-Agent 设置为: " + customUserAgent);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "无法获取应用版本名称以设置 User-Agent。", e);
+        }
+
         // 启用第三方 Cookie (对某些网站很重要)
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptThirdPartyCookies(webView, true);

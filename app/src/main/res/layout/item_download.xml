@@ -30,6 +30,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceSubtitle1"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="?attr/colorOnSurface"
                 android:text="File Name.pdf" />
@@ -39,6 +40,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBody2"
+                android:textSize="14sp"
                 android:textColor="?attr/colorOnSurface"
                 android:text="Size: 1.2 MB" />
 
@@ -47,6 +49,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBody2"
+                android:textSize="14sp"
                 android:textColor="?attr/colorOnSurface"
                 android:text="Status: Completed" />
 
