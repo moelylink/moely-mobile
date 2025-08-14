@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light Theme Colors 浅色主题颜色 -->
+    
+    <!-- Primary colors 主色调 -->
+    <color name="colorPrimary">#FF6200EE</color>
+    <color name="colorPrimaryVariant">#FF3700B3</color>
+    <color name="colorOnPrimary">#FFFFFFFF</color>
+    
+    <!-- Secondary colors 辅助色 -->
+    <color name="colorSecondary">#FF03DAC6</color>
+    <color name="colorSecondaryVariant">#FF018786</color>
+    <color name="colorOnSecondary">#FF000000</color>
+    
+    <!-- Surface and background colors 表面和背景色 -->
+    <color name="colorBackground">#FFFFFFFF</color>
+    <color name="colorSurface">#FFFFFFFF</color>
+    <color name="colorOnBackground">#FF000000</color>
+    <color name="colorOnSurface">#FF000000</color>
+
+    <!-- 卡片背景 -->
+    <color name="cardBackground">#EEEEEE</color>
+    
+    <!-- Text colors 文本颜色 -->
+    <color name="textColorPrimary">#DE000000</color>  <!-- 87% black -->
+    <color name="textColorSecondary">#99000000</color>  <!-- 60% black -->
+    <color name="textColorHint">#61000000</color>  <!-- 38% black -->
+    
+    <!-- Error colors 错误颜色 -->
+    <color name="colorError">#FFB00020</color>
+    <color name="colorOnError">#FFFFFFFF</color>
+
+    <!--分割线颜色-->
+    <color name="dividerColor">#D3D3D3</color>
+    
+    <!-- Legacy colors for backward compatibility 向后兼容的旧颜色 -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

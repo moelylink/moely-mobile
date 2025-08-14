@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">萌哩</string>
+    <string name="title_activity_downloads">我的下载</string>
+    <string name="title_activity_settings">设置</string>
+
+    <!-- Bottom Navigation Menu Items -->
+    <string name="back">后退</string>
+    <string name="forward">前进</string>
+    <string name="refresh">刷新</string>
+    <string name="downloads">下载</string>
+    <string name="settings">设置</string>
+
+    <!-- Downloads Activity -->
+    <string name="your_downloads">您的下载</string>
+    <string name="no_downloads_yet">暂无下载内容</string>
+    <string name="file_name_placeholder">文件名</string>
+    <string name="file_size_placeholder">大小</string>
+    <string name="file_status_placeholder">状态</string>
+    <string name="download_completed">已完成</string>
+    <string name="download_failed">失败</string>
+    <string name="download_pending">等待中</string>
+    <string name="download_running">下载中</string>
+    <string name="download_paused">已暂停</string>
+    <string name="open_file">打开文件</string>
+    <string name="file_not_found">文件未找到</string>
+    <string name="no_app_to_open_file">没有应用可以打开此文件</string>
+
+    <!-- Settings Activity -->
+    <string name="clear_cache">清除缓存</string>
+    <string name="cache_size_placeholder">缓存大小: %1$s</string>
+    <string name="check_for_updates">检查更新</string>
+    <string name="cache_cleared">缓存已清除</string>
+    <string name="update_available_title">有新版本可用</string>
+    <string name="update_available_message">当前版本：%1$s\n最新版本：%2$s\n\n是否立即更新？</string>
+    <string name="no_update_available">当前已是最新版本。</string>
+    <string name="update_check_failed">检查更新失败，请稍后再试。</string>
+    <string name="update_now">立即更新</string>
+    <string name="later">稍后</string>
+
+    <!-- Download Directory Option -->
+    <string name="download_directory">下载目录</string>
+    <string name="select_download_directory">选择下载目录</string>
+    <string name="current_download_directory">当前目录: %1$s</string>
+    <string name="directory_not_selected">未选择目录</string>
+    <string name="directory_selection_failed">目录选择失败</string>
+    <string name="directory_set_successfully">下载目录已设置为: %1$s</string>
+
+    <!-- About App -->
+    <string name="about_app">关于应用</string>
+    <string name="app_info">应用信息</string>
+    <string name="app_version">应用版本: %1$s</string>
+    <string name="webview_version">WebView版本: %1$s</string>
+    <string name="android_version">Android系统版本: %1$s</string>
+    <string name="device_model">设备型号: %1$s</string>
+    <string name="device_manufacturer">设备制造商: %1$s</string>
+    <string name="app_install_time">安装时间: %1$s</string>
+    <string name="app_last_update">最后更新: %1$s</string>
+    <string name="build_time">构建时间: %1$s</string>
+    <string name="copyright_info">© 2025 萌哩. 保留所有权利</string>
+
+    <!-- WebView Version Check -->
+    <string name="webview_version_warning_title">WebView 版本过低</string>
+    <string name="webview_version_warning_message">您的Android System WebView版本过低（当前版本：%1$s）。为了获得最佳体验，请更新到130或更高版本。</string>
+    <string name="update_webview">更新 WebView</string>
+    <string name="dismiss">忽略</string>
+
+    <!-- Blob Download Specific -->
+    <string name="blob_download_description">从萌哩应用下载的文件</string>
+    
+    <!-- Theme Color -->
+    <string name="theme_color">主题色</string>
+    <string name="select_theme_color">选择主题色</string>
+    <string name="current_theme_color">当前主题色: %1$s</string>
+    <string name="theme_color_changed">主题色已更改为: %1$s</string>
+    <string name="reset_theme">重置主题</string>
+    <string name="theme_reset_successfully">主题已重置为默认设置</string>
+
+    <!-- Download Delete -->
+    <string name="delete_download">删除</string>
+    <string name="confirm_delete_download">确认删除</string>
+    <string name="delete_download_message">确定要删除文件 "%1$s" 吗？</string>
+    <string name="delete_local_file_option">同时删除本地文件</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="download_deleted">下载已删除</string>
+    <string name="download_record_deleted">下载记录已删除</string>
+    <string name="delete_failed">删除失败</string>
+</resources>

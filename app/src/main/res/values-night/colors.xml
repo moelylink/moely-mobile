@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色主题颜色 -->
+    <color name="colorPrimary">#BB86FC</color>
+    <color name="colorPrimaryVariant">#3700B3</color>
+    <color name="colorOnPrimary">#000000</color>
+    <color name="colorSecondary">#03DAC6</color>
+    <color name="colorSecondaryVariant">#018786</color>
+    <color name="colorOnSecondary">#000000</color>
+    <color name="colorError">#CF6679</color>
+    <color name="colorOnError">#000000</color>
+    <color name="colorSurface">#121212</color>
+    <color name="colorOnSurface">#FFFFFF</color>
+    <color name="colorBackground">#121212</color>
+    <color name="colorOnBackground">#FFFFFF</color>
+    
+    <!-- 深色主题的卡片背景 -->
+    <color name="cardBackground">#1E1E1E</color>
+    
+    <!-- 深色主题的文本颜色 -->
+    <color name="textColorPrimary">#FFFFFF</color>
+    <color name="textColorSecondary">#B3FFFFFF</color>
+    <color name="textColorHint">#80FFFFFF</color>
+    
+    <!-- 深色主题的分割线颜色 -->
+    <color name="dividerColor">#2C2C2C</color>
+</resources>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Light Theme -->
+    <style name="Theme.MoelyApp" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary colors -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+        <item name="colorPrimaryContainer">@color/purple_200</item>
+        <item name="colorOnPrimaryContainer">@color/purple_700</item>
+        
+        <!-- Secondary colors -->
+        <item name="colorSecondary">@color/colorSecondary</item>
+        <item name="colorOnSecondary">@color/colorOnSecondary</item>
+        <item name="colorSecondaryContainer">@color/colorSecondaryVariant</item>
+        <item name="colorOnSecondaryContainer">@color/white</item>
+        
+        <!-- Surface and background colors -->
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnSurface">@color/colorOnSurface</item>
+        <item name="colorSurfaceVariant">#FFF5F5F5</item>
+        <item name="colorOnSurfaceVariant">#FF424242</item>
+        
+        <!-- Outline colors -->
+        <item name="colorOutline">#FFBDBDBD</item>
+        
+        <!-- Error colors -->
+        <item name="colorError">@color/colorError</item>
+        <item name="colorOnError">@color/colorOnError</item>
+        
+        <!-- Status and navigation bar colors -->
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimary</item>
+        <item name="android:windowBackground">@color/colorBackground</item>
+        <item name="android:navigationBarColor">@color/colorSurface</item>
+    </style>
+</resources>
