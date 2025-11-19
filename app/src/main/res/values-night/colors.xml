@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 深色主题颜色 -->
+    <!-- ===== Dark Theme Colors 深色主题颜色 ===== -->
+    
+    <!-- Primary colors 主色调 -->
     <color name="colorPrimary">#BB86FC</color>
     <color name="colorPrimaryVariant">#3700B3</color>
     <color name="colorOnPrimary">#000000</color>
+    
+    <!-- Secondary colors 辅助色 -->
     <color name="colorSecondary">#03DAC6</color>
     <color name="colorSecondaryVariant">#018786</color>
     <color name="colorOnSecondary">#000000</color>
+    
+    <!-- Error colors 错误颜色 -->
     <color name="colorError">#CF6679</color>
     <color name="colorOnError">#000000</color>
+    
+    <!-- Surface and background colors 表面和背景色 -->
     <color name="colorSurface">#121212</color>
     <color name="colorOnSurface">#FFFFFF</color>
     <color name="colorBackground">#121212</color>
@@ -19,9 +27,28 @@
     
     <!-- 深色主题的文本颜色 -->
     <color name="textColorPrimary">#FFFFFF</color>
-    <color name="textColorSecondary">#B3FFFFFF</color>
-    <color name="textColorHint">#80FFFFFF</color>
+    <color name="textColorSecondary">#B3FFFFFF</color>  <!-- 70% white -->
+    <color name="textColorHint">#80FFFFFF</color>  <!-- 50% white -->
     
     <!-- 深色主题的分割线颜色 -->
     <color name="dividerColor">#2C2C2C</color>
+    
+    <!-- ===== WebView 相关颜色（深色主题）===== -->
+    <!-- 进度条颜色（使用主色调） -->
+    <color name="progressBarColor">@color/colorPrimary</color>
+    
+    <!-- 链接颜色（深色主题下更亮） -->
+    <color name="linkColor">#FF64B5F6</color>
+    
+    <!-- 选中文本背景色 -->
+    <color name="textSelectionHighlight">#4DBB86FC</color>
+    
+    <!-- WebView 背景色（匹配应用背景） -->
+    <color name="webViewBackground">@color/colorBackground</color>
+    
+    <!-- 覆盖层颜色（对话框背景） -->
+    <color name="overlayColor">#CC000000</color>
+    
+    <!-- SSL 错误警告色 -->
+    <color name="warningColor">#FFFFB74D</color>
 </resources>

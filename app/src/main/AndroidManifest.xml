@@ -3,26 +3,52 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="link.moely.mobile">
 
+    <!-- ===== 网络相关权限 ===== -->
     <!-- 互联网权限：应用访问网络所必需 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 访问网络状态权限：检查网络连接状态 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 访问 WiFi 状态权限：检测 WiFi 连接 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+    <!-- ===== 存储相关权限 ===== -->
     <!-- 存储权限：对于 Android 10 (API 29) 到 Android 12 (API 32) -->
-    <!-- READ_EXTERNAL_STORAGE 用于读取公共存储中的文件。 -->
-    <!-- WRITE_EXTERNAL_STORAGE 用于写入公共存储中的文件。 -->
-    <!-- 在 Android 10+，DownloadManager 写入公共目录通常不需要此运行时权限，但声明它以确保兼容性。 -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- READ_EXTERNAL_STORAGE 用于读取公共存储中的文件 -->
+    <!-- WRITE_EXTERNAL_STORAGE 用于写入公共存储中的文件 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <!-- 媒体文件访问权限：对于 Android 13 (API 33) 及更高版本 -->
-    <!-- 这些权限取代了 READ_EXTERNAL_STORAGE，提供更细粒度的媒体访问控制。 -->
+    <!-- 这些权限取代了 READ_EXTERNAL_STORAGE，提供更细粒度的媒体访问控制 -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     
-    <!-- 管理外部存储权限：用于访问壁纸等系统资源 -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- 管理外部存储权限：用于访问壁纸等系统资源（可选） -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
+        tools:ignore="ScopedStorage" />
+
+    <!-- ===== WebView 功能增强权限 ===== -->
+    <!-- 相机权限：用于网页中的相机功能（如扫码、拍照上传） -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 录音权限：用于网页中的语音功能 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 地理位置权限：用于网页中的定位功能 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <!-- 声明相机和麦克风功能为可选（不强制要求设备支持） -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- ===== 其他权限 ===== -->
+    <!-- 震动权限：用于网页反馈 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 唤醒锁权限：保持屏幕常亮（视频播放时） -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
@@ -34,17 +60,25 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MoelyApp"
         android:usesCleartextTraffic="true"
-        tools:targetApi="31">
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
+        tools:targetApi="36">
 
+        <!-- ===== 主活动 ===== -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+            android:windowSoftInputMode="adjustResize"
+            android:launchMode="singleTask">
+            
+            <!-- 应用启动入口 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 处理网页链接 -->
+            
+            <!-- 处理网页链接（Deep Links） -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -54,6 +88,7 @@
                 <data android:host="www.moely.link" />
                 <data android:host="mobile.moely.link" />
             </intent-filter>
+            
             <!-- 自定义 Scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
@@ -61,19 +96,35 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="moely"/>
             </intent-filter>
+            
+            <!-- 处理文件打开（如下载的HTML文件） -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/xhtml+xml" />
+            </intent-filter>
         </activity>
 
+        <!-- ===== 下载管理活动 ===== -->
         <activity
             android:name=".DownloadsActivity"
             android:exported="false"
-            android:label="@string/title_activity_downloads" />
+            android:label="@string/title_activity_downloads"
+            android:parentActivityName=".MainActivity" />
 
+        <!-- ===== 设置活动 ===== -->
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:label="@string/title_activity_settings" />
+            android:label="@string/title_activity_settings"
+            android:parentActivityName=".MainActivity" />
 
-        <!-- FileProvider 用于安全地共享下载文件 -->
+        <!-- ===== FileProvider 用于安全地共享下载文件 ===== -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

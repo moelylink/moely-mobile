@@ -3,17 +3,20 @@ plugins {
 }
 
 android {
-    namespace 'link.moely.mobile' // 更新包名为 link.moely.mobile
-    compileSdk 34 // 编译目标 Android 14
+    namespace 'link.moely.mobile' // 包名
+    compileSdk 36 // 编译目标 Android 16
 
     defaultConfig {
         applicationId "link.moely.mobile" // 更新应用 ID 为 link.moely.mobile
         minSdk 29 // 最低支持 Android 10 (API 29)
-        targetSdk 34 // 目标 Android 14
-        versionCode 11 // 初始版本号
-        versionName "1.0.2" // 版本号
+        targetSdk 36 // 目标 Android 16
+        versionCode 12
+        versionName "1.0.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        
+        // WebView 多进程配置（提升稳定性和安全性）
+        multiDexEnabled true
     }
 
     signingConfigs {
@@ -31,15 +34,26 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        debug {
+            // 调试模式下启用 WebView 调试
+            buildConfigField "boolean", "WEBVIEW_DEBUG", "true"
+        }
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11 // 更新到 Java 11
         targetCompatibility JavaVersion.VERSION_11 // 更新到 Java 11
     }
+    
+    // 开启 ViewBinding（可选，方便视图绑定）
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
 }
 
 dependencies {
+    // ===== 核心 AndroidX 库 =====
     // AndroidX Core 用于兼容性
     implementation 'androidx.core:core:1.13.1'
     // App Compat 用于向后兼容性
@@ -49,16 +63,27 @@ dependencies {
     // ConstraintLayout 用于灵活的 UI 布局
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // AndroidX Webkit 用于 WebView 兼容性功能
-    implementation 'androidx.webkit:webkit:1.11.0'
-
+    // ===== WebView 相关（Chromium 内核支持）=====
+    // AndroidX Webkit 用于 WebView 兼容性功能和新特性
+    // 这个库提供了对最新 Chromium WebView 功能的向后兼容支持
+    implementation 'androidx.webkit:webkit:1.12.1'
+    
+    // ===== 工具库 =====
     // AndroidX Palette 用于颜色提取
     implementation 'androidx.palette:palette:1.0.0'
-
     // Gson 用于 JSON 解析 (用于更新检查)
-    implementation 'com.google.code.gson:gson:2.10.1'
-
-    // 用于测试
+    implementation 'com.google.code.gson:gson:2.11.0'
+    
+    // ===== 权限处理（推荐）=====
+    // Activity 和 Fragment 的扩展支持（文件选择器需要）
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.fragment:fragment:1.8.5'
+    
+    // ===== 网络和文件下载（可选增强）=====
+    // OkHttp 用于更好的网络请求处理（如果需要自定义下载）
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    
+    // ===== 测试依赖 =====
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'

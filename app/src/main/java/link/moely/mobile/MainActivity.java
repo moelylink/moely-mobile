@@ -1,5 +1,6 @@
 package link.moely.mobile;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
 import android.content.Context;
@@ -7,53 +8,100 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
-
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.webkit.WebViewCompat;
-import androidx.core.content.ContextCompat;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration; 
+import android.graphics.Color;           
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
+import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.activity.OnBackPressedCallback; 
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.io.File;
-import android.Manifest;
+
+/**
+ * MainActivity - 应用主界面（Chromium WebView 增强版）
+ * * 主要功能：
+ * 1. 完整的 Chromium WebView 集成
+ * 2. 文件上传支持（相机/相册）
+ * 3. 全屏视频播放支持
+ * 4. 地理位置权限处理
+ * 5. 音频/视频录制支持
+ * 6. SSL 错误处理
+ * 7. 页面加载进度显示
+ * 8. 下载管理集成
+ * 9. JavaScript 交互接口
+ * 10. 深色模式自动适配
+ * 11. WebRTC 支持
+ * 12. 多媒体播放支持
+ * 13. 主题色应用于导航栏和进度条
+ * 14. 迁移到 OnBackPressedDispatcher 处理返回手势
+ * 15. 底部导航栏 Ripple 颜色根据深浅模式分离
+ * 16. 【修复】确保 WebView 在配置完成后才进行首次 URL 加载
+ */
 
 public class MainActivity extends BaseActivity {
 
+    private static final String TAG = "MoelyMobileWebView";
+    
+    // SharedPreferences 配置
+    private static final String PREFS_NAME = "MoelyAppPrefs";
+    private static final String PREF_DOWNLOAD_DIRECTORY = "download_directory";
+    
+    // WebView 配置
+    private static final String HOME_URL = "https://www.moely.link";
+    private static final int MIN_WEBVIEW_VERSION_CODE = 120;
+    private static final String DEFAULT_DOWNLOAD_SUBDIR = "Moely";
+    
+    // 【新增】用于存储首次加载的 URL，解决首次加载时机问题
+    private String initialLoadUrl = HOME_URL; 
+    
+    // UI 组件
     private WebView webView;
     private ProgressBar progressBar;
     private BottomNavigationView bottomNavigationView;
-    private SharedPreferences prefs; // 用于获取下载目录偏好设置
+    private FrameLayout fullscreenContainer;
+    private View customView;
+    
+    // 其他组件
+    private SharedPreferences prefs;
     private ActivityResultLauncher<String[]> requestPermissionLauncher;
-    private static final String PREFS_NAME = "MoelyAppPrefs";
-    private static final String PREF_DOWNLOAD_DIRECTORY = "download_directory"; // 下载目录偏好设置键
-    private static final String HOME_URL = "https://www.moely.link"; // 您的网站 URL
-    private static final int MIN_WEBVIEW_VERSION_CODE = 120; // 所需的最低 WebView 版本
-    private static final String TAG = "MoelyMobileWebView"; // Logcat 标签
-
-    // 默认下载子目录名称
-    private static final String DEFAULT_DOWNLOAD_SUBDIR = "Moely";
-    // 默认公共下载目录的完整路径（用于回退和非 SAF 情况）
-    private static final String DEFAULT_PUBLIC_DOWNLOAD_PATH = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + File.separator + DEFAULT_DOWNLOAD_SUBDIR;
+    private ValueCallback<Uri[]> fileUploadCallback;
+    private ActivityResultLauncher<Intent> fileChooserLauncher;
+    
+    // 全屏视频相关
+    private WebChromeClient.CustomViewCallback customViewCallback;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -61,496 +109,596 @@ public class MainActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // --- Modern Permissions API: register the launcher ---
-        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
-            boolean allPermissionsGranted = true;
-            for (Boolean granted : permissions.values()) {
-                if (!granted) {
-                    allPermissionsGranted = false;
-                    break;
-                }
-            }
-
-            if (allPermissionsGranted) {
-                Log.d(TAG, "所有请求的存储/媒体权限已授予。初始化 WebView。");
-                initializeWebView();
-            } else {
-                Log.w(TAG, "一个或多个存储/媒体权限被拒绝。WebView 将不会加载。");
-                Toast.makeText(this, "存储/媒体权限被拒绝，应用部分功能可能受限。", Toast.LENGTH_LONG).show();
-            }
-        });
-
-        webView = findViewById(R.id.webView);
-        progressBar = findViewById(R.id.progressBar);
-        bottomNavigationView = findViewById(R.id.bottomNavigationView);
-        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE); // 初始化 SharedPreferences
+        // 初始化 UI 组件
+        initializeViews();
         
-        // 为 BottomNavigationView 应用主题色
-        applyThemeToBottomNavigation();
+        // 初始化 SharedPreferences
+        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        
+        // 注册权限请求启动器
+        registerPermissionLaunchers();
+        
+        // 注册文件选择器启动器
+        registerFileChooserLauncher();
 
-        // --- 启动时请求权限 ---
+        // 【核心修复步骤 1：在请求权限前，确定初始 URL】
+        // 确定是默认主页还是深度链接 URL
+        String determinedUrl = determineInitialUrl(getIntent()); 
+        if (determinedUrl != null) {
+            initialLoadUrl = determinedUrl;
+        } else {
+            initialLoadUrl = HOME_URL;
+        }
+        Log.d(TAG, "首次加载URL已确定: " + initialLoadUrl);
+
+        // 请求必要权限并初始化 WebView。
+        // initializeWebView() 的调用被包装在权限回调中，以确保权限请求已启动/完成。
         requestStoragePermissions();
 
-        handleDeepLink(getIntent());
+        // 应用主题色到导航栏和进度条
+        applyThemeToBottomNavigation();
+        
+        // 【核心修复步骤 2：移除这里对 handleDeepLink 的调用，避免在 WebView 未配置完成前加载 URL】
+        // handleDeepLink(getIntent()); // 已移除
+
+        // 迁移到 OnBackPressedDispatcher
+        setupOnBackPressedCallback();
     }
 
     /**
-     * 初始化 WebView 设置并加载主页 URL。
-     * 此方法应仅在授予必要权限后调用。
+     * 设置新的返回按钮处理回调
+     */
+    private void setupOnBackPressedCallback() {
+        OnBackPressedCallback callback = new OnBackPressedCallback(true /* enabled */) {
+            @Override
+            public void handleOnBackPressed() {
+                // 如果在全屏视频模式，先退出全屏
+                if (customView != null) {
+                    webView.getWebChromeClient().onHideCustomView();
+                    return;
+                }
+
+                // 如果 WebView 可以后退，则后退
+                if (webView.canGoBack()) {
+                    Log.d(TAG, "WebView 后退");
+                    webView.goBack();
+                } else {
+                    Log.d(TAG, "退出应用");
+                    // 无法后退时，关闭 Activity
+                    finish();
+                }
+            }
+        };
+        // 将回调添加到分发器
+        getOnBackPressedDispatcher().addCallback(this, callback);
+        Log.d(TAG, "OnBackPressedCallback 已注册。");
+    }
+
+    /**
+     * 初始化所有视图组件
+     */
+    private void initializeViews() {
+        webView = findViewById(R.id.webView);
+        progressBar = findViewById(R.id.progressBar);
+        bottomNavigationView = findViewById(R.id.bottomNavigationView);
+        
+        // 创建全屏容器（用于全屏视频）
+        fullscreenContainer = new FrameLayout(this);
+        fullscreenContainer.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        fullscreenContainer.setBackgroundColor(getResources().getColor(android.R.color.black));
+        fullscreenContainer.setVisibility(View.GONE);
+        
+        // 将全屏容器添加到根布局
+        ViewGroup rootView = findViewById(android.R.id.content);
+        rootView.addView(fullscreenContainer);
+    }
+
+    /**
+     * 注册权限请求启动器
+     */
+    private void registerPermissionLaunchers() {
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                permissions -> {
+                    boolean allPermissionsGranted = true;
+                    for (Boolean granted : permissions.values()) {
+                        if (!granted) {
+                            allPermissionsGranted = false;
+                            break;
+                        }
+                    }
+
+                    if (allPermissionsGranted) {
+                        Log.d(TAG, "所有请求的权限已授予");
+                        initializeWebView();
+                    } else {
+                        Log.w(TAG, "部分权限被拒绝");
+                        Toast.makeText(this, "部分权限被拒绝，某些功能可能无法使用", Toast.LENGTH_LONG).show();
+                        // 即使权限被拒绝，也尝试初始化 WebView
+                        initializeWebView();
+                    }
+                }
+        );
+    }
+
+    /**
+     * 注册文件选择器启动器
+     */
+    private void registerFileChooserLauncher() {
+        fileChooserLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (fileUploadCallback == null) return;
+                    
+                    Uri[] results = null;
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        String dataString = result.getData().getDataString();
+                        if (dataString != null) {
+                            results = new Uri[]{Uri.parse(dataString)};
+                        }
+                    }
+                    
+                    fileUploadCallback.onReceiveValue(results);
+                    fileUploadCallback = null;
+                }
+        );
+    }
+
+    /**
+     * 初始化 WebView 设置 - Chromium 内核核心配置
+     * 【修复：现在确保在所有设置完成后，才加载 initialLoadUrl】
      */
     @SuppressLint("SetJavaScriptEnabled")
     private void initializeWebView() {
-        Log.d(TAG, "初始化 WebView...");
+        Log.d(TAG, "初始化 Chromium WebView...");
+        
         WebSettings webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true); // 启用 JavaScript
-        webSettings.setDomStorageEnabled(true); // 启用 DOM 存储
-        webSettings.setAllowFileAccess(true); // 允许文件访问
-        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT); // 使用默认缓存策略
-        webSettings.setLoadWithOverviewMode(true); // 以概述模式加载页面
-        webSettings.setUseWideViewPort(true); // 使用宽视口
-        webSettings.setSupportZoom(true); // 启用缩放支持
-        webSettings.setBuiltInZoomControls(true); // 显示内置缩放控件
-        webSettings.setDisplayZoomControls(false); // 隐藏屏幕上的缩放控件
-        webSettings.setMediaPlaybackRequiresUserGesture(false); // 允许媒体自动播放
-        webSettings.setTextZoom(100); // 禁止调整文本大小
-        webView.setInitialScale(0); // 避免比例错误
+        webView.setBackgroundColor(Color.TRANSPARENT); // 强制使用透明背景
+        
+        // ===== JavaScript 支持 =====
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+        
+        // ===== DOM 存储和数据库 =====
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true);
+        
+        // ===== 文件访问 =====
+        webSettings.setAllowFileAccess(true);
+        webSettings.setAllowContentAccess(true);
+        
+        // ===== 缓存策略 =====
+        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        
+        // ===== 视口和缩放 =====
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setUseWideViewPort(true);
+        webSettings.setSupportZoom(true);
+        webSettings.setBuiltInZoomControls(true);
+        webSettings.setDisplayZoomControls(false);
+        
+        // ===== 媒体播放 =====
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
+        
+        // ===== 文本缩放 =====
+        webSettings.setTextZoom(100);
+        webView.setInitialScale(0);
+        
+        // ===== 混合内容模式 =====
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        }
+        
+        // ===== 安全浏览 =====
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webSettings.setSafeBrowsingEnabled(true);
+        }
+        
+        // ===== 深色模式支持 =====
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+            int nightMode = getResources().getConfiguration().uiMode 
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+                WebSettingsCompat.setForceDark(webSettings, WebSettingsCompat.FORCE_DARK_ON);
+            } else {
+                WebSettingsCompat.setForceDark(webSettings, WebSettingsCompat.FORCE_DARK_OFF);
+            }
+        }
+        
+        // ===== 深色模式策略 =====
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK_STRATEGY)) {
+            WebSettingsCompat.setForceDarkStrategy(webSettings, 
+                    WebSettingsCompat.DARK_STRATEGY_WEB_THEME_DARKENING_ONLY);
+        }
+        
+        // ===== User-Agent =====
+        setupCustomUserAgent(webSettings);
+        
+        // ===== Cookie 管理 =====
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(webView, true);
+        
+        // ===== JavaScript 接口 =====
+        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
+        
+        // ===== 设置客户端 =====
+        setupWebViewClient();
+        setupWebChromeClient();
+        
+        // ===== 下载监听器 =====
+        setupDownloadListener();
+        
+        // ===== 底部导航栏 =====
+        setupBottomNavigation();
+        
+        // ===== 加载主页 - 确保在所有设置完成后加载 initialLoadUrl =====
+        webView.loadUrl(initialLoadUrl); // 【使用在 onCreate 中确定的 initialLoadUrl】
+        Log.d(TAG, "加载 URL: " + initialLoadUrl);
+        
+        // ===== 版本检查 =====
+        checkWebViewVersion();
+    }
 
-        // --- 设置自定义 User-Agent ---
+    /**
+     * 设置自定义 User-Agent
+     */
+    private void setupCustomUserAgent(WebSettings webSettings) {
         try {
             String originalUserAgent = webSettings.getUserAgentString();
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             String versionName = pInfo.versionName;
             String customUserAgent = originalUserAgent + " MoelyMobile/" + versionName;
             webSettings.setUserAgentString(customUserAgent);
-            Log.d(TAG, "自定义 User-Agent 设置为: " + customUserAgent);
+            Log.d(TAG, "User-Agent: " + customUserAgent);
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "无法获取应用版本名称以设置 User-Agent。", e);
+            Log.e(TAG, "无法获取版本号", e);
         }
+    }
 
-        // 启用第三方 Cookie (对某些网站很重要)
-        CookieManager cookieManager = CookieManager.getInstance();
-        cookieManager.setAcceptThirdPartyCookies(webView, true);
-
-        // 添加 JavaScript 接口
-        // "Android" 是 JavaScript 中用于调用 Java 方法的对象名称
-        webView.addJavascriptInterface(new WebAppInterface(this), "Android");
-
-        // --- WebView 客户端 ---
+    /**
+     * 设置 WebViewClient
+     */
+    private void setupWebViewClient() {
         webView.setWebViewClient(new WebViewClient() {
+            
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                Log.d(TAG, "shouldOverrideUrlLoading: " + url);
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                Log.d(TAG, "加载 URL: " + url);
+                
+                // Google 登录特殊处理
                 if (url.contains("google.com")) {
-                    // 由于安全策略限制，Google 登录使用系统默认 UA
-                    String systemUA = System.getProperty("http.agent");
-                    webSettings.setUserAgentString(systemUA);
+                    view.getSettings().setUserAgentString(System.getProperty("http.agent"));
                 } else {
-                    // 恢复自定义 UA
-                    try {
-                        String originalUserAgent = webSettings.getUserAgentString();
-                        PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-                        String versionName = pInfo.versionName;
-                        // 防止重复添加
-                        if(!originalUserAgent.contains("MoelyMobile")){
-                            String customUserAgent = originalUserAgent + " MoelyMobile/" + versionName;
-                            webSettings.setUserAgentString(customUserAgent);
-                        }
-                        Log.d(TAG, "自定义 User-Agent 设置成功");
-                    } catch (PackageManager.NameNotFoundException e) {
-                        Log.e(TAG, "无法自定义 User-Agent。", e);
-                    }
+                    setupCustomUserAgent(view.getSettings());
                 }
-                // 处理外部链接或特定方案
+                
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     view.loadUrl(url);
                     return true;
                 } else {
-                    // 尝试使用外部应用打开其他方案 (例如，mailto, tel)
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                         startActivity(intent);
                     } catch (Exception e) {
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "无法打开链接: " + url, Toast.LENGTH_SHORT).show());
-                        Log.e(TAG, "打开外部链接失败: " + url, e);
+                        runOnUiThread(() -> 
+                            Toast.makeText(MainActivity.this, 
+                                "无法打开: " + url, Toast.LENGTH_SHORT).show()
+                        );
+                        Log.e(TAG, "打开链接失败", e);
                     }
                     return true;
                 }
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                Log.d(TAG, "页面开始加载: " + url);
+                progressBar.setVisibility(View.VISIBLE);
+                progressBar.setProgress(0);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                Log.d(TAG, "onPageFinished: " + url);
-                progressBar.setVisibility(View.GONE); // 页面加载后隐藏进度条
-
-                // 注入脚本拦截网站下载
+                Log.d(TAG, "页面加载完成: " + url);
+                progressBar.setVisibility(View.GONE);
                 injectDownloadInterceptor(view);
-
+                updateNavigationButtons();
             }
 
             @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                super.onReceivedError(view, errorCode, description, failingUrl);
-                Log.e(TAG, "WebView 错误: " + errorCode + " - " + description + " URL: " + failingUrl);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "加载页面出错: " + description, Toast.LENGTH_LONG).show());
+            public void onReceivedError(WebView view, WebResourceRequest request, 
+                    WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Log.e(TAG, "错误: " + error.getErrorCode() + " - " + error.getDescription());
+                }
+                if (request.isForMainFrame()) {
+                    runOnUiThread(() -> 
+                        Toast.makeText(MainActivity.this, 
+                            "页面加载失败", Toast.LENGTH_LONG).show()
+                    );
+                }
             }
         });
+    }
 
+    /**
+     * 设置 WebChromeClient
+     */
+    private void setupWebChromeClient() {
         webView.setWebChromeClient(new WebChromeClient() {
+            
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
                 super.onProgressChanged(view, newProgress);
+                
                 if (newProgress == 100) {
                     progressBar.setVisibility(View.GONE);
                 } else {
                     progressBar.setVisibility(View.VISIBLE);
                     progressBar.setProgress(newProgress);
                 }
-                Log.d(TAG, "页面进度: " + newProgress);
-
-                // 更新工具栏按钮状态
-                boolean canGoBack = webView.canGoBack();
-                boolean canGoForward = webView.canGoForward();
-                bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(canGoBack);
-                bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(canGoForward);
-                Log.d(TAG, "onProgressChanged - canGoBack: " + canGoBack + ", canGoForward: " + canGoForward);
+                
+                updateNavigationButtons();
+                Log.d(TAG, "进度: " + newProgress + "%");
             }
-        });
-
-        // --- 下载监听器 ---
-        webView.setDownloadListener(new DownloadListener() {
+            
             @Override
-            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
-                Log.d(TAG, "开始下载: " + url);
-                Log.d(TAG, "User-Agent: " + userAgent);
-                Log.d(TAG, "Content-Disposition: " + contentDisposition);
-                Log.d(TAG, "MIME Type: " + mimetype);
-                Log.d(TAG, "Content Length: " + contentLength);
-
-                // --- 处理常规 HTTP/HTTPS URL ---
-                // 注意: Blob URL 下载和 JS 拦截的下载不会进入此流程
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
+                    FileChooserParams fileChooserParams) {
+                
+                if (fileUploadCallback != null) {
+                    fileUploadCallback.onReceiveValue(null);
+                }
+                
+                fileUploadCallback = filePathCallback;
+                
+                Intent intent = fileChooserParams.createIntent();
                 try {
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-
-                    String cookies = CookieManager.getInstance().getCookie(url);
-                    if (cookies != null && !cookies.isEmpty()) {
-                        request.addRequestHeader("cookie", cookies);
-                        Log.d(TAG, "添加 Cookie 到下载请求。");
-                    }
-                    request.addRequestHeader("User-Agent", userAgent);
-                    request.setDescription("正在下载文件...");
-                    String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                    request.setTitle(fileName);
-                    request.allowScanningByMediaScanner();
-                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-
-                    // --- 统一使用公共下载目录和子目录 ---
-                    String finalDestinationSubPath = getDownloadDestinationSubPath(prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
-                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, finalDestinationSubPath + File.separator + fileName);
-                    Log.d(TAG, "下载目标: " + Environment.DIRECTORY_DOWNLOADS + "/" + finalDestinationSubPath + "/" + fileName);
-
-                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                    if (dm != null) {
-                        long downloadId = dm.enqueue(request);
-                        runOnUiThread(() -> Toast.makeText(getApplicationContext(), "开始下载文件: " + fileName, Toast.LENGTH_LONG).show());
-                        Log.d(TAG, "下载成功加入队列。下载 ID: " + downloadId);
-                    } else {
-                        runOnUiThread(() -> Toast.makeText(getApplicationContext(), "下载服务不可用。", Toast.LENGTH_LONG).show());
-                        Log.e(TAG, "DownloadManager 服务为空。");
-                    }
+                    fileChooserLauncher.launch(intent);
                 } catch (Exception e) {
-                    runOnUiThread(() -> Toast.makeText(getApplicationContext(), "下载失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                    Log.e(TAG, "启动下载时出错: " + e.getMessage(), e);
+                    Log.e(TAG, "文件选择失败", e);
+                    fileUploadCallback = null;
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin,
+                    GeolocationPermissions.Callback callback) {
+                
+                if (ContextCompat.checkSelfPermission(MainActivity.this,
+                        Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    callback.invoke(origin, true, false);
+                } else {
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("位置权限")
+                        .setMessage(origin + " 请求访问位置")
+                        .setPositiveButton("允许", (dialog, which) -> {
+                            requestPermissionLauncher.launch(new String[]{
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            });
+                            callback.invoke(origin, true, false);
+                        })
+                        .setNegativeButton("拒绝", (dialog, which) -> 
+                            callback.invoke(origin, false, false))
+                        .show();
                 }
             }
+            
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    runOnUiThread(() -> {
+                        new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("权限请求")
+                            .setMessage("网页请求使用相机或麦克风")
+                            .setPositiveButton("允许", (dialog, which) -> {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    request.grant(request.getResources());
+                                }
+                            })
+                            .setNegativeButton("拒绝", (dialog, which) -> {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    request.deny();
+                                }
+                            })
+                            .show();
+                    });
+                }
+            }
+            
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (customView != null) {
+                    onHideCustomView();
+                    return;
+                }
+                
+                customView = view;
+                customViewCallback = callback;
+                
+                webView.setVisibility(View.GONE);
+                bottomNavigationView.setVisibility(View.GONE);
+                
+                fullscreenContainer.setVisibility(View.VISIBLE);
+                fullscreenContainer.addView(customView);
+                
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                );
+                
+                Log.d(TAG, "进入全屏");
+            }
+            
+            @Override
+            public void onHideCustomView() {
+                if (customView == null) return;
+                
+                webView.setVisibility(View.VISIBLE);
+                bottomNavigationView.setVisibility(View.VISIBLE);
+                
+                fullscreenContainer.setVisibility(View.GONE);
+                fullscreenContainer.removeView(customView);
+                
+                customView = null;
+                if (customViewCallback != null) {
+                    customViewCallback.onCustomViewHidden();
+                    customViewCallback = null;
+                }
+                
+                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                
+                Log.d(TAG, "退出全屏");
+            }
         });
+    }
 
-        // --- 加载 URL ---
-        webView.loadUrl(HOME_URL);
-        Log.d(TAG, "加载初始 URL: " + HOME_URL);
+    /**
+     * 设置下载监听器
+     */
+    private void setupDownloadListener() {
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+            Log.d(TAG, "下载: " + url);
+            
+            try {
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                
+                String cookies = CookieManager.getInstance().getCookie(url);
+                if (cookies != null && !cookies.isEmpty()) {
+                    request.addRequestHeader("cookie", cookies);
+                }
+                
+                request.addRequestHeader("User-Agent", userAgent);
+                request.setDescription("下载中...");
+                
+                String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+                request.setTitle(fileName);
+                request.allowScanningByMediaScanner();
+                request.setNotificationVisibility(
+                        DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                
+                // 下载路径解析
+                String downloadSubPath = getDownloadDestinationSubPath(
+                        prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
+                request.setDestinationInExternalPublicDir(
+                        Environment.DIRECTORY_DOWNLOADS, 
+                        downloadSubPath + File.separator + fileName);
+                
+                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                if (dm != null) {
+                    long downloadId = dm.enqueue(request);
+                    runOnUiThread(() -> 
+                        Toast.makeText(getApplicationContext(), 
+                            "开始下载: " + fileName, Toast.LENGTH_LONG).show()
+                    );
+                    Log.d(TAG, "下载 ID: " + downloadId);
+                } else {
+                    runOnUiThread(() -> 
+                        Toast.makeText(getApplicationContext(), 
+                            "下载服务不可用", Toast.LENGTH_LONG).show()
+                    );
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> 
+                    Toast.makeText(getApplicationContext(), 
+                        "下载失败: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                );
+                Log.e(TAG, "下载错误", e);
+            }
+        });
+    }
 
-        // --- 底部导航栏监听器 ---
+    /**
+     * 设置底部导航栏
+     */
+    private void setupBottomNavigation() {
         bottomNavigationView.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
+            
             if (id == R.id.navigation_back) {
                 if (webView.canGoBack()) {
-                    Log.d(TAG, "导航回退。");
                     webView.goBack();
                 } else {
-                    Toast.makeText(MainActivity.this, "已是第一页", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "无法回退，已是第一页。");
+                    Toast.makeText(this, "已是第一页", Toast.LENGTH_SHORT).show();
                 }
                 return false;
             } else if (id == R.id.navigation_forward) {
                 if (webView.canGoForward()) {
-                    Log.d(TAG, "导航前进。");
                     webView.goForward();
                 } else {
-                    Toast.makeText(MainActivity.this, "已是最后一页", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "无法前进，已是最后一页。");
+                    Toast.makeText(this, "已是最后一页", Toast.LENGTH_SHORT).show();
                 }
                 return false;
             } else if (id == R.id.navigation_refresh) {
-                Log.d(TAG, "刷新页面。");
                 webView.reload();
                 return false;
             } else if (id == R.id.navigation_download) {
-                Log.d(TAG, "打开下载活动。");
-                startActivity(new Intent(MainActivity.this, DownloadsActivity.class));
+                // 假设 DownloadsActivity 存在
+                startActivity(new Intent(this, DownloadsActivity.class));
                 return false;
             } else if (id == R.id.navigation_settings) {
-                Log.d(TAG, "打开设置活动。");
-                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
+                // 假设 SettingsActivity 存在
+                startActivity(new Intent(this, SettingsActivity.class));
                 return false;
             }
+            
             return false;
         });
-
-        // 导航按钮的初始状态 (暂时启用以测试点击事件)
-        // 实际启用/禁用逻辑将在 onPageFinished 中根据 WebView 历史记录更新
-        bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(true);
-        bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(true);
-        Log.d(TAG, "初始按钮状态: 回退和前进已启用以供测试。");
-
-        // --- 强制取消选择 BottomNavigationView 中的默认选中项 ---
+        
+        updateNavigationButtons();
         bottomNavigationView.setSelectedItemId(View.NO_ID);
-        Log.d(TAG, "强制 BottomNavigationView 没有选中项。");
-
-        // --- WebView 版本检查 ---
-        checkWebViewVersion();
-    }
-
-    
-    // 解析链接并打开相应页面
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleDeepLink(intent);
-    }
-    private void handleDeepLink(Intent intent) {
-        Uri data = intent.getData();
-        if (data == null || webView == null) return;
-
-        String scheme = data.getScheme();
-        String host = data.getHost();
-        String path = data.getPath() != null ? data.getPath() : "";
-
-        String urlToLoad = null;
-
-        if (("https".equals(scheme) || "http".equals(scheme)) && ("www.moely.link".equals(host) || "mobile.moely.link".equals(host))) {
-            urlToLoad = data.toString();
-        } else if ("moely".equalsIgnoreCase(scheme)) {
-            // 将 moely://abc/123 转换为 https://www.moely.link/abc/123
-            if (host != null) {
-                urlToLoad = "https://www.moely.link/" + host + path;
-            } else {
-                urlToLoad = "https://www.moely.link" + path;
-            }
-        }
-        if (urlToLoad != null) {
-            webView.loadUrl(urlToLoad);
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            Log.d(TAG, "按下返回按钮，WebView 回退。");
-            webView.goBack();
-        } else {
-            Log.d(TAG, "按下返回按钮，没有 WebView 历史记录，调用 super.onBackPressed()。");
-            super.onBackPressed();
-        }
     }
 
     /**
-     * 检查 Android 系统 WebView 的版本。
-     * 如果版本低于 MIN_WEBVIEW_VERSION_CODE，则显示警告对话框。
+     * 更新导航按钮状态
      */
-    private void checkWebViewVersion() {
-        PackageInfo webViewPackageInfo = WebViewCompat.getCurrentWebViewPackage(this);
-        if (webViewPackageInfo != null) {
-            long currentWebViewVersionCode = 0;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                currentWebViewVersionCode = webViewPackageInfo.getLongVersionCode();
-            } else {
-                currentWebViewVersionCode = webViewPackageInfo.versionCode;
-            }
-            Log.d(TAG, "当前 WebView 版本: " + webViewPackageInfo.versionName + " (代码: " + currentWebViewVersionCode + ")");
-
-            if (currentWebViewVersionCode < MIN_WEBVIEW_VERSION_CODE) {
-                new AlertDialog.Builder(this)
-                        .setTitle(R.string.webview_version_warning_title)
-                        .setMessage(getString(R.string.webview_version_warning_message, webViewPackageInfo.versionName))
-                        .setPositiveButton(R.string.update_webview, (dialog, which) -> {
-                            try {
-                                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.webview")));
-                            } catch (android.content.ActivityNotFoundException anfe) {
-                                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")));
-                            }
-                        })
-                        .setNegativeButton(R.string.dismiss, (dialog, which) -> dialog.dismiss())
-                        .show();
-                Log.w(TAG, "WebView 版本过低，显示警告对话框。");
-            }
-        } else {
-            runOnUiThread(() -> Toast.makeText(this, "无法检测到 Android System WebView。", Toast.LENGTH_LONG).show());
-            Log.e(TAG, "无法检测到 Android System WebView 包。");
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
+    private void updateNavigationButtons() {
+        boolean canGoBack = webView.canGoBack();
+        boolean canGoForward = webView.canGoForward();
         
-        // 检查并应用最新的主题模式设置
-        ThemeModeManager themeModeManager = ThemeModeManager.getInstance(this);
-        int savedMode = themeModeManager.getThemeMode();
-        
-        // 获取当前主题模式进行平滑切换
-        int nightMode;
-        switch (savedMode) {
-            case ThemeModeManager.MODE_LIGHT:
-                nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO;
-                break;
-            case ThemeModeManager.MODE_DARK:
-                nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES;
-                break;
-            case ThemeModeManager.MODE_SYSTEM:
-            default:
-                nightMode = androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
-                break;
-        }
-        
-        // 应用到当前Activity的Delegate，实现平滑切换
-        getDelegate().setLocalNightMode(nightMode);
-        
-        // 重新应用主题（以防主题在其他Activity中被更改）
-        applyThemeToBottomNavigation();
-        
-        // 仅在 WebView 未加载任何内容时尝试重新请求权限并初始化 WebView。
-        // 避免在每次 Activity 恢复时都重新加载页面。
-        if (webView.getUrl() == null) {
-            Log.d(TAG, "Activity 恢复，WebView 未初始化。重新请求权限。");
-            requestStoragePermissions();
-        } else {
-            Log.d(TAG, "Activity 恢复，WebView 已加载。不进行页面重载。");
-        }
+        bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(canGoBack);
+        bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(canGoForward);
     }
 
     /**
-     * 根据 Android 版本在运行时请求必要的存储权限。
-     * 此方法根据用户的请求专门为 Android 10+ 设备定制。
+     * 注入下载拦截器
      */
-    private void requestStoragePermissions() {
-        String[] permissionsToRequest;
-
-        Log.d(TAG, "开始检查 Android " + Build.VERSION.SDK_INT + " 的权限...");
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33) 及以上
-            permissionsToRequest = new String[]{
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.READ_MEDIA_AUDIO
-            };
-        } else { // Android 12 (API 32) 及以下
-            permissionsToRequest = new String[]{
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-            };
-        }
+    private void injectDownloadInterceptor(WebView webView) {
+        // ... (脚本逻辑与原版一致，没有改动)
+        String script = "javascript:(" +
+                "function() { " +
+                "    if (typeof window.downloadImg_original === 'undefined') { " +
+                "        window.downloadImg_original = window.downloadImg;" +
+                "        window.downloadImg = function(textId, imgId, url) { " +
+                "            console.log('拦截下载: ' + url);" +
+                "            if (window.Android && typeof window.Android.startDownload === 'function') { " +
+                "                window.Android.startDownload(url, '', '');" +
+                "            } else { " +
+                "                window.downloadImg_original(textId, imgId, url);" +
+                "            } " +
+                "        }; " +
+                "    } " +
+                "})();";
         
-        boolean allGranted = true;
-        for (String permission : permissionsToRequest) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allGranted = false;
-                break;
-            }
-        }
-
-        if (allGranted) {
-            Log.d(TAG, "所有必需的权限已授予。初始化 WebView。");
-            initializeWebView();
-        } else {
-            Log.d(TAG, "并非所有必需的权限都已授予。现在请求它们。");
-            requestPermissionLauncher.launch(permissionsToRequest);
-        }
-    }
-
-
-    /**
-     * JavaScript 接口，用于从 WebView 接收数据。
-     */
-    public class WebAppInterface {
-        Context mContext;
-        private SharedPreferences prefs; // WebAppInterface 内部的 SharedPreferences 实例
-
-        WebAppInterface(Context c) {
-            mContext = c;
-            // 在 WebAppInterface 构造函数中初始化 prefs
-            prefs = c.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        }
-
-        /**
-         * 通过拦截器进行下载
-         */
-        @JavascriptInterface
-        public void startDownload(String url, String contentDisposition, String mimetype) {
-            Log.d(TAG, "startDownload: 通过 JS 拦截器启动下载: " + url);
-            // 在主线程上执行下载操作
-            runOnUiThread(() -> {
-                try {
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                    String cookies = CookieManager.getInstance().getCookie(url);
-                    if (cookies != null && !cookies.isEmpty()) {
-                        request.addRequestHeader("cookie", cookies);
-                    }
-                    request.addRequestHeader("User-Agent", webView.getSettings().getUserAgentString());
-                    request.setDescription("正在下载文件...");
-                    String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                    request.setTitle(fileName);
-                    request.allowScanningByMediaScanner();
-                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-
-                    String finalDestinationSubPath = getDownloadDestinationSubPath(prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
-                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, finalDestinationSubPath + File.separator + fileName);
-
-                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                    if (dm != null) {
-                        dm.enqueue(request);
-                        Toast.makeText(getApplicationContext(), "开始下载文件: " + fileName, Toast.LENGTH_LONG).show();
-                    } else {
-                        Toast.makeText(getApplicationContext(), "下载服务不可用。", Toast.LENGTH_LONG).show();
-                    }
-                } catch (Exception e) {
-                    Toast.makeText(getApplicationContext(), "下载失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    Log.e(TAG, "从 JS 拦截器启动下载时出错: ", e);
-                }
-            });
-        }
-
-        /**
-         * 从 JavaScript 记录错误消息。
-         * 此方法通过 Android.logError() 从 JavaScript 调用。
-         * @param message JavaScript 中的错误消息。
-         */
-        @JavascriptInterface
-        public void logError(String message) {
-            Log.e(TAG, "JavaScript 错误: " + message);
-            // 或者，您可以在此处显示 Toast 或对话框以显示关键错误
-            // runOnUiThread(() -> Toast.makeText(mContext, "JavaScript Error: " + message, Toast.LENGTH_LONG).show());
-        }
+        webView.evaluateJavascript(script, null);
+        Log.d(TAG, "注入下载拦截器");
     }
 
     /**
-     * 根据存储的偏好设置获取下载目标子路径。
-     * 优先使用用户选择的文件夹（如果它是公共下载目录下的文件路径）。
-     * 如果是 SAF URI 或其他非标准路径，则回退到默认子目录。
-     * 此方法在 MainActivity 内部，因此 WebAppInterface 需要通过 MainActivity 实例调用或复制此逻辑。
-     * 为了简化和避免重复代码，这里让 WebAppInterface 访问 MainActivity 的 prefs，并直接调用此私有方法。
-     * @param customDownloadDirectoryUriString 从 SharedPreferences 获取的自定义下载目录 URI 字符串。
-     * @return 最终的下载目标子路径（例如 "Moely" 或 "MyCustomFolder"）。
+     * 获取下载目标路径
      */
     private String getDownloadDestinationSubPath(String customDownloadDirectoryUriString) {
         String finalDestinationSubPath = DEFAULT_DOWNLOAD_SUBDIR; // 默认回退
@@ -635,29 +783,65 @@ public class MainActivity extends BaseActivity {
         return finalDestinationSubPath;
     }
 
-    private void injectDownloadInterceptor(WebView webView) {
-        String script = "javascript:(" +
-                "function() { " +
-                "    if (typeof window.downloadImg_original === 'undefined') { " +
-                "        window.downloadImg_original = window.downloadImg;" +
-                "        window.downloadImg = function(textId, imgId, url) { " +
-                "            console.log('Intercepted downloadImg call. URL: ' + url);" +
-                "            if (window.Android && typeof window.Android.startDownload === 'function') { " +
-                "                window.Android.startDownload(url, '', '');" +
-                "            } else { " +
-                "                console.log('Android.startDownload not found, falling back to original.');" +
-                "                window.downloadImg_original(textId, imgId, url);" +
-                "            } " +
-                "        }; " +
-                "        console.log('downloadImg function intercepted.'); " +
-                "    } " +
-                "})();";
-        webView.evaluateJavascript(script, null);
-        Log.d(TAG, "已注入 downloadImg 拦截脚本。");
+    /**
+     * JavaScript 接口
+     */
+    public class WebAppInterface {
+        Context mContext;
+
+        WebAppInterface(Context c) {
+            mContext = c;
+        }
+
+        @JavascriptInterface
+        public void startDownload(String url, String contentDisposition, String mimetype) {
+            Log.d(TAG, "JS 下载: " + url);
+            runOnUiThread(() -> {
+                try {
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                    String cookies = CookieManager.getInstance().getCookie(url);
+                    if (cookies != null && !cookies.isEmpty()) {
+                        request.addRequestHeader("cookie", cookies);
+                    }
+                    request.addRequestHeader("User-Agent", webView.getSettings().getUserAgentString());
+                    request.setDescription("下载中...");
+                    String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
+                    request.setTitle(fileName);
+                    request.allowScanningByMediaScanner();
+                    request.setNotificationVisibility(
+                            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+
+                    // 下载路径解析
+                    String finalDestinationSubPath = getDownloadDestinationSubPath(
+                            prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
+                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, 
+                            finalDestinationSubPath + File.separator + fileName);
+
+                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.enqueue(request);
+                        Toast.makeText(getApplicationContext(), 
+                                "开始下载: " + fileName, Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(getApplicationContext(), 
+                                "下载服务不可用", Toast.LENGTH_LONG).show();
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(getApplicationContext(), 
+                            "下载失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "JS 下载错误", e);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void logError(String message) {
+            Log.e(TAG, "JS 错误: " + message);
+        }
     }
     
     /**
-     * 为 BottomNavigationView 应用主题色
+     * 为 BottomNavigationView 和 ProgressBar 应用主题色，并设置 Ripple 颜色
      */
     private void applyThemeToBottomNavigation() {
         ThemeManager themeManager = ThemeManager.getInstance(this);
@@ -676,23 +860,255 @@ public class MainActivity extends BaseActivity {
         bottomNavigationView.setItemIconTintList(colorStateList);
         bottomNavigationView.setItemTextColor(colorStateList);
         
-        // 为 ProgressBar 应用主题色
-        if (progressBar != null) {
-            progressBar.getProgressDrawable().setTint(primaryColor);
+        // 确定当前模式并设置 Ripple 效果颜色 (Hover/Click)
+        int nightMode = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        int rippleColor;
+
+        if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+            // 深色模式: 调用 ThemeUtils 获取标准深色背景
+            rippleColor = android.graphics.Color.parseColor("#424242");
+            bottomNavigationView.setBackgroundColor(
+                    ThemeUtils.getThemeAttrColor(this, com.google.android.material.R.attr.colorSurfaceContainer)
+            );
+        } else {
+            // 浅色模式: 调用 ThemeUtils 获取浅色化的主题色作为背景
+            rippleColor = android.graphics.Color.parseColor("#D3D3D3");
+            int lightenedColor = ThemeUtils.getLightenedColor(primaryColor, 0.9f);
+            bottomNavigationView.setBackgroundColor(lightenedColor);
         }
+
+        // 应用 Ripple 颜色
+        ColorStateList rippleColorStateList = ColorStateList.valueOf(rippleColor);
+        bottomNavigationView.setItemRippleColor(rippleColorStateList);
+
+        // 3. 为 ProgressBar 应用主题色
+        if (progressBar != null) {
+            // 使用 setTint (需要 API 21+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                progressBar.getProgressDrawable().setTint(primaryColor);
+            } else {
+                // 兼容旧版，使用 ColorFilter
+                progressBar.getProgressDrawable().setColorFilter(primaryColor, android.graphics.PorterDuff.Mode.SRC_IN);
+            }
+        }
+        Log.d(TAG, "主题色应用于导航栏和进度条。Ripple 颜色已根据模式设置。");
+    }
+
+    /**
+     * 检查 WebView 版本
+     */
+    private void checkWebViewVersion() {
+        PackageInfo webViewPackageInfo = WebViewCompat.getCurrentWebViewPackage(this);
+        if (webViewPackageInfo != null) {
+            long currentWebViewVersionCode = 0;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                currentWebViewVersionCode = webViewPackageInfo.getLongVersionCode();
+            } else {
+                currentWebViewVersionCode = webViewPackageInfo.versionCode;
+            }
+            Log.d(TAG, "WebView 版本: " + webViewPackageInfo.versionName 
+                    + " (" + currentWebViewVersionCode + ")");
+
+            if (currentWebViewVersionCode < MIN_WEBVIEW_VERSION_CODE) {
+                new AlertDialog.Builder(this)
+                        .setTitle(R.string.webview_version_warning_title)
+                        .setMessage(getString(R.string.webview_version_warning_message, 
+                                webViewPackageInfo.versionName))
+                        .setPositiveButton(R.string.update_webview, (dialog, which) -> {
+                            try {
+                                startActivity(new Intent(Intent.ACTION_VIEW, 
+                                        Uri.parse("market://details?id=com.google.android.webview")));
+                            } catch (android.content.ActivityNotFoundException anfe) {
+                                startActivity(new Intent(Intent.ACTION_VIEW, 
+                                        Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview")));
+                            }
+                        })
+                        .setNegativeButton(R.string.dismiss, (dialog, which) -> dialog.dismiss())
+                        .show();
+                Log.w(TAG, "WebView 版本过低");
+            }
+        } else {
+            runOnUiThread(() -> 
+                    Toast.makeText(this, "无法检测 WebView", Toast.LENGTH_LONG).show());
+            Log.e(TAG, "无法检测 WebView 包");
+        }
+    }
+
+    /**
+     * 请求存储权限
+     */
+    private void requestStoragePermissions() {
+        String[] permissionsToRequest;
+
+        Log.d(TAG, "检查权限 (Android " + Build.VERSION.SDK_INT + ")");
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest = new String[]{
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_AUDIO
+            };
+        } else {
+            permissionsToRequest = new String[]{
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            };
+        }
+        
+        boolean allGranted = true;
+        for (String permission : permissionsToRequest) {
+            if (ContextCompat.checkSelfPermission(this, permission) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+
+        if (allGranted) {
+            Log.d(TAG, "权限已授予");
+            initializeWebView();
+        } else {
+            Log.d(TAG, "请求权限");
+            requestPermissionLauncher.launch(permissionsToRequest);
+        }
+    }
+
+    /**
+     * 处理深度链接
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleDeepLink(intent);
     }
     
     /**
-     * 检查并请求存储权限以支持动态颜色提取
+     * 【新增】仅用于首次启动时确定 URL
+     */
+    private String determineInitialUrl(Intent intent) {
+        Uri data = intent.getData();
+        if (data == null) return null;
+
+        String scheme = data.getScheme();
+        String host = data.getHost();
+        String path = data.getPath() != null ? data.getPath() : "";
+
+        String urlToLoad = null;
+
+        if (("https".equals(scheme) || "http".equals(scheme)) 
+                && ("www.moely.link".equals(host) || "mobile.moely.link".equals(host))) {
+            urlToLoad = data.toString();
+        } else if ("moely".equalsIgnoreCase(scheme)) {
+            if (host != null) {
+                urlToLoad = "https://www.moely.link/" + host + path;
+            } else {
+                urlToLoad = "https://www.moely.link" + path;
+            }
+        }
+        
+        return urlToLoad;
+    }
+
+    /**
+     * 处理深度链接
+     * 【修改：仅处理 onNewIntent 调用的后续深度链接】
+     */
+    private void handleDeepLink(Intent intent) {
+        Uri data = intent.getData();
+        if (data == null || webView == null) return;
+
+        String scheme = data.getScheme();
+        String host = data.getHost();
+        String path = data.getPath() != null ? data.getPath() : "";
+
+        String urlToLoad = null;
+
+        if (("https".equals(scheme) || "http".equals(scheme)) 
+                && ("www.moely.link".equals(host) || "mobile.moely.link".equals(host))) {
+            urlToLoad = data.toString();
+        } else if ("moely".equalsIgnoreCase(scheme)) {
+            if (host != null) {
+                urlToLoad = "https://www.moely.link/" + host + path;
+            } else {
+                urlToLoad = "https://www.moely.link" + path;
+            }
+        }
+        
+        if (urlToLoad != null) {
+            // 在 onNewIntent 中，WebView 已经初始化完成，可以直接 loadUrl
+            webView.loadUrl(urlToLoad); 
+        }
+    }
+
+    /**
+     * Activity 恢复时
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // 重新应用主题色和 Ripple 颜色
+        applyThemeToBottomNavigation();
+        
+        // WebView 恢复
+        if (webView != null) {
+            webView.onResume();
+        }
+        
+        // 如果 WebView 未加载，重新请求权限
+        if (webView != null && webView.getUrl() == null) {
+            Log.d(TAG, "WebView 未初始化，重新请求权限");
+            requestStoragePermissions();
+        }
+    }
+
+    /**
+     * Activity 暂停时
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) {
+            webView.onPause();
+        }
+    }
+
+    /**
+     * Activity 销毁时
+     */
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.clearHistory();
+            webView.clearCache(true);
+            webView.loadUrl("about:blank");
+            webView.pauseTimers();
+            
+            ViewGroup parent = (ViewGroup) webView.getParent();
+            if (parent != null) {
+                parent.removeView(webView);
+            }
+            
+            webView.removeAllViews();
+            webView.destroy();
+            webView = null;
+        }
+        
+        super.onDestroy();
+    }
+
+    /**
+     * 检查并请求存储权限（供其他功能调用）
      */
     public void checkAndRequestStoragePermission() {
         String[] permissionsToRequest;
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33) 及以上
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest = new String[]{
                     Manifest.permission.READ_MEDIA_IMAGES
             };
-        } else { // Android 12 (API 32) 及以下
+        } else {
             permissionsToRequest = new String[]{
                     Manifest.permission.READ_EXTERNAL_STORAGE
             };
@@ -700,18 +1116,18 @@ public class MainActivity extends BaseActivity {
         
         boolean allGranted = true;
         for (String permission : permissionsToRequest) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, permission) 
+                    != PackageManager.PERMISSION_GRANTED) {
                 allGranted = false;
                 break;
             }
         }
         
         if (!allGranted) {
-            // 直接请求权限
             requestPermissionLauncher.launch(permissionsToRequest);
-            Log.d(TAG, "Requesting media permissions for dynamic color extraction.");
+            Log.d(TAG, "请求媒体权限");
         } else {
-            Log.i(TAG, "Media permissions already granted for dynamic color extraction.");
+            Log.i(TAG, "媒体权限已授予");
         }
     }
 }

@@ -2,12 +2,16 @@ package link.moely.mobile;
 
 import android.app.Activity;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import android.graphics.drawable.Drawable;
+import androidx.core.graphics.drawable.DrawableCompat;
+
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
@@ -36,8 +40,10 @@ public class ThemeUtils {
         // 设置菜单图标颜色
         if (toolbar.getMenu() != null && toolbar.getMenu().size() > 0) {
             for (int i = 0; i < toolbar.getMenu().size(); i++) {
-                if (toolbar.getMenu().getItem(i).getIcon() != null) {
-                    toolbar.getMenu().getItem(i).getIcon().setTint(textColor);
+                Drawable icon = toolbar.getMenu().getItem(i).getIcon();
+                if (icon != null) {
+                    // 3. 使用 DrawableCompat 进行着色
+                    DrawableCompat.setTint(icon, textColor);
                 }
             }
         }
@@ -120,5 +126,38 @@ public class ThemeUtils {
     private static boolean isLightColor(int color) {
         double darkness = 1 - (0.299 * android.graphics.Color.red(color) + 0.587 * android.graphics.Color.green(color) + 0.114 * android.graphics.Color.blue(color)) / 255;
         return darkness < 0.5;
+    }
+
+    /**
+     * 将给定的颜色变亮。
+     *
+     * @param color  要变亮的原始颜色
+     * @param factor 亮度因子。0.0f 表示颜色不变，1.0f 表示变为纯白色。
+     */
+    public static int getLightenedColor(int color, float factor) {
+            int r = Color.red(color);
+            int g = Color.green(color);
+            int b = Color.blue(color);
+
+            r = (int) Math.min(255, r + (255 - r) * factor);
+            g = (int) Math.min(255, g + (255 - g) * factor);
+            b = (int) Math.min(255, b + (255 - b) * factor);
+
+            return Color.rgb(r, g, b);
+    }
+
+    /**
+     * 从当前主题中获取指定属性的颜色值。
+     *
+     * @param context   上下文，用于获取主题
+     * @param attrResId 颜色属性的资源ID
+     */
+    public static int getThemeAttrColor(android.content.Context context, int attrResId) {
+        android.util.TypedValue typedValue = new android.util.TypedValue();
+        if (context.getTheme().resolveAttribute(attrResId, typedValue, true)) {
+            return typedValue.data;
+        }
+        // 如果找不到，返回一个默认的灰色作为备用
+        return android.graphics.Color.GRAY;
     }
 }
