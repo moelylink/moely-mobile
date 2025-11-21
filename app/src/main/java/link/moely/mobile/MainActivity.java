@@ -22,6 +22,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
+import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -37,6 +38,7 @@ import android.graphics.Color;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.webkit.WebSettingsCompat;
@@ -101,6 +103,9 @@ public class MainActivity extends BaseActivity {
     // 全屏视频相关
     private WebChromeClient.CustomViewCallback customViewCallback;
 
+    // 首次启动
+    private Bundle mSavedInstanceState;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,6 +117,8 @@ public class MainActivity extends BaseActivity {
         
         // 初始化 SharedPreferences
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        this.mSavedInstanceState = savedInstanceState;
 
         // 首次打开时，启动关键资源预加载
         // 建议填写体积较大且影响首屏渲染的文件
@@ -153,15 +160,13 @@ public class MainActivity extends BaseActivity {
         // 注册文件选择器启动器
         registerFileChooserLauncher();
 
-        // 【核心修复步骤 1：在请求权限前，确定初始 URL】
-        // 确定是默认主页还是深度链接 URL
-        String determinedUrl = determineInitialUrl(getIntent()); 
-        if (determinedUrl != null) {
-            initialLoadUrl = determinedUrl;
-        } else {
-            initialLoadUrl = HOME_URL;
+        // 在请求权限前，确定初始 URL 是默认主页还是深度链接
+        if (savedInstanceState == null) {
+            String determinedUrl = determineInitialUrl(getIntent());
+            if (determinedUrl != null) {
+                initialLoadUrl = determinedUrl;
+            }
         }
-        Log.d(TAG, "首次加载URL已确定: " + initialLoadUrl);
 
         // 请求必要权限并初始化 WebView。
         // initializeWebView() 的调用被包装在权限回调中，以确保权限请求已启动/完成。
@@ -170,7 +175,7 @@ public class MainActivity extends BaseActivity {
         // 应用主题色到导航栏和进度条
         applyThemeToBottomNavigation();
         
-        // 【核心修复步骤 2：移除这里对 handleDeepLink 的调用，避免在 WebView 未配置完成前加载 URL】
+        // 【修复：移除这里对 handleDeepLink 的调用，避免在 WebView 未配置完成前加载 URL】
         // handleDeepLink(getIntent()); // 已移除
 
         // 迁移到 OnBackPressedDispatcher
@@ -279,6 +284,17 @@ public class MainActivity extends BaseActivity {
         );
     }
 
+    // 重写 onSaveInstanceState 以保存 WebView 状态
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) {
+            // 将 WebView 的当前状态（浏览历史、滚动位置等）保存到 outState 中
+            webView.saveState(outState);
+            Log.d(TAG, "WebView 状态已保存");
+        }
+    }
+
     /**
      * 初始化 WebView 设置 - Chromium 内核核心配置
      * 【修复：现在确保在所有设置完成后，才加载 initialLoadUrl】
@@ -367,9 +383,23 @@ public class MainActivity extends BaseActivity {
         // ===== 底部导航栏 =====
         setupBottomNavigation();
         
-        // ===== 加载主页 - 确保在所有设置完成后加载 initialLoadUrl =====
-        webView.loadUrl(initialLoadUrl); // 【使用在 onCreate 中确定的 initialLoadUrl】
-        Log.d(TAG, "加载 URL: " + initialLoadUrl);
+        // ===== 加载主页 =====
+        // 如果有保存的状态，恢复状态；否则加载初始 URL
+        if (mSavedInstanceState != null) {
+            // 尝试恢复状态
+            WebBackForwardList savedList = webView.restoreState(mSavedInstanceState);
+            if (savedList != null && savedList.getSize() > 0) {
+                Log.d(TAG, "成功从 savedInstanceState 恢复 WebView 状态");
+            } else {
+                // 如果恢复失败（虽然罕见），则回退到加载初始 URL
+                Log.d(TAG, "无法恢复状态，加载初始 URL");
+                webView.loadUrl(initialLoadUrl);
+            }
+        } else {
+            // 没有保存的状态（首次启动），正常加载 URL
+            webView.loadUrl(initialLoadUrl);
+            Log.d(TAG, "首次启动，加载 URL: " + initialLoadUrl);
+        }
         
         // ===== 版本检查 =====
         checkWebViewVersion();
@@ -428,8 +458,7 @@ public class MainActivity extends BaseActivity {
                 }
                 
                 if (url.startsWith("http://") || url.startsWith("https://")) {
-                    view.loadUrl(url);
-                    return true;
+                    return false;
                 } else {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -1144,6 +1173,8 @@ public class MainActivity extends BaseActivity {
             webView.destroy();
             webView = null;
         }
+
+        WebResourcePrefetcher.getInstance().clearCache();
         
         super.onDestroy();
     }
