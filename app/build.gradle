@@ -10,8 +10,8 @@ android {
         applicationId "link.moely.mobile" // 更新应用 ID 为 link.moely.mobile
         minSdk 29 // 最低支持 Android 10 (API 29)
         targetSdk 36 // 目标 Android 16
-        versionCode 12
-        versionName "1.0.3"
+        versionCode 16
+        versionName "1.0.4"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
@@ -81,6 +81,9 @@ dependencies {
     
     // ===== 网络和文件下载（可选增强）=====
     // OkHttp 用于更好的网络请求处理（如果需要自定义下载）
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // ===== 首次加载静态资源 =====
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     
     // ===== 测试依赖 =====

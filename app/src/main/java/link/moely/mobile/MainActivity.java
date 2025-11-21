@@ -17,7 +17,6 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
-import android.webkit.DownloadListener;
 import android.webkit.GeolocationPermissions;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -26,6 +25,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -33,8 +33,7 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 import android.content.res.ColorStateList;
-import android.content.res.Configuration; 
-import android.graphics.Color;           
+import android.graphics.Color;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -43,8 +42,7 @@ import androidx.core.content.ContextCompat;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
-import androidx.appcompat.app.AppCompatDelegate;
-import androidx.activity.OnBackPressedCallback; 
+import androidx.activity.OnBackPressedCallback;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
@@ -114,6 +112,40 @@ public class MainActivity extends BaseActivity {
         
         // 初始化 SharedPreferences
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        // 首次打开时，启动关键资源预加载
+        // 建议填写体积较大且影响首屏渲染的文件
+        boolean isFirstRun = prefs.getBoolean("is_first_launch_for_resources", true);
+        if (isFirstRun) {
+            Log.d(TAG, "已启动后台资源预加载");
+            WebResourcePrefetcher.getInstance().prefetch(
+                "https://www.moely.link/assets/css/style.css",
+                "https://www.moely.link/assets/css/user.css",
+                "https://www.moely.link/sw.js",
+                "https://www.moely.link/assets/js/lazyload.js",
+                "https://www.moely.link/assets/js/menuzord.js",
+                "https://www.moely.link/assets/js/add-star.js",
+                "https://www.moely.link/assets/js/login.js",
+                "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css",
+                "https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.0/css/bootstrap.min.css",
+                "https://cdnjs.cloudflare.com/ajax/libs/social-share.js/1.0.16/css/share.min.css",
+                "https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css",
+                "https://cdn.jsdelivr.net/npm/@algolia/algoliasearch-netlify-frontend@1/dist/algoliasearchNetlify.css",
+                "https://fonts.loli.net/css?family=Abel|Source+Sans+Pro:400,300,300italic,400italic,600,600italic,700,700italic,900,900italic,200italic,200",
+                "https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.0/js/bootstrap.min.js",
+                "https://cdnjs.cloudflare.com/ajax/libs/social-share.js/1.0.16/js/social-share.min.js",
+                "https://cdn.jsdelivr.net/npm/jquery@2.2.3/dist/jquery.min.js",
+                "https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js",
+                "https://cdn.jsdelivr.net/npm/masonry-layout@4.2.2/dist/masonry.pkgd.min.js",
+                "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.12/dist/umd/supabase.js",
+                "https://cdn.jsdelivr.net/npm/@algolia/algoliasearch-netlify-frontend@1/dist/algoliasearchNetlify.js",
+                "https://js.hcaptcha.com/1/api.js",
+                "https://www.googletagmanager.com/gtag/js?id=G-Z3X6D0X4W1"
+            );
+            prefs.edit().putBoolean("is_first_launch_for_resources", false).apply();
+        } else {
+            Log.d(TAG, "非首次运行，跳过 Java 预加载，通过 ServiceWorker 加载资源。");
+        }
         
         // 注册权限请求启动器
         registerPermissionLaunchers();
@@ -364,6 +396,24 @@ public class MainActivity extends BaseActivity {
      */
     private void setupWebViewClient() {
         webView.setWebViewClient(new WebViewClient() {
+
+            // 尝试使用本地预加载的静态资源
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                // 获取请求的 URL
+                String url = request.getUrl().toString();
+                
+                // 尝试从我们的预加载器中获取数据
+                WebResourceResponse cachedResponse = WebResourcePrefetcher.getInstance().getCachedResponse(url);
+                
+                if (cachedResponse != null) {
+                    // 如果内存里有，直接返回，不再经过网络
+                    return cachedResponse;
+                }
+                
+                // 如果内存里没有，继续执行默认的网络加载
+                return super.shouldInterceptRequest(view, request);
+            }
             
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
