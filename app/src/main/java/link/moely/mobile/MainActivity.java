@@ -87,6 +87,9 @@ public class MainActivity extends BaseActivity {
     // 【新增】用于存储首次加载的 URL，解决首次加载时机问题
     private String initialLoadUrl = HOME_URL; 
     
+    // 【新增】存储系统默认的 User-Agent，防止无限叠加
+    private String defaultUserAgent;
+
     // UI 组件
     private WebView webView;
     private ProgressBar progressBar;
@@ -106,6 +109,13 @@ public class MainActivity extends BaseActivity {
     // 首次启动
     private Bundle mSavedInstanceState;
 
+    // 翻译管理器 - 注意这里改用 TranslationEngine.TranslationManager
+    private TranslationEngine.TranslationManager translationManager;
+    
+    // 页面翻译状态追踪
+    private boolean isPageTranslated = false;
+    private String currentPageUrl = "";
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,6 +129,9 @@ public class MainActivity extends BaseActivity {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
         this.mSavedInstanceState = savedInstanceState;
+
+        // 【新增】初始化翻译管理器
+        translationManager = TranslationEngine.TranslationManager.getInstance(this);
 
         // 首次打开时，启动关键资源预加载
         // 建议填写体积较大且影响首屏渲染的文件
@@ -166,6 +179,13 @@ public class MainActivity extends BaseActivity {
             if (determinedUrl != null) {
                 initialLoadUrl = determinedUrl;
             }
+        }
+
+        // 【新增】获取并保存系统默认 User-Agent
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            defaultUserAgent = WebSettings.getDefaultUserAgent(this);
+        } else {
+            defaultUserAgent = new WebView(this).getSettings().getUserAgentString();
         }
 
         // 请求必要权限并初始化 WebView。
@@ -406,16 +426,26 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 设置自定义 User-Agent
+     * 设置自定义 User-Agent (修复版)
      */
     private void setupCustomUserAgent(WebSettings webSettings) {
         try {
-            String originalUserAgent = webSettings.getUserAgentString();
+            // 如果 defaultUserAgent 为空（异常情况），尝试重新获取
+            if (defaultUserAgent == null) {
+                defaultUserAgent = WebSettings.getDefaultUserAgent(this);
+            }
+            
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             String versionName = pInfo.versionName;
-            String customUserAgent = originalUserAgent + " MoelyMobile/" + versionName;
-            webSettings.setUserAgentString(customUserAgent);
-            Log.d(TAG, "User-Agent: " + customUserAgent);
+            
+            // 【关键修复】始终使用 defaultUserAgent 进行拼接，而不是叠加
+            String customUserAgent = defaultUserAgent + " MoelyMobile/" + versionName;
+            
+            // 只有当当前 UA 不正确时才重新设置，避免重复刷新
+            if (!customUserAgent.equals(webSettings.getUserAgentString())) {
+                webSettings.setUserAgentString(customUserAgent);
+                Log.d(TAG, "User-Agent 已更新: " + customUserAgent);
+            }
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(TAG, "无法获取版本号", e);
         }
@@ -458,7 +488,8 @@ public class MainActivity extends BaseActivity {
                 }
                 
                 if (url.startsWith("http://") || url.startsWith("https://")) {
-                    return false;
+                    view.loadUrl(url);
+                    return true;
                 } else {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -489,6 +520,21 @@ public class MainActivity extends BaseActivity {
                 progressBar.setVisibility(View.GONE);
                 injectDownloadInterceptor(view);
                 updateNavigationButtons();
+
+                // 【新增】注入翻译SDK
+                injectTranslationSDK(view);
+                
+                // 【新增】自动翻译检查
+                if (!url.equals(currentPageUrl)) {
+                    currentPageUrl = url;
+                    isPageTranslated = false;
+                    
+                    if (translationManager.isEnabled() && translationManager.isAutoTranslateEnabled()) {
+                        view.postDelayed(() -> {
+                            autoTranslatePage(view);
+                        }, 500);
+                    }
+                }
             }
 
             @Override
@@ -863,6 +909,201 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
+     * 注入沉浸式翻译 JavaScript SDK
+     */
+    private void injectTranslationSDK(WebView webView) {
+        String script = "javascript:(" +
+            "function() {" +
+            "  if (typeof window.MoelyTranslation === 'undefined') {" +
+            "    window.MoelyTranslation = {" +
+            "      callbacks: {}," +
+            "      translatedNodes: new WeakSet()," +
+            "      isTranslating: false," +
+            "      " +
+            "      generateCallbackId: function() {" +
+            "        return 'cb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);" +
+            "      }," +
+            "      " +
+            "      translate: function(text, fromLang, toLang) {" +
+            "        return new Promise((resolve, reject) => {" +
+            "          if (!window.Android || typeof window.Android.translate !== 'function') {" +
+            "            reject(new Error('翻译功能不可用'));" +
+            "            return;" +
+            "          }" +
+            "          const callbackId = this.generateCallbackId();" +
+            "          this.callbacks[callbackId] = function(status, data) {" +
+            "            if (status === 'success') resolve(data);" +
+            "            else reject(new Error(data));" +
+            "          };" +
+            "          setTimeout(() => {" +
+            "            if (this.callbacks[callbackId]) {" +
+            "              delete this.callbacks[callbackId];" +
+            "              reject(new Error('翻译超时'));" +
+            "            }" +
+            "          }, 15000);" +
+            "          window.Android.translate(text, fromLang || 'auto', toLang || 'zh-CN', callbackId);" +
+            "        });" +
+            "      }," +
+            "      " +
+            "      detectLanguage: function(text) {" +
+            "        const chinesePattern = /[\\u4e00-\\u9fa5]/;" +
+            "        const englishPattern = /[a-zA-Z]/;" +
+            "        const japanesePattern = /[\\u3040-\\u309f\\u30a0-\\u30ff]/;" +
+            "        const koreanPattern = /[\\uac00-\\ud7af]/;" +
+            "        if (chinesePattern.test(text)) return 'zh';" +
+            "        if (japanesePattern.test(text)) return 'ja';" +
+            "        if (koreanPattern.test(text)) return 'ko';" +
+            "        if (englishPattern.test(text)) return 'en';" +
+            "        return 'unknown';" +
+            "      }," +
+            "      " +
+            "      shouldTranslate: function(text, targetLang) {" +
+            "        if (!text || text.trim().length < 2) return false;" +
+            "        if (/^[0-9\\s\\p{P}]+$/u.test(text)) return false;" +
+            "        const detectedLang = this.detectLanguage(text);" +
+            "        const targetBase = targetLang.split('-')[0].toLowerCase();" +
+            "        return detectedLang !== 'unknown' && detectedLang !== targetBase;" +
+            "      }," +
+            "      " +
+            "      translateTextNode: async function(node, targetLang) {" +
+            "        if (this.translatedNodes.has(node)) return;" +
+            "        const originalText = node.textContent.trim();" +
+            "        if (!this.shouldTranslate(originalText, targetLang)) return;" +
+            "        try {" +
+            "          const translated = await this.translate(originalText, 'auto', targetLang);" +
+            "          if (translated && translated !== originalText) {" +
+            "            const wrapper = document.createElement('span');" +
+            "            wrapper.style.cssText = 'display: inline-block;';" +
+            "            const translatedSpan = document.createElement('span');" +
+            "            translatedSpan.textContent = translated;" +
+            "            translatedSpan.style.cssText = 'display: block;';" +
+            "            translatedSpan.className = 'moely-translated';" +
+            "            const originalSpan = document.createElement('span');" +
+            "            originalSpan.textContent = originalText;" +
+            "            originalSpan.style.cssText = 'display: block; font-size: 0.85em; color: #666; margin-top: 2px;';" +
+            "            originalSpan.className = 'moely-original';" +
+            "            wrapper.appendChild(translatedSpan);" +
+            "            wrapper.appendChild(originalSpan);" +
+            "            node.parentNode.replaceChild(wrapper, node);" +
+            "            this.translatedNodes.add(wrapper);" +
+            "          }" +
+            "        } catch (error) {" +
+            "          console.error('翻译失败:', error);" +
+            "        }" +
+            "      }," +
+            "      " +
+            "      getTextNodes: function(element) {" +
+            "        const textNodes = [];" +
+            "        const excludeTags = ['SCRIPT', 'STYLE', 'CODE', 'PRE', 'NOSCRIPT', 'TEXTAREA', 'INPUT'];" +
+            "        function traverse(node) {" +
+            "          if (excludeTags.includes(node.nodeName)) return;" +
+            "          if (node.classList && node.classList.contains('moely-translated')) return;" +
+            "          if (node.nodeType === Node.TEXT_NODE) {" +
+            "            if (node.textContent.trim().length > 0) textNodes.push(node);" +
+            "          } else if (node.nodeType === Node.ELEMENT_NODE) {" +
+            "            for (let child of node.childNodes) traverse(child);" +
+            "          }" +
+            "        }" +
+            "        traverse(element);" +
+            "        return textNodes;" +
+            "      }," +
+            "      " +
+            "      translatePage: async function(targetLang) {" +
+            "        if (this.isTranslating) {" +
+            "          console.log('翻译进行中...');" +
+            "          return;" +
+            "        }" +
+            "        this.isTranslating = true;" +
+            "        console.log('开始翻译页面...');" +
+            "        try {" +
+            "          const textNodes = this.getTextNodes(document.body);" +
+            "          console.log('找到', textNodes.length, '个文本节点');" +
+            "          const batchSize = 5;" +
+            "          for (let i = 0; i < textNodes.length; i += batchSize) {" +
+            "            const batch = textNodes.slice(i, i + batchSize);" +
+            "            await Promise.all(batch.map(node => " +
+            "              this.translateTextNode(node, targetLang).catch(e => console.error(e))" +
+            "            ));" +
+            "            await new Promise(resolve => setTimeout(resolve, 200));" +
+            "          }" +
+            "          console.log('页面翻译完成');" +
+            "          if (window.Android && window.Android.onPageTranslated) {" +
+            "            window.Android.onPageTranslated();" +
+            "          }" +
+            "        } catch (error) {" +
+            "          console.error('页面翻译失败:', error);" +
+            "        } finally {" +
+            "          this.isTranslating = false;" +
+            "        }" +
+            "      }," +
+            "      " +
+            "      restoreOriginal: function() {" +
+            "        const translatedElements = document.querySelectorAll('.moely-translated');" +
+            "        translatedElements.forEach(el => {" +
+            "          const wrapper = el.parentElement;" +
+            "          const originalSpan = wrapper.querySelector('.moely-original');" +
+            "          if (originalSpan && wrapper.parentNode) {" +
+            "            const textNode = document.createTextNode(originalSpan.textContent);" +
+            "            wrapper.parentNode.replaceChild(textNode, wrapper);" +
+            "          }" +
+            "        });" +
+            "        this.translatedNodes = new WeakSet();" +
+            "        console.log('已恢复原文');" +
+            "      }," +
+            "      " +
+            "      isEnabled: function() {" +
+            "        return window.Android && window.Android.isTranslationEnabled && window.Android.isTranslationEnabled();" +
+            "      }," +
+            "      getCurrentEngine: function() {" +
+            "        return window.Android && window.Android.getCurrentTranslationEngine ? window.Android.getCurrentTranslationEngine() : null;" +
+            "      }" +
+            "    };" +
+            "    console.log('Moely 沉浸式翻译 SDK 已加载');" +
+            "  }" +
+            "})();";
+
+        webView.evaluateJavascript(script, null);
+        Log.d(TAG, "注入沉浸式翻译 SDK");
+    }
+
+    /**
+     * 自动翻译页面
+     */
+    private void autoTranslatePage(WebView webView) {
+        if (!translationManager.isEnabled()) {
+            return;
+        }
+
+        String targetLang = translationManager.getTargetLanguage();
+        Log.d(TAG, "自动翻译页面到: " + targetLang);
+
+        String script = String.format("MoelyTranslation.translatePage('%s');", targetLang);
+        webView.evaluateJavascript(script, value -> {
+            Log.d(TAG, "页面翻译已启动");
+            isPageTranslated = true;
+        });
+    }
+
+    /**
+     * 手动触发页面翻译/恢复原文
+     */
+    private void translateCurrentPage() {
+        if (webView == null) return;
+
+        if (isPageTranslated) {
+            webView.evaluateJavascript("MoelyTranslation.restoreOriginal();", null);
+            isPageTranslated = false;
+            Toast.makeText(this, "已恢复原文", Toast.LENGTH_SHORT).show();
+        } else {
+            String targetLang = translationManager.getTargetLanguage();
+            String script = String.format("MoelyTranslation.translatePage('%s');", targetLang);
+            webView.evaluateJavascript(script, null);
+            Toast.makeText(this, "正在翻译页面...", Toast.LENGTH_SHORT).show();
+            isPageTranslated = true;
+        }
+    }
+
+    /**
      * JavaScript 接口
      */
     public class WebAppInterface {
@@ -874,6 +1115,7 @@ public class MainActivity extends BaseActivity {
 
         @JavascriptInterface
         public void startDownload(String url, String contentDisposition, String mimetype) {
+            // ... 保持原有下载代码不变 ...
             Log.d(TAG, "JS 下载: " + url);
             runOnUiThread(() -> {
                 try {
@@ -890,7 +1132,6 @@ public class MainActivity extends BaseActivity {
                     request.setNotificationVisibility(
                             DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
 
-                    // 下载路径解析
                     String finalDestinationSubPath = getDownloadDestinationSubPath(
                             prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
                     request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, 
@@ -916,6 +1157,98 @@ public class MainActivity extends BaseActivity {
         @JavascriptInterface
         public void logError(String message) {
             Log.e(TAG, "JS 错误: " + message);
+        }
+
+        // ==========================================
+        // 【新增】翻译相关接口
+        // ==========================================
+        
+        @JavascriptInterface
+        public void translate(String text, String fromLang, String toLang, String callbackId) {
+            if (!translationManager.isEnabled()) {
+                executeJavaScriptCallback(callbackId, "error", "翻译功能未启用");
+                return;
+            }
+            
+            String normalizedFromLang = normalizeLanguageCode(fromLang);
+            String normalizedToLang = normalizeLanguageCode(toLang);
+            
+            // 注意这里使用 TranslationEngine.TranslationManager.TranslationCallback
+            translationManager.translateAsync(text, normalizedFromLang, normalizedToLang, 
+                new TranslationEngine.TranslationManager.TranslationCallback() {
+                    @Override
+                    public void onSuccess(String translatedText) {
+                        executeJavaScriptCallback(callbackId, "success", translatedText);
+                    }
+                    
+                    @Override
+                    public void onError(String error) {
+                        executeJavaScriptCallback(callbackId, "error", error);
+                    }
+                });
+        }
+        
+        @JavascriptInterface
+        public void onPageTranslated() {
+            runOnUiThread(() -> {
+                Toast.makeText(MainActivity.this, "页面翻译完成", Toast.LENGTH_SHORT).show();
+            });
+        }
+        
+        @JavascriptInterface
+        public boolean isTranslationEnabled() {
+            return translationManager.isEnabled();
+        }
+        
+        @JavascriptInterface
+        public String getCurrentTranslationEngine() {
+            return translationManager.getCurrentEngine();
+        }
+        
+        private void executeJavaScriptCallback(String callbackId, String status, String data) {
+            runOnUiThread(() -> {
+                if (webView != null) {
+                    String escapedData = escapeJavaScriptString(data);
+                    String script = String.format(
+                        "if(window.MoelyTranslation && window.MoelyTranslation.callbacks['%s']) {" +
+                        "  window.MoelyTranslation.callbacks['%s']('%s', '%s');" +
+                        "  delete window.MoelyTranslation.callbacks['%s'];" +
+                        "}",
+                        callbackId, callbackId, status, escapedData, callbackId
+                    );
+                    webView.evaluateJavascript(script, null);
+                }
+            });
+        }
+        
+        private String escapeJavaScriptString(String text) {
+            if (text == null) return "";
+            return text.replace("\\", "\\\\")
+                    .replace("'", "\\'")
+                    .replace("\"", "\\\"")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                    .replace("\t", "\\t");
+        }
+        
+        private String normalizeLanguageCode(String langCode) {
+            if (langCode == null || langCode.isEmpty()) {
+                return "auto";
+            }
+            
+            String[] parts = langCode.split("[-_]");
+            String baseLang = parts[0].toLowerCase();
+            
+            if (baseLang.equals("zh")) {
+                if (langCode.toLowerCase().contains("tw") || 
+                    langCode.toLowerCase().contains("hk") ||
+                    langCode.toLowerCase().contains("cht")) {
+                    return "zh-TW";
+                }
+                return "zh-CN";
+            }
+            
+            return baseLang;
         }
     }
     

@@ -203,6 +203,31 @@
 
             </LinearLayout>
 
+            <!-- 翻译设置 -->
+            <LinearLayout
+                android:id="@+id/translation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp"
+                android:background="?attr/colorSurfaceVariant">
+
+                <TextView
+                    android:id="@+id/translationSettingsButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="翻译设置"
+                    android:padding="16dp"
+                    android:textSize="16sp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:drawableStart="@drawable/ic_translate"
+                    android:drawablePadding="16dp"/>
+                
+            </LinearLayout>
+
             <!-- 应用信息 -->
             <LinearLayout
                 android:id="@+id/app_info_section"

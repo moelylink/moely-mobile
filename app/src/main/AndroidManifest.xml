@@ -135,5 +135,10 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- 翻译 -->
+        <activity
+            android:name=".TranslationSettingsActivity"
+            android:label="翻译设置" />
+
     </application>
 </manifest>
