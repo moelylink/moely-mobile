@@ -909,7 +909,7 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
-     * 注入沉浸式翻译 JavaScript SDK
+     * 注入沉浸式翻译 JavaScript SDK (按行翻译版本)
      */
     private void injectTranslationSDK(WebView webView) {
         String script = "javascript:(" +
@@ -965,47 +965,124 @@ public class MainActivity extends BaseActivity {
             "        return detectedLang !== 'unknown' && detectedLang !== targetBase;" +
             "      }," +
             "      " +
-            "      translateTextNode: async function(node, targetLang) {" +
-            "        if (this.translatedNodes.has(node)) return;" +
-            "        const originalText = node.textContent.trim();" +
-            "        if (!this.shouldTranslate(originalText, targetLang)) return;" +
-            "        try {" +
-            "          const translated = await this.translate(originalText, 'auto', targetLang);" +
-            "          if (translated && translated !== originalText) {" +
-            "            const wrapper = document.createElement('span');" +
-            "            wrapper.style.cssText = 'display: inline-block;';" +
-            "            const translatedSpan = document.createElement('span');" +
-            "            translatedSpan.textContent = translated;" +
-            "            translatedSpan.style.cssText = 'display: block;';" +
-            "            translatedSpan.className = 'moely-translated';" +
-            "            const originalSpan = document.createElement('span');" +
-            "            originalSpan.textContent = originalText;" +
-            "            originalSpan.style.cssText = 'display: block; font-size: 0.85em; color: #666; margin-top: 2px;';" +
-            "            originalSpan.className = 'moely-original';" +
-            "            wrapper.appendChild(translatedSpan);" +
-            "            wrapper.appendChild(originalSpan);" +
-            "            node.parentNode.replaceChild(wrapper, node);" +
-            "            this.translatedNodes.add(wrapper);" +
+            "      getTranslatableContainers: function(element) {" +
+            "        const containers = [];" +
+            "        const containerTags = ['P', 'DIV', 'SECTION', 'ARTICLE', 'LI', 'TD', 'TH', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'FIGCAPTION', 'SPAN'];" +
+            "        const excludeTags = ['SCRIPT', 'STYLE', 'CODE', 'PRE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'BUTTON', 'SELECT'];" +
+            "        " +
+            "        function traverse(node) {" +
+            "          if (!node || !node.nodeName) return;" +
+            "          if (excludeTags.includes(node.nodeName)) return;" +
+            "          if (node.classList && node.classList.contains('moely-translated')) return;" +
+            "          " +
+            "          if (containerTags.includes(node.nodeName)) {" +
+            "            const hasTextContent = node.textContent && node.textContent.trim().length > 0;" +
+            "            const children = Array.from(node.children || []);" +
+            "            const hasNoContainerChildren = children.every(child => " +
+            "              !containerTags.includes(child.nodeName)" +
+            "            );" +
+            "            " +
+            "            if (hasTextContent && hasNoContainerChildren) {" +
+            "              containers.push(node);" +
+            "              return;" +
+            "            }" +
             "          }" +
+            "          " +
+            "          const children = node.children || [];" +
+            "          for (let i = 0; i < children.length; i++) {" +
+            "            traverse(children[i]);" +
+            "          }" +
+            "        }" +
+            "        " +
+            "        traverse(element);" +
+            "        return containers;" +
+            "      }," +
+            "      " +
+            "      translateContainer: async function(container, targetLang) {" +
+            "        if (!container || this.translatedNodes.has(container)) return;" +
+            "        " +
+            "        const textNodes = [];" +
+            "        const excludeTags = ['SCRIPT', 'STYLE', 'CODE', 'PRE', 'NOSCRIPT', 'TEXTAREA', 'INPUT'];" +
+            "        " +
+            "        function collectTextNodes(node) {" +
+            "          if (!node) return;" +
+            "          if (node.nodeName && excludeTags.includes(node.nodeName)) return;" +
+            "          if (node.classList && node.classList.contains('moely-translated')) return;" +
+            "          " +
+            "          if (node.nodeType === 3 && node.textContent && node.textContent.trim().length > 0) {" +
+            "            textNodes.push(node);" +
+            "          } else if (node.nodeType === 1 && node.childNodes) {" +
+            "            for (let i = 0; i < node.childNodes.length; i++) {" +
+            "              collectTextNodes(node.childNodes[i]);" +
+            "            }" +
+            "          }" +
+            "        }" +
+            "        " +
+            "        collectTextNodes(container);" +
+            "        if (textNodes.length === 0) return;" +
+            "        " +
+            "        const fullText = textNodes.map(n => n.textContent.trim()).join(' ');" +
+            "        if (!this.shouldTranslate(fullText, targetLang)) return;" +
+            "        " +
+            "        try {" +
+            "          const translated = await this.translate(fullText, 'auto', targetLang);" +
+            "          if (!translated || translated === fullText) return;" +
+            "          " +
+            "          const translatedParts = this.splitTranslation(translated, textNodes.map(n => n.textContent.trim()));" +
+            "          " +
+            "          for (let i = 0; i < textNodes.length; i++) {" +
+            "            const node = textNodes[i];" +
+            "            const translatedText = translatedParts[i];" +
+            "            " +
+            "            if (translatedText && node.parentNode) {" +
+            "              const wrapper = document.createElement('span');" +
+            "              wrapper.style.cssText = 'display: inline-block;';" +
+            "              " +
+            "              const translatedSpan = document.createElement('span');" +
+            "              translatedSpan.textContent = translatedText;" +
+            "              translatedSpan.style.cssText = 'display: block;';" +
+            "              translatedSpan.className = 'moely-translated';" +
+            "              " +
+            "              const originalSpan = document.createElement('span');" +
+            "              originalSpan.textContent = node.textContent;" +
+            "              originalSpan.style.cssText = 'display: block; font-size: 0.85em; color: #666; margin-top: 2px;';" +
+            "              originalSpan.className = 'moely-original';" +
+            "              " +
+            "              wrapper.appendChild(translatedSpan);" +
+            "              wrapper.appendChild(originalSpan);" +
+            "              " +
+            "              node.parentNode.replaceChild(wrapper, node);" +
+            "              this.translatedNodes.add(wrapper);" +
+            "            }" +
+            "          }" +
+            "          " +
+            "          this.translatedNodes.add(container);" +
             "        } catch (error) {" +
-            "          console.error('翻译失败:', error);" +
+            "          console.error('容器翻译失败:', error);" +
             "        }" +
             "      }," +
             "      " +
-            "      getTextNodes: function(element) {" +
-            "        const textNodes = [];" +
-            "        const excludeTags = ['SCRIPT', 'STYLE', 'CODE', 'PRE', 'NOSCRIPT', 'TEXTAREA', 'INPUT'];" +
-            "        function traverse(node) {" +
-            "          if (excludeTags.includes(node.nodeName)) return;" +
-            "          if (node.classList && node.classList.contains('moely-translated')) return;" +
-            "          if (node.nodeType === Node.TEXT_NODE) {" +
-            "            if (node.textContent.trim().length > 0) textNodes.push(node);" +
-            "          } else if (node.nodeType === Node.ELEMENT_NODE) {" +
-            "            for (let child of node.childNodes) traverse(child);" +
-            "          }" +
+            "      splitTranslation: function(translated, originals) {" +
+            "        if (!translated || !originals || originals.length === 0) return [];" +
+            "        if (originals.length === 1) return [translated];" +
+            "        " +
+            "        const sentences = translated.split(/(?<=[.!?。!?])\\s+/).filter(s => s.trim());" +
+            "        if (sentences.length === originals.length) return sentences;" +
+            "        " +
+            "        const words = translated.split(/\\s+/);" +
+            "        const totalWords = words.length;" +
+            "        const result = [];" +
+            "        let currentIndex = 0;" +
+            "        " +
+            "        for (let i = 0; i < originals.length; i++) {" +
+            "          const ratio = (i + 1) / originals.length;" +
+            "          const targetIndex = Math.ceil(totalWords * ratio);" +
+            "          const part = words.slice(currentIndex, targetIndex).join(' ');" +
+            "          result.push(part);" +
+            "          currentIndex = targetIndex;" +
             "        }" +
-            "        traverse(element);" +
-            "        return textNodes;" +
+            "        " +
+            "        return result;" +
             "      }," +
             "      " +
             "      translatePage: async function(targetLang) {" +
@@ -1013,19 +1090,23 @@ public class MainActivity extends BaseActivity {
             "          console.log('翻译进行中...');" +
             "          return;" +
             "        }" +
+            "        " +
             "        this.isTranslating = true;" +
-            "        console.log('开始翻译页面...');" +
+            "        console.log('开始按容器翻译页面...');" +
+            "        " +
             "        try {" +
-            "          const textNodes = this.getTextNodes(document.body);" +
-            "          console.log('找到', textNodes.length, '个文本节点');" +
-            "          const batchSize = 5;" +
-            "          for (let i = 0; i < textNodes.length; i += batchSize) {" +
-            "            const batch = textNodes.slice(i, i + batchSize);" +
-            "            await Promise.all(batch.map(node => " +
-            "              this.translateTextNode(node, targetLang).catch(e => console.error(e))" +
+            "          const containers = this.getTranslatableContainers(document.body);" +
+            "          console.log('找到', containers.length, '个可翻译容器');" +
+            "          " +
+            "          const batchSize = 3;" +
+            "          for (let i = 0; i < containers.length; i += batchSize) {" +
+            "            const batch = containers.slice(i, i + batchSize);" +
+            "            await Promise.all(batch.map(container => " +
+            "              this.translateContainer(container, targetLang).catch(e => console.error('容器翻译失败:', e))" +
             "            ));" +
-            "            await new Promise(resolve => setTimeout(resolve, 200));" +
+            "            await new Promise(resolve => setTimeout(resolve, 300));" +
             "          }" +
+            "          " +
             "          console.log('页面翻译完成');" +
             "          if (window.Android && window.Android.onPageTranslated) {" +
             "            window.Android.onPageTranslated();" +
@@ -1041,8 +1122,8 @@ public class MainActivity extends BaseActivity {
             "        const translatedElements = document.querySelectorAll('.moely-translated');" +
             "        translatedElements.forEach(el => {" +
             "          const wrapper = el.parentElement;" +
-            "          const originalSpan = wrapper.querySelector('.moely-original');" +
-            "          if (originalSpan && wrapper.parentNode) {" +
+            "          const originalSpan = wrapper ? wrapper.querySelector('.moely-original') : null;" +
+            "          if (originalSpan && wrapper && wrapper.parentNode) {" +
             "            const textNode = document.createTextNode(originalSpan.textContent);" +
             "            wrapper.parentNode.replaceChild(textNode, wrapper);" +
             "          }" +
@@ -1054,14 +1135,18 @@ public class MainActivity extends BaseActivity {
             "      isEnabled: function() {" +
             "        return window.Android && window.Android.isTranslationEnabled && window.Android.isTranslationEnabled();" +
             "      }," +
+            "      " +
             "      getCurrentEngine: function() {" +
             "        return window.Android && window.Android.getCurrentTranslationEngine ? window.Android.getCurrentTranslationEngine() : null;" +
             "      }" +
             "    };" +
+            "    " +
             "    console.log('Moely 沉浸式翻译 SDK 已加载');" +
+            "    console.log('使用: MoelyTranslation.translatePage(\"zh-CN\") 翻译页面');" +
+            "    console.log('使用: MoelyTranslation.restoreOriginal() 恢复原文');" +
             "  }" +
             "})();";
-
+        
         webView.evaluateJavascript(script, null);
         Log.d(TAG, "注入沉浸式翻译 SDK");
     }
@@ -1073,10 +1158,10 @@ public class MainActivity extends BaseActivity {
         if (!translationManager.isEnabled()) {
             return;
         }
-
+        
         String targetLang = translationManager.getTargetLanguage();
         Log.d(TAG, "自动翻译页面到: " + targetLang);
-
+        
         String script = String.format("MoelyTranslation.translatePage('%s');", targetLang);
         webView.evaluateJavascript(script, value -> {
             Log.d(TAG, "页面翻译已启动");
@@ -1089,7 +1174,7 @@ public class MainActivity extends BaseActivity {
      */
     private void translateCurrentPage() {
         if (webView == null) return;
-
+        
         if (isPageTranslated) {
             webView.evaluateJavascript("MoelyTranslation.restoreOriginal();", null);
             isPageTranslated = false;
@@ -1159,68 +1244,64 @@ public class MainActivity extends BaseActivity {
             Log.e(TAG, "JS 错误: " + message);
         }
 
-        // ==========================================
-        // 【新增】翻译相关接口
-        // ==========================================
-        
+        /**
+         * 【新增】JS 调用的核心翻译方法
+         * 接收 JS 传入的文本、语言代码和回调ID，交给 TranslationManager 处理。
+         */
         @JavascriptInterface
         public void translate(String text, String fromLang, String toLang, String callbackId) {
-            if (!translationManager.isEnabled()) {
-                executeJavaScriptCallback(callbackId, "error", "翻译功能未启用");
-                return;
-            }
-            
+            // 确保在UI线程上执行Toast等操作
+            runOnUiThread(() -> 
+                Log.d(TAG, "JS Request: " + callbackId + ", Text: " + (text.length() > 50 ? text.substring(0, 50) + "..." : text))
+            );
+
+            // 语言代码规范化
             String normalizedFromLang = normalizeLanguageCode(fromLang);
             String normalizedToLang = normalizeLanguageCode(toLang);
-            
-            // 注意这里使用 TranslationEngine.TranslationManager.TranslationCallback
-            translationManager.translateAsync(text, normalizedFromLang, normalizedToLang, 
-                new TranslationEngine.TranslationManager.TranslationCallback() {
-                    @Override
-                    public void onSuccess(String translatedText) {
-                        executeJavaScriptCallback(callbackId, "success", translatedText);
-                    }
-                    
-                    @Override
-                    public void onError(String error) {
-                        executeJavaScriptCallback(callbackId, "error", error);
-                    }
-                });
-        }
-        
-        @JavascriptInterface
-        public void onPageTranslated() {
-            runOnUiThread(() -> {
-                Toast.makeText(MainActivity.this, "页面翻译完成", Toast.LENGTH_SHORT).show();
+
+            translationManager.translateAsync(text, normalizedFromLang, normalizedToLang, new TranslationEngine.TranslationManager.TranslationCallback() {
+                @Override
+                public void onSuccess(String translatedText) {
+                    // 翻译成功，将结果返回给 JavaScript
+                    sendTranslationResult(callbackId, "success", translatedText);
+                }
+
+                @Override
+                public void onError(String error) {
+                    // 翻译失败，将错误信息返回给 JavaScript
+                    sendTranslationResult(callbackId, "error", error);
+                    runOnUiThread(() -> {
+                        Toast.makeText(mContext, "翻译失败: " + error, Toast.LENGTH_SHORT).show();
+                    });
+                }
             });
         }
-        
-        @JavascriptInterface
-        public boolean isTranslationEnabled() {
-            return translationManager.isEnabled();
-        }
-        
-        @JavascriptInterface
-        public String getCurrentTranslationEngine() {
-            return translationManager.getCurrentEngine();
-        }
-        
-        private void executeJavaScriptCallback(String callbackId, String status, String data) {
+
+        /**
+         * 将翻译结果回调给 JavaScript
+         * @param callbackId JS 回调 ID
+         * @param status "success" 或 "error"
+         * @param data 翻译结果或错误信息
+         */
+        private void sendTranslationResult(String callbackId, String status, String data) {
             runOnUiThread(() -> {
                 if (webView != null) {
                     String escapedData = escapeJavaScriptString(data);
+                    // 调用 JS SDK 中注册的回调函数
                     String script = String.format(
                         "if(window.MoelyTranslation && window.MoelyTranslation.callbacks['%s']) {" +
-                        "  window.MoelyTranslation.callbacks['%s']('%s', '%s');" +
-                        "  delete window.MoelyTranslation.callbacks['%s'];" +
-                        "}",
-                        callbackId, callbackId, status, escapedData, callbackId
+                        " window.MoelyTranslation.callbacks['%s']('%s', '%s');" +
+                        " delete window.MoelyTranslation.callbacks['%s'];" +
+                        "}", callbackId, callbackId, status, escapedData, callbackId
                     );
                     webView.evaluateJavascript(script, null);
                 }
             });
         }
-        
+
+        /**
+         * 对字符串进行 JavaScript 转义，防止 JS 注入错误
+         */
         private String escapeJavaScriptString(String text) {
             if (text == null) return "";
             return text.replace("\\", "\\\\")
@@ -1230,24 +1311,23 @@ public class MainActivity extends BaseActivity {
                     .replace("\r", "\\r")
                     .replace("\t", "\\t");
         }
-        
+
+        /**
+         * 规范化语言代码，确保与翻译引擎兼容
+         */
         private String normalizeLanguageCode(String langCode) {
             if (langCode == null || langCode.isEmpty()) {
                 return "auto";
             }
-            
             String[] parts = langCode.split("[-_]");
             String baseLang = parts[0].toLowerCase();
-            
+
             if (baseLang.equals("zh")) {
-                if (langCode.toLowerCase().contains("tw") || 
-                    langCode.toLowerCase().contains("hk") ||
-                    langCode.toLowerCase().contains("cht")) {
+                if (langCode.toLowerCase().contains("tw") || langCode.toLowerCase().contains("hk") || langCode.toLowerCase().contains("cht")) {
                     return "zh-TW";
                 }
                 return "zh-CN";
             }
-            
             return baseLang;
         }
     }

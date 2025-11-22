@@ -1,3 +1,6 @@
+// TranslationEngine.java
+// 位置: app/src/main/java/link/moely/mobile/TranslationEngine.java
+
 package link.moely.mobile;
 
 import android.content.Context;
@@ -74,24 +77,95 @@ public class TranslationEngine {
     }
 
     // ==========================================
-    // Microsoft 翻译
+    // Microsoft 翻译 (无需API key)
     // ==========================================
     
     public static class MicrosoftTranslator implements Translator {
         
+        private String jwtToken = null;
+        private long tokenExpireTime = 0;
+        
+        /**
+         * 刷新或获取 JWT Token
+         */
+        private String refreshToken() throws Exception {
+            long currentTime = System.currentTimeMillis() / 1000;
+            
+            // 检查现有 token 是否有效
+            if (jwtToken != null && currentTime < tokenExpireTime) {
+                return jwtToken;
+            }
+            
+            // 获取新 token
+            URL url = new URL("https://edge.microsoft.com/translate/auth");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+            
+            if (conn.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                jwtToken = reader.readLine();
+                reader.close();
+                conn.disconnect();
+                
+                // 解析 token 过期时间
+                tokenExpireTime = parseJwtExpireTime(jwtToken);
+                
+                return jwtToken;
+            } else {
+                throw new Exception("Failed to get Microsoft auth token: " + conn.getResponseCode());
+            }
+        }
+        
+        /**
+         * 解析 JWT token 的过期时间
+         */
+        private long parseJwtExpireTime(String token) {
+            try {
+                String[] parts = token.split("\\.");
+                if (parts.length < 2) return 0;
+                
+                // Base64 解码 payload
+                String payload = parts[1];
+                // 替换 URL safe 字符
+                payload = payload.replace('-', '+').replace('_', '/');
+                // 添加 padding
+                while (payload.length() % 4 != 0) {
+                    payload += "=";
+                }
+                
+                byte[] decodedBytes = android.util.Base64.decode(payload, android.util.Base64.DEFAULT);
+                String decodedPayload = new String(decodedBytes, "UTF-8");
+                
+                JSONObject json = new JSONObject(decodedPayload);
+                return json.getLong("exp");
+            } catch (Exception e) {
+                // 如果解析失败,返回当前时间,这样下次会重新获取 token
+                return System.currentTimeMillis() / 1000;
+            }
+        }
+        
         @Override
         public String translate(String text, String fromLang, String toLang) throws Exception {
-            String urlStr = "https://api.translator.microsoft.com/translate?api-version=3.0&from=" 
-                + fromLang + "&to=" + toLang;
+            // 获取或刷新 JWT token
+            String token = refreshToken();
+            
+            // 构建请求 URL (from 参数为空表示自动检测)
+            String fromParam = "auto".equals(fromLang) ? "" : fromLang;
+            String urlStr = "https://api-edge.cognitive.microsofttranslator.com/translate?from=" 
+                + fromParam + "&to=" + toLang + "&api-version=3.0&includeSentenceLength=true";
             
             URL url = new URL(urlStr);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(10000);
             conn.setDoOutput(true);
             
+            // 构建请求体
             JSONArray jsonArray = new JSONArray();
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("Text", text);
@@ -101,20 +175,37 @@ public class TranslationEngine {
             os.write(jsonArray.toString().getBytes("UTF-8"));
             os.close();
             
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
+            // 读取响应
+            int responseCode = conn.getResponseCode();
+            if (responseCode == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                conn.disconnect();
+                
+                JSONArray resultArray = new JSONArray(response.toString());
+                return resultArray.getJSONObject(0)
+                    .getJSONArray("translations")
+                    .getJSONObject(0)
+                    .getString("text");
+            } else {
+                // 读取错误信息
+                BufferedReader errorReader = new BufferedReader(
+                    new InputStreamReader(conn.getErrorStream()));
+                StringBuilder errorResponse = new StringBuilder();
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    errorResponse.append(line);
+                }
+                errorReader.close();
+                conn.disconnect();
+                
+                throw new Exception("Microsoft translation failed: " + responseCode + " " + errorResponse.toString());
             }
-            reader.close();
-            conn.disconnect();
-            
-            JSONArray resultArray = new JSONArray(response.toString());
-            return resultArray.getJSONObject(0)
-                .getJSONArray("translations")
-                .getJSONObject(0)
-                .getString("text");
         }
         
         @Override
@@ -182,31 +273,102 @@ public class TranslationEngine {
     }
 
     // ==========================================
-    // 有道翻译
+    // 有道翻译 (逆向版本)
     // ==========================================
     
     public static class YoudaoTranslator implements Translator {
         
+        private final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36";
+        
+        /**
+         * 生成MD5哈希
+         */
+        private String md5(String input) {
+            try {
+                MessageDigest md = MessageDigest.getInstance("MD5");
+                byte[] bytes = md.digest(input.getBytes("UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                for (byte b : bytes) {
+                    sb.append(String.format("%02x", b));
+                }
+                return sb.toString();
+            } catch (Exception e) {
+                return "";
+            }
+        }
+        
+        /**
+         * 生成salt和sign
+         */
+        private JSONObject generateSaltSign(String text) throws Exception {
+            // 生成bv: User-Agent的MD5
+            String bv = md5(USER_AGENT);
+            
+            // 生成ts: 当前时间戳(毫秒)
+            String ts = String.valueOf(System.currentTimeMillis());
+            
+            // 生成salt: ts + 随机数(1-10)
+            int random = (int)(Math.random() * 10) + 1;
+            String salt = ts + random;
+            
+            // 生成sign: MD5("fanyideskweb" + text + salt + "Ygy_4c=r#e#4EX^NUGUc5")
+            String signStr = "fanyideskweb" + text + salt + "Ygy_4c=r#e#4EX^NUGUc5";
+            String sign = md5(signStr);
+            
+            JSONObject result = new JSONObject();
+            result.put("ts", ts);
+            result.put("bv", bv);
+            result.put("salt", salt);
+            result.put("sign", sign);
+            
+            return result;
+        }
+        
         @Override
         public String translate(String text, String fromLang, String toLang) throws Exception {
-            String urlStr = "https://fanyi.youdao.com/translate?smartresult=dict&smartresult=rule";
+            // 生成签名参数
+            JSONObject signData = generateSaltSign(text);
+            
+            // 构建URL
+            String urlStr = "https://fanyi.youdao.com/translate_o?smartresult=dict&smartresult=rule";
             
             URL url = new URL(urlStr);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            conn.setRequestProperty("Referer", "https://fanyi.youdao.com/");
+            conn.setRequestProperty("Cookie", "OUTFOX_SEARCH_USER_ID=-286220249@10.108.160.17;");
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(10000);
             conn.setDoOutput(true);
             
-            String postData = "i=" + URLEncoder.encode(text, "UTF-8") 
-                + "&from=" + fromLang + "&to=" + toLang 
-                + "&smartresult=dict&client=fanyideskweb&doctype=json&version=2.1&keyfrom=fanyi.web&action=FY_BY_REALTIME";
+            // 构建POST数据
+            StringBuilder postData = new StringBuilder();
+            postData.append("i=").append(URLEncoder.encode(text, "UTF-8"));
+            postData.append("&from=").append("AUTO");
+            postData.append("&to=").append("AUTO");
+            postData.append("&smartresult=dict");
+            postData.append("&client=fanyideskweb");
+            postData.append("&salt=").append(signData.getString("salt"));
+            postData.append("&sign=").append(signData.getString("sign"));
+            postData.append("&ts=").append(signData.getString("ts"));
+            postData.append("&bv=").append(signData.getString("bv"));
+            postData.append("&doctype=json");
+            postData.append("&version=2.1");
+            postData.append("&keyfrom=fanyi.web");
+            postData.append("&action=FY_BY_REALTIME");
             
-            conn.getOutputStream().write(postData.getBytes("UTF-8"));
+            // 发送请求
+            conn.getOutputStream().write(postData.toString().getBytes("UTF-8"));
             
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            // 读取响应
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                throw new Exception("Youdao translation failed: " + responseCode);
+            }
+            
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
             StringBuilder response = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -215,7 +377,15 @@ public class TranslationEngine {
             reader.close();
             conn.disconnect();
             
+            // 解析结果
             JSONObject result = new JSONObject(response.toString());
+            
+            // 检查错误
+            if (result.has("errorCode") && result.getInt("errorCode") != 0) {
+                throw new Exception("Youdao API error: " + result.getInt("errorCode"));
+            }
+            
+            // 提取翻译结果
             JSONArray translateResult = result.getJSONArray("translateResult");
             StringBuilder translatedText = new StringBuilder();
             
