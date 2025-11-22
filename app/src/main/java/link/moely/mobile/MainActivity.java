@@ -976,6 +976,7 @@ public class MainActivity extends BaseActivity {
             "          if (excludeTags.includes(node.nodeName)) return;" +
             "          if (node.classList && node.classList.contains('moely-translated')) return;" +
             "          " +
+            "          if (node.classList && node.classList.contains('l-navbar')) return;" +
             "          if (containerTags.includes(node.nodeName)) {" +
             "            const hasTextContent = node.textContent && node.textContent.trim().length > 0;" +
             "            const children = Array.from(node.children || []);" +
