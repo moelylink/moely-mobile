@@ -11,7 +11,7 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar_translation"
         android:layout_width="0dp"
-        android:layout_height="?attr/actionBarSize"
+        android:layout_height="@dimen/custom_toolbar_height"
         android:background="?attr/colorPrimary"
         android:elevation="4dp"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
@@ -69,7 +69,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="启用翻译功能"
+                        android:text="网页翻译"
                         android:textSize="16sp"
                         android:textColor="?attr/colorOnSurface"/>
 
@@ -77,12 +77,11 @@
                         android:id="@+id/switch_translation_enabled"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:thumbTint="?attr/colorPrimary"
-                        android:trackTint="?attr/colorSecondary"
+                        android:color="?attr/colorOnSurface"
                         tools:ignore="UseSwitchCompatOrMaterialXml" />
                 </LinearLayout>
 
-                <View
+                <!-- <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="?attr/colorOutline"
@@ -127,7 +126,9 @@
                         android:thumbTint="?attr/colorPrimary"
                         android:trackTint="?attr/colorSecondary"
                         tools:ignore="UseSwitchCompatOrMaterialXml" />
-                </LinearLayout>
+                </LinearLayout> -->
+
+
 
             </LinearLayout>
 
@@ -248,8 +249,8 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="使用说明:\n\n1. 启用翻译功能后,可在底部导航栏点击翻译按钮翻译当前页面\n2. 开启自动翻译后,页面加载完成会自动翻译\n3. 翻译后会显示译文+原文的双语对照模式\n4. 再次点击翻译按钮可恢复原文"
-                android:textSize="12sp"
+                android:text="使用说明:\n\n1. 开启翻译功能后，网页将在加载完成后自动翻译；\n2. 翻译后将同时显示原文和译文，其中原文会以浅色显示在译文下方；\n3. 语言检测和文本翻译由机器程序实现，难免存在偏差；\n4. 翻译后点击下方的刷新按钮重载网页后将只显示原文；\n5. 如果当前翻译源不可用，请尝试更换翻译引擎。"
+                android:textSize="14sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:padding="16dp"
                 android:layout_margin="16dp"/>

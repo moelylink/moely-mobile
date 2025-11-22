@@ -15,7 +15,7 @@ public class TranslationSettingsActivity extends BaseActivity {
     
     private MaterialToolbar toolbar;
     private Switch switchEnabled;
-    private Switch switchAutoTranslate;
+    // private Switch switchAutoTranslate;
     private RadioGroup targetLanguageGroup;
     private LinearLayout layoutEngineSelector; 
     private TextView tvCurrentEngine; 
@@ -23,7 +23,7 @@ public class TranslationSettingsActivity extends BaseActivity {
     
     // 声明布局变量，对应 XML 中的 ID
     private LinearLayout layoutEnableTranslation;
-    private LinearLayout layoutAutoTranslate;
+    // private LinearLayout layoutAutoTranslate;
     
     private TranslationEngine.TranslationManager translationManager;
     
@@ -48,7 +48,7 @@ public class TranslationSettingsActivity extends BaseActivity {
         
         // 1. 初始化 Switch 和 RadioGroup
         switchEnabled = findViewById(R.id.switch_translation_enabled);
-        switchAutoTranslate = findViewById(R.id.switch_auto_translate);
+        // switchAutoTranslate = findViewById(R.id.switch_auto_translate);
         targetLanguageGroup = findViewById(R.id.target_language_group);
         
         // 2. 初始化引擎选择器相关视图
@@ -58,11 +58,11 @@ public class TranslationSettingsActivity extends BaseActivity {
         
         // 3. 初始化开关条目布局
         layoutEnableTranslation = findViewById(R.id.layout_enable_translation);
-        layoutAutoTranslate = findViewById(R.id.layout_auto_translate);
+        // layoutAutoTranslate = findViewById(R.id.layout_auto_translate);
         
         // 设置启用开关的初始状态
         switchEnabled.setChecked(translationManager.isEnabled());
-        switchAutoTranslate.setChecked(translationManager.isAutoTranslateEnabled());
+        // switchAutoTranslate.setChecked(translationManager.isAutoTranslateEnabled());
         
         // 设置开关的点击和切换逻辑
         setupToggleListeners();
@@ -92,7 +92,7 @@ public class TranslationSettingsActivity extends BaseActivity {
         });
         
         // 自动翻译开关
-        switchAutoTranslate.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        /* switchAutoTranslate.setOnCheckedChangeListener((buttonView, isChecked) -> {
             // 只有在翻译启用或用户尝试关闭时，才允许执行设置
             if (translationManager.isEnabled() || !isChecked) { 
                 translationManager.setAutoTranslateEnabled(isChecked);
@@ -100,7 +100,7 @@ public class TranslationSettingsActivity extends BaseActivity {
                 // 如果翻译未启用但用户尝试开启自动翻译，则阻止并恢复状态
                 switchAutoTranslate.setChecked(false);
             }
-        });
+        }); */
 
         // ------------------ 2. 条目点击只负责切换 Switch 状态 (用户体验) ------------------
 
@@ -111,13 +111,13 @@ public class TranslationSettingsActivity extends BaseActivity {
         });
         
         // 点击 "自动翻译页面" 条目
-        layoutAutoTranslate.setOnClickListener(v -> {
+        /* layoutAutoTranslate.setOnClickListener(v -> {
             // 只有当整个条目处于启用状态时才允许点击切换
             if (layoutAutoTranslate.isEnabled()) { 
                 switchAutoTranslate.toggle(); 
                 // 业务逻辑在 switchAutoTranslate.setOnCheckedChangeListener 中自动处理
             }
-        });
+        }); */
     }
     
     /**
@@ -204,8 +204,8 @@ public class TranslationSettingsActivity extends BaseActivity {
      */
     private void updateUIState(boolean enabled) {
         // 自动翻译的 Switch 和条目是否启用取决于主开关
-        switchAutoTranslate.setEnabled(enabled);
-        layoutAutoTranslate.setEnabled(enabled); 
+        // switchAutoTranslate.setEnabled(enabled);
+        // layoutAutoTranslate.setEnabled(enabled); 
         
         targetLanguageGroup.setEnabled(enabled);
         

@@ -1,6 +1,3 @@
-// TranslationEngine.java
-// 位置: app/src/main/java/link/moely/mobile/TranslationEngine.java
-
 package link.moely.mobile;
 
 import android.content.Context;

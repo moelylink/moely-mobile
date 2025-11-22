@@ -529,7 +529,8 @@ public class MainActivity extends BaseActivity {
                     currentPageUrl = url;
                     isPageTranslated = false;
                     
-                    if (translationManager.isEnabled() && translationManager.isAutoTranslateEnabled()) {
+                    // if (translationManager.isEnabled() && translationManager.isAutoTranslateEnabled()) {
+                    if (translationManager.isEnabled()) {
                         view.postDelayed(() -> {
                             autoTranslatePage(view);
                         }, 500);
@@ -950,9 +951,9 @@ public class MainActivity extends BaseActivity {
             "        const englishPattern = /[a-zA-Z]/;" +
             "        const japanesePattern = /[\\u3040-\\u309f\\u30a0-\\u30ff]/;" +
             "        const koreanPattern = /[\\uac00-\\ud7af]/;" +
-            "        if (chinesePattern.test(text)) return 'zh';" +
             "        if (japanesePattern.test(text)) return 'ja';" +
             "        if (koreanPattern.test(text)) return 'ko';" +
+            "        if (chinesePattern.test(text)) return 'zh';" +
             "        if (englishPattern.test(text)) return 'en';" +
             "        return 'unknown';" +
             "      }," +
@@ -1172,7 +1173,7 @@ public class MainActivity extends BaseActivity {
     /**
      * 手动触发页面翻译/恢复原文
      */
-    private void translateCurrentPage() {
+    /* private void translateCurrentPage() {
         if (webView == null) return;
         
         if (isPageTranslated) {
@@ -1186,7 +1187,7 @@ public class MainActivity extends BaseActivity {
             Toast.makeText(this, "正在翻译页面...", Toast.LENGTH_SHORT).show();
             isPageTranslated = true;
         }
-    }
+    } */
 
     /**
      * JavaScript 接口
