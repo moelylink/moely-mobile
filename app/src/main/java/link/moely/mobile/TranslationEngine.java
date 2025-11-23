@@ -282,8 +282,8 @@ public class TranslationEngine {
     
     public static class YoudaoTranslator implements Translator {
 
-        private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
-        private static final String COOKIE = "OUTFOX_SEARCH_USER_ID_NCOO=1345760699.513474; OUTFOX_SEARCH_USER_ID=320290828@223.104.221.155";
+        private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        private static final String COOKIE = "OUTFOX_SEARCH_USER_ID=1145141919@114.51.41.91; _uetsid=faadcbd1145141810a082c1e8b007b95c; _uetvid=faadcbd1145141810a082c1e8b007b95c; OUTFOX_SEARCH_USER_ID_NCOO=1145141919.8109926; DICT_DOCTRANS_SESSION_ID=MTE0NTE0MTkxOTgxMGFiY2RlZmc=";
         
         // 缓存的密钥数据
         private static class KeyCache {
@@ -302,8 +302,8 @@ public class TranslationEngine {
          * 有道支持的代码: zh-CHS(简中), zh-CHT(繁中), en, ja, ko, fr, es, pt, ru, vi, de, ar, id, th
          */
         private String convertToYoudaoLangCode(String langCode) {
-            if (langCode.equals("zh-CN") ) return "zh-CHS";
-            if (langCode.equals("zh-TW") ) return "zh-CHT";
+            if (langCode.equals("zh-CN")) return "zh-CHS";
+            if (langCode.equals("zh-TW")) return "zh-CHT";
             else return langCode;
         }
         
@@ -311,7 +311,7 @@ public class TranslationEngine {
          * 从JS文件中提取产品密钥
          */
         private JSONObject getProductKeys() throws Exception {
-            String jsUrl = "https://shared.ydstatic.com/dict/translation-website/0.6.6/js/app.78e9cb0d.js";
+            String jsUrl = "https://shared.ydstatic.com/dict/translation-website/0.7.8/js/app.3b32dc21.js";
             
             URL url = new URL(jsUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -338,7 +338,7 @@ public class TranslationEngine {
             if (m.find()) {
                 result.put("keyid", "webfanyi" + m.group(1));
                 result.put("constSign", m.group(2));
-                android.util.Log.d("YoudaoTranslator", "已经生成密钥");
+                android.util.Log.d("YoudaoTranslator", "已经生成密钥" + m.group(1));
             } else {
                 // 使用备用密钥
                 result.put("keyid", "webfanyi-key-getter-2025");
