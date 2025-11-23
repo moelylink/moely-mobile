@@ -1047,7 +1047,7 @@ public class MainActivity extends BaseActivity {
             "              " +
             "              const originalSpan = document.createElement('span');" +
             "              originalSpan.textContent = node.textContent;" +
-            "              originalSpan.style.cssText = 'display: block; font-size: 0.85em; color: #666; margin-top: 2px;';" +
+            "              originalSpan.style.cssText = 'display: block; font-size: 0.85em; color: #888; margin-top: 2px;';" +
             "              originalSpan.className = 'moely-original';" +
             "              " +
             "              wrapper.appendChild(translatedSpan);" +

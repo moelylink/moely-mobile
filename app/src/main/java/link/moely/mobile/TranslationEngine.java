@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -13,6 +14,12 @@ import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import android.util.Base64;
 
 /**
  * 翻译引擎 - 包含所有翻译相关类
@@ -274,98 +281,133 @@ public class TranslationEngine {
     // ==========================================
     
     public static class YoudaoTranslator implements Translator {
+
+        private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+        private static final String COOKIE = "OUTFOX_SEARCH_USER_ID_NCOO=1345760699.513474; OUTFOX_SEARCH_USER_ID=320290828@223.104.221.155";
         
-        private final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36";
+        // 缓存的密钥数据
+        private static class KeyCache {
+            String keyid;
+            String constSign;
+            String aesKey;
+            String aesIv;
+            String secretKey;
+            long expireTime;
+        }
+        
+        private KeyCache keyCache = null;
         
         /**
-         * 生成MD5哈希
+         * 转换为有道语言代码
+         * 有道支持的代码: zh-CHS(简中), zh-CHT(繁中), en, ja, ko, fr, es, pt, ru, vi, de, ar, id, th
          */
-        private String md5(String input) {
-            try {
-                MessageDigest md = MessageDigest.getInstance("MD5");
-                byte[] bytes = md.digest(input.getBytes("UTF-8"));
-                StringBuilder sb = new StringBuilder();
-                for (byte b : bytes) {
-                    sb.append(String.format("%02x", b));
-                }
-                return sb.toString();
-            } catch (Exception e) {
-                return "";
-            }
+        private String convertToYoudaoLangCode(String langCode) {
+            if (langCode.equals("zh-CN") ) return "zh-CHS";
+            if (langCode.equals("zh-TW") ) return "zh-CHT";
+            else return langCode;
         }
         
         /**
-         * 生成salt和sign
+         * 从JS文件中提取产品密钥
          */
-        private JSONObject generateSaltSign(String text) throws Exception {
-            // 生成bv: User-Agent的MD5
-            String bv = md5(USER_AGENT);
+        private JSONObject getProductKeys() throws Exception {
+            String jsUrl = "https://shared.ydstatic.com/dict/translation-website/0.6.6/js/app.78e9cb0d.js";
             
-            // 生成ts: 当前时间戳(毫秒)
-            String ts = String.valueOf(System.currentTimeMillis());
+            URL url = new URL(jsUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
             
-            // 生成salt: ts + 随机数(1-10)
-            int random = (int)(Math.random() * 10) + 1;
-            String salt = ts + random;
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder jsContent = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                jsContent.append(line);
+            }
+            reader.close();
+            conn.disconnect();
             
-            // 生成sign: MD5("fanyideskweb" + text + salt + "Ygy_4c=r#e#4EX^NUGUc5")
-            String signStr = "fanyideskweb" + text + salt + "Ygy_4c=r#e#4EX^NUGUc5";
-            String sign = md5(signStr);
+            // 提取keyid和constSign
+            String pattern = "async\\(\\{commit:e\\},t\\)=>\\{const\\s+a=\"webfanyi([^\"]+)\",n=\"([^\"]+)\"";
+            Pattern p = Pattern.compile(pattern);
+            Matcher m = p.matcher(jsContent.toString());
             
             JSONObject result = new JSONObject();
-            result.put("ts", ts);
-            result.put("bv", bv);
-            result.put("salt", salt);
-            result.put("sign", sign);
+            if (m.find()) {
+                result.put("keyid", "webfanyi" + m.group(1));
+                result.put("constSign", m.group(2));
+                android.util.Log.d("YoudaoTranslator", "已经生成密钥");
+            } else {
+                // 使用备用密钥
+                result.put("keyid", "webfanyi-key-getter-2025");
+                result.put("constSign", "yU5nT5dK3eZ1pI4j");
+                android.util.Log.d("YoudaoTranslator", "使用备用密钥");
+            }
             
             return result;
         }
         
-        @Override
-        public String translate(String text, String fromLang, String toLang) throws Exception {
-            // 生成签名参数
-            JSONObject signData = generateSaltSign(text);
+        /**
+         * 生成签名
+         */
+        private String getSign(String constSign, String mysticTime) throws Exception {
+            String signStr = "client=fanyideskweb&mysticTime=" + mysticTime + "&product=webfanyi&key=" + constSign;
             
-            // 构建URL
-            String urlStr = "https://fanyi.youdao.com/translate_o?smartresult=dict&smartresult=rule";
-            
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            conn.setRequestProperty("User-Agent", USER_AGENT);
-            conn.setRequestProperty("Referer", "https://fanyi.youdao.com/");
-            conn.setRequestProperty("Cookie", "OUTFOX_SEARCH_USER_ID=-286220249@10.108.160.17;");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
-            conn.setDoOutput(true);
-            
-            // 构建POST数据
-            StringBuilder postData = new StringBuilder();
-            postData.append("i=").append(URLEncoder.encode(text, "UTF-8"));
-            postData.append("&from=").append("AUTO");
-            postData.append("&to=").append("AUTO");
-            postData.append("&smartresult=dict");
-            postData.append("&client=fanyideskweb");
-            postData.append("&salt=").append(signData.getString("salt"));
-            postData.append("&sign=").append(signData.getString("sign"));
-            postData.append("&ts=").append(signData.getString("ts"));
-            postData.append("&bv=").append(signData.getString("bv"));
-            postData.append("&doctype=json");
-            postData.append("&version=2.1");
-            postData.append("&keyfrom=fanyi.web");
-            postData.append("&action=FY_BY_REALTIME");
-            
-            // 发送请求
-            conn.getOutputStream().write(postData.toString().getBytes("UTF-8"));
-            
-            // 读取响应
-            int responseCode = conn.getResponseCode();
-            if (responseCode != 200) {
-                throw new Exception("Youdao translation failed: " + responseCode);
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] bytes = md.digest(signStr.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        }
+        
+        /**
+         * 获取AES密钥
+         */
+        private void fetchKeys() throws Exception {
+            // 检查缓存是否有效(5分钟有效期)
+            if (keyCache != null && System.currentTimeMillis() < keyCache.expireTime) {
+                return;
             }
             
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+            // 获取产品密钥
+            JSONObject productKeys = getProductKeys();
+            String keyid = productKeys.getString("keyid");
+            String constSign = productKeys.getString("constSign");
+            String mysticTime = String.valueOf(System.currentTimeMillis());
+            String sign = getSign(constSign, mysticTime);
+            
+            // 构建请求URL
+            StringBuilder urlBuilder = new StringBuilder("https://dict.youdao.com/webtranslate/key?");
+            urlBuilder.append("keyid=").append(URLEncoder.encode(keyid, "UTF-8"));
+            urlBuilder.append("&sign=").append(sign);
+            urlBuilder.append("&client=fanyideskweb");
+            urlBuilder.append("&product=webfanyi");
+            urlBuilder.append("&appVersion=1.0.0");
+            urlBuilder.append("&vendor=web");
+            urlBuilder.append("&pointParam=client,mysticTime,product");
+            urlBuilder.append("&mysticTime=").append(mysticTime);
+            urlBuilder.append("&keyfrom=fanyi.web");
+            urlBuilder.append("&mid=1");
+            urlBuilder.append("&screen=1");
+            urlBuilder.append("&model=1");
+            urlBuilder.append("&network=wifi");
+            urlBuilder.append("&abtest=0");
+            urlBuilder.append("&yduuid=abcdefg");
+            
+            URL url = new URL(urlBuilder.toString());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            conn.setRequestProperty("Referer", "https://fanyi.youdao.com/");
+            conn.setRequestProperty("Cookie", COOKIE);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+            
+            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
             StringBuilder response = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -374,26 +416,163 @@ public class TranslationEngine {
             reader.close();
             conn.disconnect();
             
-            // 解析结果
+            // 解析响应
             JSONObject result = new JSONObject(response.toString());
+            JSONObject data = result.getJSONObject("data");
             
-            // 检查错误
-            if (result.has("errorCode") && result.getInt("errorCode") != 0) {
-                throw new Exception("Youdao API error: " + result.getInt("errorCode"));
+            // 缓存密钥
+            keyCache = new KeyCache();
+            keyCache.keyid = keyid;
+            keyCache.constSign = constSign;
+            keyCache.aesKey = data.getString("aesKey");
+            keyCache.aesIv = data.getString("aesIv");
+            keyCache.secretKey = data.getString("secretKey");
+            keyCache.expireTime = System.currentTimeMillis() + 5 * 60 * 1000; // 5分钟有效期
+        }
+        
+        /**
+         * AES解密
+         */
+        private String decryptAES(String encryptedBase64, String key, String iv) throws Exception {
+            // MD5哈希密钥和IV
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] keyBytes = md.digest(key.getBytes("UTF-8"));
+            byte[] ivBytes = md.digest(iv.getBytes("UTF-8"));
+            
+            // Base64解码
+            byte[] encryptedBytes = Base64.decode(encryptedBase64, Base64.URL_SAFE);
+            
+            // AES解密
+            SecretKeySpec secretKey = new SecretKeySpec(keyBytes, "AES");
+            IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
+            
+            byte[] decrypted = cipher.doFinal(encryptedBytes);
+            return new String(decrypted, "UTF-8");
+        }
+        
+        @Override
+        public String translate(String text, String fromLang, String toLang) throws Exception {
+            // 1. 获取密钥
+            fetchKeys();
+            
+            // 2. 统一生成时间和签名所需参数
+            String lts = String.valueOf(System.currentTimeMillis()); 
+            String salt = lts + (int)(Math.random() * 10);
+            String sign = getSign(keyCache.secretKey, lts); 
+            
+            // 3. 随机生成 yduuid (消除固定 ID)
+            String yduuid = java.util.UUID.randomUUID().toString().replaceAll("-", "").substring(0, 15);
+            
+            // 4. 转换语言代码
+            String youdaoTo = convertToYoudaoLangCode(toLang);
+            
+            // 5. 构建POST数据
+            StringBuilder postData = new StringBuilder();
+            
+            // 关键参数：i, from, to
+            postData.append("i=").append(URLEncoder.encode(text, "UTF-8")); 
+            postData.append("&from=auto");
+            postData.append("&to=").append(youdaoTo);
+
+            // 认证和时间参数
+            postData.append("&salt=").append(salt);
+            postData.append("&sign=").append(sign);
+            postData.append("&client=fanyideskweb");
+            postData.append("&product=webfanyi");
+            postData.append("&appVersion=1.0.0");
+            postData.append("&vendor=web");
+            postData.append("&pointParam=client,mysticTime,product");
+            postData.append("&mysticTime=").append(lts); 
+            postData.append("&keyfrom=fanyi.web");
+            postData.append("&keyid=").append(keyCache.keyid); // 使用 fetchKeys 获取到的 keyid
+
+            // 设备和网络参数
+            postData.append("&mid=1");
+            postData.append("&screen=1");
+            postData.append("&model=1");
+            postData.append("&network=wifi");
+            postData.append("&abtest=0");
+            postData.append("&yduuid=").append(yduuid); // 使用随机生成的 yduuid
+            postData.append("&useTerm=false");
+            postData.append("&dictResult=true");
+            
+            // 6. 发送请求
+            URL url = new URL("https://dict.youdao.com/webtranslate");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+
+            // 【请求头：最全的模拟浏览器 AJAX 请求头】
+            conn.setRequestProperty("X-Requested-With", "XMLHttpRequest"); 
+            conn.setRequestProperty("Accept", "application/json, text/javascript, */*; q=0.01"); 
+            conn.setRequestProperty("Accept-Encoding", "gzip, deflate, br"); 
+            conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            conn.setRequestProperty("Referer", "https://fanyi.youdao.com/");
+            conn.setRequestProperty("Cookie", COOKIE); // !!! 必须确保 COOKIE 是最新的 !!!
+            
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+            conn.setDoOutput(true);
+            
+            OutputStream os = conn.getOutputStream();
+            os.write(postData.toString().getBytes("UTF-8"));
+            os.close();
+            
+            // 7. 读取响应 (GZIP 处理，解决解密错误)
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                throw new Exception("Youdao translation failed: " + responseCode);
             }
             
-            // 提取翻译结果
-            JSONArray translateResult = result.getJSONArray("translateResult");
-            StringBuilder translatedText = new StringBuilder();
+            InputStream rawStream = conn.getInputStream();
+            String contentEncoding = conn.getHeaderField("Content-Encoding");
+            boolean isGzip = contentEncoding != null && contentEncoding.equalsIgnoreCase("gzip");
+
+            InputStream decodedStream = isGzip ? new java.util.zip.GZIPInputStream(rawStream) : rawStream;
+            BufferedReader reader = new BufferedReader(new InputStreamReader(decodedStream, "UTF-8"));
+
+            StringBuilder encryptedResponse = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                encryptedResponse.append(line);
+            }
+            reader.close();
+            conn.disconnect();
+
+            String rawBase64 = encryptedResponse.toString().trim();
             
-            for (int i = 0; i < translateResult.length(); i++) {
-                JSONArray arr = translateResult.getJSONArray(i);
-                for (int j = 0; j < arr.length(); j++) {
-                    translatedText.append(arr.getJSONObject(j).getString("tgt"));
+            // 8. 解密响应            
+            String decrypted = decryptAES(rawBase64, keyCache.aesKey, keyCache.aesIv);
+            
+            android.util.Log.d("YoudaoTranslator", "Input: " + text);
+            android.util.Log.d("YoudaoTranslator", "Decrypted: " + decrypted);
+            
+            // 9. 解析翻译结果
+            JSONObject result = new JSONObject(decrypted);
+            
+            // ... [解析逻辑保持不变]
+            if (result.has("translateResult")) {
+                org.json.JSONArray translateResult = result.getJSONArray("translateResult");
+                
+                if (translateResult.length() == 0) {
+                    throw new Exception("Empty translation result");
                 }
+                
+                Object firstElement = translateResult.get(0);
+                
+                if (firstElement instanceof org.json.JSONObject) {
+                    return translateResult.getJSONObject(0).getString("tgt");
+                } else if (firstElement instanceof org.json.JSONArray) {
+                    return translateResult.getJSONArray(0).getJSONObject(0).getString("tgt");
+                } else {
+                    throw new Exception("Unexpected translateResult format");
+                }
+            } else {
+                throw new Exception("Translation result not found");
             }
-            
-            return translatedText.toString();
         }
         
         @Override

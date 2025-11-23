@@ -39,7 +39,7 @@ moely-mobile/
 │   │   │   ├── ThemeModeManager.java # 颜色模式切换
 │   │   │   ├── ThemeUtils.java       # 应用主题
 │   │   │   ├── TranslationEngine.java # 翻译服务
-│   │   │   └── UpdateChecker.java    # 检查升级
+│   │   │   └── UpdateChecker.java    # 检查更新
 │   │   ├── res/      # 资源文件
 │   │   │   ├── drawable/      # 图标文件
 │   │   │   ├── layout/        # 界面布局
@@ -56,4 +56,4 @@ moely-mobile/
 
 ## 开源协议
 
-本项目采用 [GPL-3](https://github.com/moelylink/moely-wallpaper/blob/main/LICENSE) 许可证，使用代码请遵守开源协议。
+本项目采用 [GPL-3](https://github.com/moelylink/moely-mobile/blob/main/LICENSE) 许可证，使用代码请遵守开源协议。
