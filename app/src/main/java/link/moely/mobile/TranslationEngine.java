@@ -343,8 +343,8 @@ public class TranslationEngine {
                 // 使用备用密钥
                 result.put("keyid", "webfanyi-key-getter-2025");
                 result.put("constSign", "yU5nT5dK3eZ1pI4j");
-                return result;
             }
+            return result;
         }
 
         /**
