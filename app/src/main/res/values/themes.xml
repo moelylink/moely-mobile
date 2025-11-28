@@ -1,35 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Light Theme -->
+    <!-- ===== Light Theme 浅色主题 ===== -->
     <style name="Theme.MoelyApp" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary colors -->
+        <!-- Primary colors 主色调 -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorOnPrimary">@color/colorOnPrimary</item>
         <item name="colorPrimaryContainer">@color/purple_200</item>
         <item name="colorOnPrimaryContainer">@color/purple_700</item>
         
-        <!-- Secondary colors -->
+        <!-- Secondary colors 辅助色 -->
         <item name="colorSecondary">@color/colorSecondary</item>
         <item name="colorOnSecondary">@color/colorOnSecondary</item>
         <item name="colorSecondaryContainer">@color/colorSecondaryVariant</item>
         <item name="colorOnSecondaryContainer">@color/white</item>
         
-        <!-- Surface and background colors -->
+        <!-- Surface and background colors 表面和背景色 -->
         <item name="colorSurface">@color/colorSurface</item>
         <item name="colorOnSurface">@color/colorOnSurface</item>
         <item name="colorSurfaceVariant">#FFF5F5F5</item>
         <item name="colorOnSurfaceVariant">#FF424242</item>
         
-        <!-- Outline colors -->
+        <!-- Outline colors 轮廓颜色 -->
         <item name="colorOutline">#FFBDBDBD</item>
         
-        <!-- Error colors -->
+        <!-- Error colors 错误颜色 -->
         <item name="colorError">@color/colorError</item>
         <item name="colorOnError">@color/colorOnError</item>
-        
-        <!-- Status and navigation bar colors -->
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimary</item>
+
+        <!-- Status and navigation bar colors 状态栏和导航栏颜色 -->
         <item name="android:windowBackground">@color/colorBackground</item>
         <item name="android:navigationBarColor">@color/colorSurface</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        <!-- Text appearance 文本外观 -->
+        <item name="android:textColorPrimary">@color/textColorPrimary</item>
+        <item name="android:textColorSecondary">@color/textColorSecondary</item>
+        <item name="android:textColorHint">@color/textColorHint</item>
+        
+        <!-- Button styles 按钮样式 -->
+        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+        
+        <!-- ProgressBar 进度条样式 -->
+        <item name="android:progressBarStyleHorizontal">@style/Widget.AppCompat.ProgressBar.Horizontal</item>
+        
+        <!-- Dialog 对话框样式 -->
+        <item name="alertDialogTheme">@style/ThemeOverlay.Material3.MaterialAlertDialog</item>
+    </style>
+    
+    <!-- ===== WebView 相关样式 ===== -->
+    <!-- 进度条样式 -->
+    <style name="WebViewProgressBar" parent="Widget.AppCompat.ProgressBar.Horizontal">
+        <item name="android:progressTint">?attr/colorPrimary</item>
+        <item name="android:progressBackgroundTint">@android:color/transparent</item>
+        <item name="android:indeterminate">false</item>
+    </style>
+    
+    <!-- 全屏视频样式（隐藏系统UI） -->
+    <style name="FullscreenTheme" parent="Theme.MoelyApp">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>

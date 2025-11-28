@@ -1,5 +1,3 @@
-// D:\AndroidStudioProject\moely\app\src\main\java\link\moely\mobile\SettingsActivity.java
-
 package link.moely.mobile;
 
 import android.app.Activity;
@@ -203,6 +201,14 @@ public class SettingsActivity extends BaseActivity {
         aboutAppButton.setOnClickListener(v -> {
             showAboutAppDialog();
         });
+
+        // --- 翻译设置 ---
+        TextView translationSettingsButton = findViewById(R.id.translationSettingsButton);
+        if (translationSettingsButton != null) {
+            translationSettingsButton.setOnClickListener(v -> {
+                startActivity(new Intent(this, TranslationSettingsActivity.class));
+            });
+        }
     }
 
     @Override
