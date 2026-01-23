@@ -25,10 +25,6 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    
-    <!-- 管理外部存储权限：用于访问壁纸等系统资源（可选） -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
-        tools:ignore="ScopedStorage" />
 
     <!-- ===== WebView 功能增强权限 ===== -->
     <!-- 相机权限：用于网页中的相机功能（如扫码、拍照上传） -->
