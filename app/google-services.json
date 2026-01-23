@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "786811566353",
+    "project_id": "moely-link",
+    "storage_bucket": "moely-link.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:786811566353:android:a38a5949df74eb3cd1f4b0",
+        "android_client_info": {
+          "package_name": "link.moely.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCt-d7ekpDlzgqmGAwOlzu5qua1BrcEExo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

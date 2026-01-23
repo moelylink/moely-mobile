@@ -2,8 +2,10 @@
 plugins {
     // Android Gradle Plugin (AGP) for building Android applications
     // 使用与 compileSdk 34 兼容的最新稳定版本 (例如，8.2.0 或更高)
-    id 'com.android.application' version '8.13.1' apply false
-    id 'com.android.library' version '8.13.1' apply false
+    id 'com.android.application' version '8.13.2' apply false
+    id 'com.android.library' version '8.13.2' apply false
+    id 'com.google.gms.google-services' version '4.4.4' apply false
+    id 'com.google.firebase.crashlytics' version '3.0.6' apply false
 }
 
 // 注意：此处已移除 allprojects { repositories { ... } } 块。
