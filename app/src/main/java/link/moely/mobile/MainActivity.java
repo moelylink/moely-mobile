@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,6 +36,7 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.util.Base64;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -49,6 +51,7 @@ import androidx.activity.OnBackPressedCallback;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.io.File;
+import java.io.FileOutputStream;
 
 /**
  * MainActivity - 应用主界面（Chromium WebView 增强版）
@@ -518,7 +521,6 @@ public class MainActivity extends BaseActivity {
                 super.onPageFinished(view, url);
                 Log.d(TAG, "页面加载完成: " + url);
                 progressBar.setVisibility(View.GONE);
-                injectDownloadInterceptor(view);
                 updateNavigationButtons();
 
                 // 【新增】注入翻译SDK
@@ -783,7 +785,49 @@ public class MainActivity extends BaseActivity {
             
             return false;
         });
-        
+
+        // 长按后退：回到首页
+        View backView = bottomNavigationView.findViewById(R.id.navigation_back);
+        if (backView != null) {
+            backView.setOnLongClickListener(v -> {
+                if (webView != null) {
+                    WebBackForwardList list = webView.copyBackForwardList();
+                    int currentIndex = list.getCurrentIndex();
+                    // 计算回到第一页（索引0）所需的步数，这就应该是负数
+                    int steps = -currentIndex;
+
+                    if (steps < 0) {
+                        webView.goBackOrForward(steps);
+                        Toast.makeText(MainActivity.this, "已回到首页", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(MainActivity.this, "已是首页", Toast.LENGTH_SHORT).show();
+                    }
+                }
+                return true; // 返回 true 表示事件已处理，不触发短按
+            });
+        }
+
+        // 长按前进：跳到最新页
+        View forwardView = bottomNavigationView.findViewById(R.id.navigation_forward);
+        if (forwardView != null) {
+            forwardView.setOnLongClickListener(v -> {
+                if (webView != null) {
+                    WebBackForwardList list = webView.copyBackForwardList();
+                    int currentIndex = list.getCurrentIndex();
+                    int lastIndex = list.getSize() - 1;
+                    int steps = lastIndex - currentIndex;
+
+                    if (steps > 0) {
+                        webView.goBackOrForward(steps); // 一次性跳转多步
+                        Toast.makeText(MainActivity.this, "已跳至最新页", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(MainActivity.this, "已是最新页", Toast.LENGTH_SHORT).show();
+                    }
+                }
+                return true;
+            });
+        }
+
         updateNavigationButtons();
         bottomNavigationView.setSelectedItemId(View.NO_ID);
     }
@@ -797,30 +841,6 @@ public class MainActivity extends BaseActivity {
         
         bottomNavigationView.getMenu().findItem(R.id.navigation_back).setEnabled(canGoBack);
         bottomNavigationView.getMenu().findItem(R.id.navigation_forward).setEnabled(canGoForward);
-    }
-
-    /**
-     * 注入下载拦截器
-     */
-    private void injectDownloadInterceptor(WebView webView) {
-        // ... (脚本逻辑与原版一致，没有改动)
-        String script = "javascript:(" +
-                "function() { " +
-                "    if (typeof window.downloadImg_original === 'undefined') { " +
-                "        window.downloadImg_original = window.downloadImg;" +
-                "        window.downloadImg = function(textId, imgId, url) { " +
-                "            console.log('拦截下载: ' + url);" +
-                "            if (window.Android && typeof window.Android.startDownload === 'function') { " +
-                "                window.Android.startDownload(url, '', '');" +
-                "            } else { " +
-                "                window.downloadImg_original(textId, imgId, url);" +
-                "            } " +
-                "        }; " +
-                "    } " +
-                "})();";
-        
-        webView.evaluateJavascript(script, null);
-        Log.d(TAG, "注入下载拦截器");
     }
 
     /**
@@ -977,6 +997,7 @@ public class MainActivity extends BaseActivity {
             "          if (node.classList && node.classList.contains('moely-translated')) return;" +
             "          " +
             "          if (node.classList && node.classList.contains('l-navbar')) return;" +
+            "          if (node.classList && node.classList.contains('navbar')) return;" +
             "          if (containerTags.includes(node.nodeName)) {" +
             "            const hasTextContent = node.textContent && node.textContent.trim().length > 0;" +
             "            const children = Array.from(node.children || []);" +
@@ -1237,6 +1258,62 @@ public class MainActivity extends BaseActivity {
                     Toast.makeText(getApplicationContext(), 
                             "下载失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     Log.e(TAG, "JS 下载错误", e);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void downloadBlob(String base64Data, String fileName) {
+            Log.d(TAG, "JS downloadBlob: Received file " + fileName);
+            runOnUiThread(() -> {
+                try {
+                    // 1. 处理 Base64 数据
+                    String pureBase64 = base64Data;
+                    if (base64Data.contains(",")) {
+                        pureBase64 = base64Data.substring(base64Data.indexOf(',') + 1);
+                    }
+                    byte[] fileData = Base64.decode(pureBase64, Base64.DEFAULT);
+
+                    // 2. 准备路径 (复用你的路径逻辑)
+                    String finalDestinationSubPath = getDownloadDestinationSubPath(
+                            prefs.getString(PREF_DOWNLOAD_DIRECTORY, null));
+
+                    File downloadDir = new File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            finalDestinationSubPath
+                    );
+                    if (!downloadDir.exists()) downloadDir.mkdirs();
+                    File destinationFile = new File(downloadDir, fileName);
+
+                    // 3. 写入文件
+                    try (FileOutputStream fos = new FileOutputStream(destinationFile)) {
+                        fos.write(fileData);
+                    }
+
+                    // 4. 【核心逻辑】添加到系统下载管理器
+                    // 这样 DownloadsActivity 就能查到这条记录了！
+                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (dm != null) {
+                        dm.addCompletedDownload(
+                                fileName,           // 标题
+                                "网页图片下载",      // 描述
+                                true,               // 允许媒体扫描
+                                "image/jpeg",       // MIME 类型 (假设是 jpg)
+                                destinationFile.getAbsolutePath(), // 文件路径
+                                destinationFile.length(),          // 文件大小
+                                true                // 显示下载完成通知
+                        );
+                    }
+
+                    // 5. 触发媒体扫描 (让相册能看到)
+                    MediaScannerConnection.scanFile(mContext,
+                            new String[]{destinationFile.getAbsolutePath()}, null, null);
+
+                    Toast.makeText(mContext, "图片保存成功", Toast.LENGTH_SHORT).show();
+
+                } catch (Exception e) {
+                    Log.e(TAG, "保存失败", e);
+                    Toast.makeText(mContext, "保存失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 }
             });
         }

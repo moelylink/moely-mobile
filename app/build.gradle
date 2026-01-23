@@ -85,7 +85,11 @@ dependencies {
 
     // ===== 首次加载静态资源 =====
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    
+    implementation 'com.google.firebase:firebase-crashlytics-buildtools:3.0.6'
+
+    // ===== 调色板取色 =====
+    implementation 'com.github.skydoves:colorpickerview:2.3.0'
+
     // ===== 测试依赖 =====
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'

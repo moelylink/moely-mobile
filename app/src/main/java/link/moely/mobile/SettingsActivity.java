@@ -66,7 +66,6 @@ public class SettingsActivity extends BaseActivity {
 
 
     private ActivityResultLauncher<Uri> openDirectoryLauncher;
-    private ActivityResultLauncher<String[]> requestPermissionLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,29 +89,6 @@ public class SettingsActivity extends BaseActivity {
         initializeThemeModeSelection();
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-
-        // 初始化权限请求启动器
-        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), permissions -> {
-            boolean mediaPermissionGranted = false;
-            
-            // 检查对应的权限是否被授予
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                mediaPermissionGranted = permissions.getOrDefault(Manifest.permission.READ_MEDIA_IMAGES, false);
-            } else {
-                mediaPermissionGranted = permissions.getOrDefault(Manifest.permission.READ_EXTERNAL_STORAGE, false);
-            }
-            
-            if (mediaPermissionGranted) {
-                Log.d(TAG, "媒体/存储权限已授予，可以进行动态颜色提取。");
-                // 权限已授予，可以安全地显示颜色选择器对话框
-                openColorPickerDialog();
-            } else {
-                Log.w(TAG, "媒体/存储权限被拒绝，动态颜色提取将不可用。");
-                Toast.makeText(this, "媒体/存储权限被拒绝，动态颜色提取将不可用，但您仍可以选择预设颜色。", Toast.LENGTH_LONG).show();
-                // 即使没有权限，也显示颜色选择器对话框，只是动态颜色功能不可用
-                openColorPickerDialog();
-            }
-        });
 
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
@@ -523,67 +499,29 @@ public class SettingsActivity extends BaseActivity {
 
     /**
      * 显示颜色选择器对话框
-     * 首先检查存储权限，如果需要则请求权限
+     * 修改说明：不再检查权限，直接实例化并显示我们新写的 ColorPickerDialog
      */
     private void showColorPickerDialog() {
-        // 检查存储权限
-        String[] permissionsToRequest;
-         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 (API 33) 及以上
-            permissionsToRequest = new String[]{
-                    Manifest.permission.READ_MEDIA_IMAGES
-            };
-        } else { // Android 12 (API 32) 及以下
-            permissionsToRequest = new String[]{
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-            };
-        }
-
-        boolean allGranted = true;
-        for (String permission : permissionsToRequest) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allGranted = false;
-                break;
-            }
-        }
-
-        if (!allGranted) {
-            // 没有权限，请求权限
-            Log.d(TAG, "未授予所有权限，正在请求权限...");
-            requestPermissionLauncher.launch(permissionsToRequest);
-        } else {
-            Log.d(TAG, "所有权限已授予，直接打开颜色选择器对话框。");
-            openColorPickerDialog();
-        }
-    }
-
-    /**
-     * 打开颜色选择器对话框
-     * 该方法在权限检查完成后调用
-     */
-    private void openColorPickerDialog() {
-        try {
-            // 使用当前主题颜色初始化对话框
-            int currentColor = ThemeManager.getInstance(this).getPrimaryColor();
-            ColorPickerDialog colorPickerDialog = new ColorPickerDialog(this, currentColor);
-            colorPickerDialog.setOnColorSelectedListener((color, colorName) -> {
-                // 用户选择颜色后的回调
-                Log.d(TAG, "用户选择了颜色: " + colorName + " (" + String.format("#%06X", (0xFFFFFF & color)) + ")");
-                
-                // 保存选择的颜色
-                ThemeManager themeManager = ThemeManager.getInstance(this);
-                themeManager.setPrimaryColor(color, colorName);
-                
-                // 重新创建 Activity 以应用新主题
-                recreate();
-            });
+        // 1. 获取当前颜色
+        int currentColor = ThemeManager.getInstance(this).getPrimaryColor();
+        
+        // 2. 创建对话框实例
+        ColorPickerDialog dialog = new ColorPickerDialog(this, currentColor);
+        
+        // 3. 设置回调监听
+        dialog.setOnColorSelectedListener((color, colorName) -> {
+            Log.d(TAG, "用户选择了颜色: " + colorName + " (" + String.format("#%06X", (0xFFFFFF & color)) + ")");
             
-            colorPickerDialog.show();
-            Log.d(TAG, "颜色选择器对话框已显示。");
-        } catch (Exception e) {
-            Log.e(TAG, "显示颜色选择器对话框时出错: ", e);
-            Toast.makeText(this, "无法打开颜色选择器，请稍后重试。", Toast.LENGTH_SHORT).show();
-        }
+            // 保存选择的颜色
+            ThemeManager themeManager = ThemeManager.getInstance(this);
+            themeManager.setPrimaryColor(color, colorName);
+            
+            // 重新创建 Activity 以应用新主题
+            recreate();
+        });
+        
+        // 4. 显示
+        dialog.show();
     }
     
     /**

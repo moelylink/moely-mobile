@@ -1,33 +1,20 @@
 package link.moely.mobile;
 
 import android.app.Activity;
-import android.app.WallpaperManager;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.os.AsyncTask;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.Environment;
-import android.content.Intent;
-import android.net.Uri;
-import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
 import android.widget.TextView;
-import android.widget.Toast;
-import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.content.ContextCompat;
-import androidx.palette.graphics.Palette;
-import com.google.android.material.button.MaterialButton;
+
 import com.google.android.material.card.MaterialCardView;
+
+// 【修改点1】删除了这里原本冲突的 import com.skydoves.colorpickerview.ColorPickerDialog;
+import com.skydoves.colorpickerview.listeners.ColorEnvelopeListener;
 
 public class ColorPickerDialog {
 
@@ -77,13 +64,15 @@ public class ColorPickerDialog {
         this.context = context;
         this.selectedColor = currentColor;
         // 查找当前颜色对应的名称
+        boolean found = false;
         for (ColorItem item : PREDEFINED_COLORS) {
             if (item.color == currentColor) {
                 selectedColorName = item.name;
+                found = true;
                 break;
             }
         }
-        if (selectedColorName == null) {
+        if (!found) {
             selectedColorName = "自定义";
         }
     }
@@ -120,6 +109,7 @@ public class ColorPickerDialog {
 
     private void setupColorGrid(GridLayout colorGrid, TextView selectedColorText) {
         colorGrid.setColumnCount(4);
+        // 计算行数
         colorGrid.setRowCount((PREDEFINED_COLORS.length + 3) / 4);
         
         for (ColorItem item : PREDEFINED_COLORS) {
@@ -127,9 +117,9 @@ public class ColorPickerDialog {
             colorGrid.addView(colorCard);
         }
         
-        // 添加动态颜色提取卡片
-        SquareMaterialCardView dynamicCard = createDynamicColorCard(selectedColorText);
-        colorGrid.addView(dynamicCard);
+        // 添加自定义/调色板卡片
+        SquareMaterialCardView customCard = createCustomColorCard(selectedColorText);
+        colorGrid.addView(customCard);
     }
 
     private SquareMaterialCardView createColorCard(ColorItem colorItem, TextView selectedColorText) {
@@ -137,19 +127,17 @@ public class ColorPickerDialog {
         
         // 设置卡片布局参数
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = 0; // Make width dynamic
-        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); // Distribute space evenly
-        params.height = ViewGroup.LayoutParams.WRAP_CONTENT; // Explicitly set height to wrap content
+        params.width = 0; 
+        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); 
+        params.height = ViewGroup.LayoutParams.WRAP_CONTENT; 
         params.setMargins(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         card.setLayoutParams(params);
         
-        // 设置卡片样式
         card.setCardElevation(dpToPx(4));
         card.setRadius(dpToPx(8));
         card.setClickable(true);
         card.setFocusable(true);
         
-        // 创建颜色显示View
         View colorView = new View(context);
         ViewGroup.LayoutParams colorParams = new ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -157,7 +145,6 @@ public class ColorPickerDialog {
         );
         colorView.setLayoutParams(colorParams);
         
-        // 设置背景颜色
         GradientDrawable background = new GradientDrawable();
         background.setColor(colorItem.color);
         background.setCornerRadius(dpToPx(8));
@@ -171,7 +158,6 @@ public class ColorPickerDialog {
             card.setStrokeWidth(dpToPx(3));
         }
         
-        // 设置点击事件
         card.setOnClickListener(v -> {
             selectedColor = colorItem.color;
             selectedColorName = colorItem.name;
@@ -185,8 +171,10 @@ public class ColorPickerDialog {
     private void updateCardSelection(GridLayout parent, SquareMaterialCardView selectedCard) {
         // 重置所有卡片的边框
         for (int i = 0; i < parent.getChildCount(); i++) {
-            SquareMaterialCardView card = (SquareMaterialCardView) parent.getChildAt(i);
-            card.setStrokeWidth(0);
+            View child = parent.getChildAt(i);
+            if (child instanceof SquareMaterialCardView) {
+                ((SquareMaterialCardView) child).setStrokeWidth(0);
+            }
         }
         
         // 为选中的卡片添加边框
@@ -197,29 +185,28 @@ public class ColorPickerDialog {
     private void updateSelectedColorDisplay(TextView textView) {
         textView.setText(String.format("已选择：%s (%s)", 
             selectedColorName, String.format("#%06X", (0xFFFFFF & selectedColor))));
-        
-        // 设置文本颜色为选中的颜色
         textView.setTextColor(selectedColor);
     }
     
-    private SquareMaterialCardView createDynamicColorCard(TextView selectedColorText) {
+    /**
+     * 创建自定义颜色卡片（点击打开调色板）
+     */
+    private SquareMaterialCardView createCustomColorCard(TextView selectedColorText) {
         SquareMaterialCardView card = new SquareMaterialCardView(context);
         
-        // 设置卡片布局参数
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = 0; // Make width dynamic
-        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); // Distribute space evenly
-        params.height = ViewGroup.LayoutParams.WRAP_CONTENT; // Explicitly set height to wrap content
+        params.width = 0;
+        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+        params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
         params.setMargins(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         card.setLayoutParams(params);
         
-        // 设置卡片样式
         card.setCardElevation(dpToPx(4));
         card.setRadius(dpToPx(8));
         card.setClickable(true);
         card.setFocusable(true);
         
-        // 创建渐变背景显示动态颜色
+        // 创建颜色显示 View
         View colorView = new View(context);
         ViewGroup.LayoutParams colorParams = new ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -227,123 +214,112 @@ public class ColorPickerDialog {
         );
         colorView.setLayoutParams(colorParams);
         
-        // 设置渐变背景 - 更舒适的渐变色彩
-        GradientDrawable background = new GradientDrawable();
-        // 使用更柔和的渐变色：紫色到蓝色到青色的线性渐变
-        int[] colors = {
-            Color.parseColor("#667eea"), // 柔和的紫蓝色
-            Color.parseColor("#764ba2"), // 优雅的紫色
-            Color.parseColor("#f093fb")  // 温和的粉紫色
-        };
-        background.setColors(colors);
-        background.setGradientType(GradientDrawable.LINEAR_GRADIENT);
-        background.setOrientation(GradientDrawable.Orientation.TL_BR); // 从左上到右下的线性渐变
-        background.setCornerRadius(dpToPx(8));
-        colorView.setBackground(background);
+        // 定义最终要设置的 Drawable
+        android.graphics.drawable.Drawable finalDrawable;
+
+        // 判断当前选中的颜色是否是预定义颜色列表之外的“自定义颜色”
+        // 如果是，直接显示该颜色；如果不是，显示一个调色板图案代表“点击自定义”
+        boolean isPredefined = false;
+        for (ColorItem item : PREDEFINED_COLORS) {
+            if (item.color == selectedColor) {
+                isPredefined = true;
+                break;
+            }
+        }
+
+        if (!isPredefined) {
+            // 当前已经是自定义颜色，显示该颜色
+            GradientDrawable background = new GradientDrawable();
+            background.setCornerRadius(dpToPx(8));
+            background.setColor(selectedColor);
+            finalDrawable = background;
+
+            // 同时给这个卡片加上选中框
+            card.setStrokeColor(Color.WHITE);
+            card.setStrokeWidth(dpToPx(3));
+        } else {
+            // 当前选中的是预定义颜色，这里显示一个调色板图案作为“入口”指示
+
+            // 1. 创建底层的彩虹渐变背景
+            GradientDrawable rainbowBackground = new GradientDrawable();
+            rainbowBackground.setCornerRadius(dpToPx(8));
+            int[] rainbowColors = {
+                Color.parseColor("#FF0000"), // 红
+                Color.parseColor("#FFFF00"), // 黄
+                Color.parseColor("#00FF00"), // 绿
+                Color.parseColor("#00FFFF"), // 青
+                Color.parseColor("#0000FF"), // 蓝
+                Color.parseColor("#FF00FF")  // 紫
+            };
+            rainbowBackground.setColors(rainbowColors);
+            rainbowBackground.setGradientType(GradientDrawable.SWEEP_GRADIENT);
+
+            // 2. 创建一个前景图标来表示“调色板”
+            // 【建议】为了获得更好的视觉效果，请准备一个调色板图标资源(例如 R.drawable.ic_palette)，
+            // 然后在这里使用: Drawable paletteIcon = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_palette);
+            // 这里为了代码可以直接运行且不依赖新资源，我们用一个简单的半透明白色圆圈作为示意图案。
+            GradientDrawable paletteIcon = new GradientDrawable();
+            paletteIcon.setColor(Color.parseColor("#80FFFFFF")); // 半透明白色
+            paletteIcon.setShape(GradientDrawable.OVAL);
+            int iconSize = dpToPx(20); // 图标大小
+            paletteIcon.setSize(iconSize, iconSize);
+
+            // 3. 使用 LayerDrawable 将背景和图标叠加，形成图案
+            android.graphics.drawable.LayerDrawable layerDrawable = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{rainbowBackground, paletteIcon});
+            
+            // 4. 设置图标在中间显示
+            layerDrawable.setLayerGravity(1, android.view.Gravity.CENTER);
+            
+            finalDrawable = layerDrawable;
+        }
         
+        colorView.setBackground(finalDrawable);
         card.addView(colorView);
         
-        // 设置点击事件
+        // 点击事件：打开调色板
         card.setOnClickListener(v -> {
-            // 检查权限
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE 权限来访问壁纸
-                if (!Environment.isExternalStorageManager()) {
-                    // 显示对话框引导用户授权
-                    new androidx.appcompat.app.AlertDialog.Builder(context)
-                        .setTitle("需要文件管理权限")
-                        .setMessage("为了从壁纸提取主题色，需要授予文件管理权限。点击确定前往设置页面。")
-                        .setPositiveButton("前往设置", (dialog, which) -> {
-                            try {
-                                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                                intent.setData(Uri.parse("package:" + context.getPackageName()));
-                                context.startActivity(intent);
-                            } catch (Exception e) {
-                                // 如果无法打开具体应用的设置页面，打开通用设置页面
-                                Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-                                context.startActivity(intent);
-                            }
-                        })
-                        .setNegativeButton("取消", null)
-                        .show();
-                    return;
-                }
-            } else {
-                // Android 10 及以下版本的权限检查
-                String permission;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    permission = android.Manifest.permission.READ_MEDIA_IMAGES;
-                } else {
-                    permission = android.Manifest.permission.READ_EXTERNAL_STORAGE;
-                }
-                
-                if (ContextCompat.checkSelfPermission(context, permission)
-                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(context, "需要存储权限才能从壁纸提取颜色", Toast.LENGTH_SHORT).show();
-                    Log.w("ColorPickerDialog", "Permission not granted for dynamic color extraction");
-                    return;
-                }
-            }
-            
-            // 有权限，直接提取颜色
-            extractDynamicColor(selectedColorText, (GridLayout) card.getParent(), card);
+            showColorPickerWheel(card, colorView, selectedColorText);
         });
         
         return card;
     }
-    
-    private void extractDynamicColor(TextView selectedColorText, GridLayout parent, SquareMaterialCardView dynamicCard) {
-        try {
-            Log.d("ColorPickerDialog", "Starting dynamic color extraction...");
-            // 加载当前壁纸
-            WallpaperManager wallpaperManager = WallpaperManager.getInstance(context);
-            Log.d("ColorPickerDialog", "WallpaperManager instance obtained");
-            Drawable wallpaperDrawable = wallpaperManager.getDrawable();
-            Log.d("ColorPickerDialog", "Wallpaper drawable type: " + (wallpaperDrawable != null ? wallpaperDrawable.getClass().getSimpleName() : "null"));
-            if (wallpaperDrawable instanceof BitmapDrawable) {
-                Bitmap bitmap = ((BitmapDrawable) wallpaperDrawable).getBitmap();
-                if (bitmap != null) {
-                    Log.d("ColorPickerDialog", "Bitmap obtained from wallpaper");
-                    // 使用Palette提取主色
-                    Palette.from(bitmap).generate(palette -> {
-                        if (palette != null) {
-                            Log.d("ColorPickerDialog", "Palette generated");
-                            // 获取鲜艳主色，如果没有则获取主色
-                            int dominantColor = palette.getVibrantColor(palette.getDominantColor(Color.parseColor("#ba85fb")));
-                            Log.d("ColorPickerDialog", "Dominant color extracted: " + String.format("#%06X", (0xFFFFFF & dominantColor)));
-                            // 更新选中的颜色
-                            selectedColor = dominantColor;
-                            selectedColorName = "动态提取色";
+
+    /**
+     * 显示圆形调色板对话框
+     */
+    private void showColorPickerWheel(SquareMaterialCardView customCard, View colorView, TextView selectedColorText) {
+        // 【修改点2】这里使用 com.skydoves.colorpickerview.ColorPickerDialog 全名
+        // 这样编译器就能区分“你的类”和“第三方库的类”了
+        new com.skydoves.colorpickerview.ColorPickerDialog.Builder(context)
+                .setTitle("自定义颜色")
+                .setPreferenceName("MoelyColorPicker") // 保存上次选择
+                .setPositiveButton("确定",
+                        (ColorEnvelopeListener) (envelope, fromUser) -> {
+                            // 获取用户选择的颜色
+                            int color = envelope.getColor();
+                            String hex = "#" + envelope.getHexCode();
                             
-                            // 更新显示
+                            // 1. 更新内部状态
+                            selectedColor = color;
+                            selectedColorName = hex; // 名称直接显示 HEX 代码
+                            
+                            // 2. 更新顶部文字显示
                             updateSelectedColorDisplay(selectedColorText);
-                            updateCardSelection(parent, dynamicCard);
                             
-                            // 更新动态卡片的背景色
-                            View colorView = dynamicCard.getChildAt(0);
-                            GradientDrawable background = new GradientDrawable();
-                            background.setColor(dominantColor);
-                            background.setCornerRadius(dpToPx(8));
-                            colorView.setBackground(background);
-                        } else {
-                            Log.w("ColorPickerDialog", "Palette is null");
-                        }
-                    });
-                } else {
-                    Log.w("ColorPickerDialog", "Bitmap is null");
-                }
-            } else {
-                Log.w("ColorPickerDialog", "Wallpaper is not a BitmapDrawable");
-                Toast.makeText(context, "无法提取壁纸主色", Toast.LENGTH_SHORT).show();
-            }
-        } catch (Exception e) {
-            Log.e("ColorPickerDialog", "Error extracting color", e);
-            // 如果找不到图片或出现错误，使用默认颜色
-            selectedColor = Color.parseColor("#ba85fb");
-            selectedColorName = "动态提取色";
-            updateSelectedColorDisplay(selectedColorText);
-            updateCardSelection(parent, dynamicCard);
-        }
+                            // 3. 更新选中框（高亮这个自定义卡片）
+                            updateCardSelection((GridLayout) customCard.getParent(), customCard);
+                            
+                            // 4. 【重要】将自定义卡片的调色板图案背景变为选中的纯色
+                            GradientDrawable newBg = new GradientDrawable();
+                            newBg.setColor(color);
+                            newBg.setCornerRadius(dpToPx(8));
+                            colorView.setBackground(newBg);
+                        })
+                .setNegativeButton("取消", (dialogInterface, i) -> dialogInterface.dismiss())
+                .attachAlphaSlideBar(false) // 不需要透明度
+                .attachBrightnessSlideBar(true) // 添加亮度条
+                .setBottomSpace(12) 
+                .show();
     }
     
     private int dpToPx(int dp) {
