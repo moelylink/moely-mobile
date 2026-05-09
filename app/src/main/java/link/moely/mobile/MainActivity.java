@@ -14,6 +14,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -81,6 +83,7 @@ public class MainActivity extends BaseActivity {
     // SharedPreferences 配置
     private static final String PREFS_NAME = "MoelyAppPrefs";
     private static final String PREF_DOWNLOAD_DIRECTORY = "download_directory";
+    private static final String PREF_AUTO_CHECK_UPDATE = "auto_check_update";
     
     // WebView 配置
     private static final String HOME_URL = "https://www.moely.link";
@@ -162,7 +165,7 @@ public class MainActivity extends BaseActivity {
                 "https://cdn.jsdelivr.net/npm/masonry-layout@4.2.2/dist/masonry.pkgd.min.js",
                 "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.12/dist/umd/supabase.js",
                 "https://cdn.jsdelivr.net/npm/@algolia/algoliasearch-netlify-frontend@1/dist/algoliasearchNetlify.js",
-                "https://js.hcaptcha.com/1/api.js",
+                "https://challenges.cloudflare.com/turnstile/v0/api.js",
                 "https://www.googletagmanager.com/gtag/js?id=G-Z3X6D0X4W1"
             );
             prefs.edit().putBoolean("is_first_launch_for_resources", false).apply();
@@ -426,6 +429,9 @@ public class MainActivity extends BaseActivity {
         
         // ===== 版本检查 =====
         checkWebViewVersion();
+
+        // ===== 自动检测新版本 =====
+        checkAppUpdate();
     }
 
     /**
@@ -1506,6 +1512,71 @@ public class MainActivity extends BaseActivity {
     }
 
     /**
+     * 自动检测新版本更新
+     */
+    private void checkAppUpdate() {
+        boolean autoCheckEnabled = prefs.getBoolean(PREF_AUTO_CHECK_UPDATE, true);
+        if (!autoCheckEnabled) {
+            Log.d(TAG, "自动检测更新已关闭，跳过检查");
+            return;
+        }
+        Log.d(TAG, "开始自动检测新版本...");
+        UpdateChecker updateChecker = new UpdateChecker(this, new UpdateChecker.OnUpdateCheckListener() {
+            private final Handler handler = new Handler(Looper.getMainLooper());
+
+            @Override
+            public void onUpdateCheckComplete(UpdateChecker.UpdateInfo updateInfo) {
+                handler.post(() -> {
+                    if (updateInfo.isUpdateAvailable()) {
+                        Log.d(TAG, "发现新版本: " + updateInfo.getLatestVersionName());
+                        showUpdateDialog(updateInfo);
+                    } else {
+                        Log.d(TAG, "当前已是最新版本");
+                    }
+                });
+            }
+
+            @Override
+            public void onUpdateCheckFailed(String errorMessage) {
+                handler.post(() -> {
+                    Log.e(TAG, "自动检测更新失败: " + errorMessage);
+                });
+            }
+        });
+        updateChecker.checkForUpdates();
+    }
+
+    /**
+     * 显示更新弹窗
+     */
+    private void showUpdateDialog(UpdateChecker.UpdateInfo updateInfo) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.update_available_title)
+                .setMessage(getString(R.string.update_available_message,
+                        updateInfo.getCurrentVersionName(),
+                        updateInfo.getLatestVersionName()))
+                .setPositiveButton(R.string.update_now, (dialog, which) -> {
+                    if (updateInfo.getDownloadUrl() != null && !updateInfo.getDownloadUrl().isEmpty()) {
+                        try {
+                            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.getDownloadUrl()));
+                            startActivity(browserIntent);
+                        } catch (Exception e) {
+                            Toast.makeText(this, "无法打开下载链接。", Toast.LENGTH_SHORT).show();
+                            Log.e(TAG, "Failed to open download URL: " + updateInfo.getDownloadUrl(), e);
+                        }
+                    } else {
+                        Toast.makeText(this, "下载链接不可用。", Toast.LENGTH_SHORT).show();
+                        Log.w(TAG, "Download URL is null or empty.");
+                    }
+                })
+                .setNegativeButton(R.string.later, (dialog, which) -> dialog.dismiss())
+                .show();
+    }
+
+    /**
      * 请求存储权限
      */
     private void requestStoragePermissions() {
@@ -1568,10 +1639,12 @@ public class MainActivity extends BaseActivity {
         String urlToLoad = null;
 
         if (("https".equals(scheme) || "http".equals(scheme)) 
-                && ("www.moely.link".equals(host) || "mobile.moely.link".equals(host))) {
+                && ("www.moely.link".equals(host) || "user.moely.link".equals(host))) {
             urlToLoad = data.toString();
         } else if ("moely".equalsIgnoreCase(scheme)) {
-            if (host != null) {
+            if ("user".equalsIgnoreCase(host)) {
+                urlToLoad = "https://user.moely.link" + path;
+            } else if (host != null) {
                 urlToLoad = "https://www.moely.link/" + host + path;
             } else {
                 urlToLoad = "https://www.moely.link" + path;
@@ -1596,10 +1669,12 @@ public class MainActivity extends BaseActivity {
         String urlToLoad = null;
 
         if (("https".equals(scheme) || "http".equals(scheme)) 
-                && ("www.moely.link".equals(host) || "mobile.moely.link".equals(host))) {
+                && ("www.moely.link".equals(host) || "user.moely.link".equals(host))) {
             urlToLoad = data.toString();
         } else if ("moely".equalsIgnoreCase(scheme)) {
-            if (host != null) {
+            if ("user".equalsIgnoreCase(host)) {
+                urlToLoad = "https://user.moely.link" + path;
+            } else if (host != null) {
                 urlToLoad = "https://www.moely.link/" + host + path;
             } else {
                 urlToLoad = "https://www.moely.link" + path;

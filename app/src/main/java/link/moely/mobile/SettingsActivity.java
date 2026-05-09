@@ -24,6 +24,7 @@ import android.widget.Button;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -54,9 +55,12 @@ public class SettingsActivity extends BaseActivity {
     private RadioButton radioDark;
     private RadioButton radioSystem;
 
+    private Switch autoCheckUpdateSwitch;
+
     private SharedPreferences prefs;
     private static final String PREFS_NAME = "MoelyAppPrefs";
     private static final String PREF_DOWNLOAD_DIRECTORY = "download_directory";
+    private static final String PREF_AUTO_CHECK_UPDATE = "auto_check_update";
     private static final String TAG = "MoelyMobileSettings";
 
     // Default download subdirectory name
@@ -172,6 +176,24 @@ public class SettingsActivity extends BaseActivity {
             });
             updateChecker.checkForUpdates();
         });
+
+        // --- 自动检查更新开关 ---
+        autoCheckUpdateSwitch = findViewById(R.id.switch_auto_check_update);
+        View layoutAutoCheckUpdate = findViewById(R.id.layout_auto_check_update);
+
+        boolean autoCheckEnabled = prefs.getBoolean(PREF_AUTO_CHECK_UPDATE, true);
+        autoCheckUpdateSwitch.setChecked(autoCheckEnabled);
+
+        autoCheckUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(PREF_AUTO_CHECK_UPDATE, isChecked).apply();
+            Log.d(TAG, "自动检查更新开关改变为: " + isChecked);
+        });
+
+        if (layoutAutoCheckUpdate != null) {
+            layoutAutoCheckUpdate.setOnClickListener(v -> {
+                autoCheckUpdateSwitch.toggle();
+            });
+        }
 
         // --- 关于应用 ---
         aboutAppButton.setOnClickListener(v -> {
