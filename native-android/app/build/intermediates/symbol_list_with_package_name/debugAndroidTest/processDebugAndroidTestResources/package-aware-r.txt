@@ -1,0 +1,3 @@
+link.moely.mobile.test
+style WhiteBackgroundDialogTheme
+style WhiteBackgroundTheme

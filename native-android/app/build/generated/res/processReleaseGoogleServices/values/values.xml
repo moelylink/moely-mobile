@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gcm_defaultSenderId" translatable="false">786811566353</string>
+    <string name="google_api_key" translatable="false">AIzaSyCt-d7ekpDlzgqmGAwOlzu5qua1BrcEExo</string>
+    <string name="google_app_id" translatable="false">1:786811566353:android:a38a5949df74eb3cd1f4b0</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCt-d7ekpDlzgqmGAwOlzu5qua1BrcEExo</string>
+    <string name="google_storage_bucket" translatable="false">moely-link.firebasestorage.app</string>
+    <string name="project_id" translatable="false">moely-link</string>
+</resources>

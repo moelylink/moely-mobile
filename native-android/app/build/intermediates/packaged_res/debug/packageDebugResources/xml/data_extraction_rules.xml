@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <!--
+    这些规则控制了设备到设备传输和云备份。
+    有关更多信息，请参阅 https://developer.android.com/about/versions/12/backup-restore
+    -->
+    <allow-all-data />
+</data-extraction-rules>

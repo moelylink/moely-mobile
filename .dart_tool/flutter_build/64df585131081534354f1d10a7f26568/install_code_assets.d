@@ -1,0 +1,1 @@
+ D:\\programs\\GitHub\\moely-mobile\\.dart_tool\\flutter_build\\64df585131081534354f1d10a7f26568\\native_assets.json: 

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cardBackground">#1E1E1E</color>
+    <color name="colorBackground">#121212</color>
+    <color name="colorError">#CF6679</color>
+    <color name="colorOnBackground">#FFFFFF</color>
+    <color name="colorOnError">#000000</color>
+    <color name="colorOnPrimary">#000000</color>
+    <color name="colorOnSecondary">#000000</color>
+    <color name="colorOnSurface">#FFFFFF</color>
+    <color name="colorPrimary">#BB86FC</color>
+    <color name="colorPrimaryVariant">#3700B3</color>
+    <color name="colorSecondary">#03DAC6</color>
+    <color name="colorSecondaryVariant">#018786</color>
+    <color name="colorSurface">#121212</color>
+    <color name="dividerColor">#2C2C2C</color>
+    <color name="linkColor">#FF64B5F6</color>
+    <color name="overlayColor">#CC000000</color>
+    <color name="progressBarColor">@color/colorPrimary</color>
+    <color name="textColorHint">#80FFFFFF</color>
+    <color name="textColorPrimary">#FFFFFF</color>
+    <color name="textColorSecondary">#B3FFFFFF</color>
+    <color name="textSelectionHighlight">#4DBB86FC</color>
+    <color name="warningColor">#FFFFB74D</color>
+    <color name="webViewBackground">@color/colorBackground</color>
+    <style name="FullscreenTheme" parent="Theme.MoelyApp">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <style name="Theme.MoelyApp" parent="Theme.Material3.DayNight.NoActionBar">
+        
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+        <item name="colorPrimaryContainer">@color/purple_200</item>
+        <item name="colorOnPrimaryContainer">@color/purple_700</item>
+
+        
+        <item name="colorSecondary">@color/colorSecondary</item>
+        <item name="colorOnSecondary">@color/colorOnSecondary</item>
+        <item name="colorSecondaryContainer">@color/colorSecondaryVariant</item>
+        <item name="colorOnSecondaryContainer">@color/white</item>
+
+        
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnSurface">@color/colorOnSurface</item>
+        <item name="colorSurfaceVariant">#FF212121</item>
+        <item name="colorOnSurfaceVariant">#FFE0E0E0</item>
+
+        
+        <item name="colorOutline">#FF757575</item>
+
+        
+        <item name="colorError">@color/colorError</item>
+        <item name="colorOnError">@color/colorOnError</item>
+
+        
+        <item name="android:windowBackground">@color/colorBackground</item>
+        <item name="android:navigationBarColor">@color/colorSurface</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        
+        
+        <item name="android:textColorPrimary">@color/textColorPrimary</item>
+        <item name="android:textColorSecondary">@color/textColorSecondary</item>
+        <item name="android:textColorHint">@color/textColorHint</item>
+
+        
+        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+        
+        
+        <item name="android:progressBarStyleHorizontal">@style/Widget.AppCompat.ProgressBar.Horizontal</item>
+        
+        
+        <item name="alertDialogTheme">@style/ThemeOverlay.Material3.MaterialAlertDialog</item>
+    </style>
+    <style name="WebViewProgressBar" parent="Widget.AppCompat.ProgressBar.Horizontal">
+        <item name="android:progressTint">?attr/colorPrimary</item>
+        <item name="android:progressBackgroundTint">@android:color/transparent</item>
+        <item name="android:indeterminate">false</item>
+    </style>
+</resources>

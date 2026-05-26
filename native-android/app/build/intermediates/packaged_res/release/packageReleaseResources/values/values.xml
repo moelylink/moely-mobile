@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <color name="black">#FF000000</color>
+    <color name="blue_500">#FF2196F3</color>
+    <color name="cardBackground">#EEEEEE</color>
+    <color name="colorBackground">#FFFFFFFF</color>
+    <color name="colorError">#FFB00020</color>
+    <color name="colorOnBackground">#FF000000</color>
+    <color name="colorOnError">#FFFFFFFF</color>
+    <color name="colorOnPrimary">#FFFFFFFF</color>
+    <color name="colorOnSecondary">#FF000000</color>
+    <color name="colorOnSurface">#FF000000</color>
+    <color name="colorPrimary">#FF6200EE</color>
+    <color name="colorPrimaryVariant">#FF3700B3</color>
+    <color name="colorSecondary">#FF03DAC6</color>
+    <color name="colorSecondaryVariant">#FF018786</color>
+    <color name="colorSurface">#FFFFFFFF</color>
+    <color name="dividerColor">#D3D3D3</color>
+    <color name="green_500">#FF4CAF50</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="linkColor">#FF1976D2</color>
+    <color name="orange_500">#FFFF9800</color>
+    <color name="overlayColor">#80000000</color>
+    <color name="progressBarColor">@color/colorPrimary</color>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="red_500">#FFF44336</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="textColorHint">#61000000</color>
+    <color name="textColorPrimary">#DE000000</color>
+    <color name="textColorSecondary">#99000000</color>
+    <color name="textSelectionHighlight">#4D2196F3</color>
+    <color name="warningColor">#FFFF6F00</color>
+    <color name="webViewBackground">@color/colorBackground</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="yellow_500">#FFFFEB3B</color>
+    <dimen name="custom_toolbar_height">48dp</dimen>
+    <string name="about_app">关于应用</string>
+    <string name="add_bookmark">添加书签</string>
+    <string name="android_version">Android系统版本: %1$s</string>
+    <string name="app_info">应用信息</string>
+    <string name="app_install_time">安装时间: %1$s</string>
+    <string name="app_last_update">最后更新: %1$s</string>
+    <string name="app_name">萌哩</string>
+    <string name="app_version">应用版本: %1$s</string>
+    <string name="audio_permission_required">需要麦克风权限才能录音</string>
+    <string name="back">后退</string>
+    <string name="blob_download_description">从萌哩应用下载的文件</string>
+    <string name="bookmark_added">已添加到书签</string>
+    <string name="bookmark_removed">已从书签移除</string>
+    <string name="bookmarks">书签</string>
+    <string name="build_time">构建时间: %1$s</string>
+    <string name="cache_cleared">缓存已清除</string>
+    <string name="cache_size_placeholder">缓存大小: %1$s</string>
+    <string name="camera_permission_required">需要相机权限才能拍照</string>
+    <string name="cancel">取消</string>
+    <string name="check_for_updates">检查更新</string>
+    <string name="check_internet_connection">请检查您的网络设置</string>
+    <string name="clear_cache">清除缓存</string>
+    <string name="clear_history">清除历史</string>
+    <string name="com.google.firebase.crashlytics.mapping_file_id" ns1:ignore="UnusedResources,TypographyDashes" translatable="false">00000000000000000000000000000000</string>
+    <string name="com.google.firebase.crashlytics.version_control_info">"repositories {\n  system: GIT\n  local_root_path: \"$PROJECT_DIR\"\n  revision: \"ea8b36f50e23703f98f4edc7ea953dcaa1640920\"\n}\n"</string>
+    <string name="confirm_delete_download">确认删除</string>
+    <string name="connection_error">网络连接错误</string>
+    <string name="copy_image">复制图片</string>
+    <string name="copy_link">复制链接</string>
+    <string name="copyright_info">© 2025 萌哩. 保留所有权利</string>
+    <string name="current_download_directory">当前目录: %1$s</string>
+    <string name="current_theme_color">当前主题色: %1$s</string>
+    <string name="default_user_agent">默认</string>
+    <string name="delete">删除</string>
+    <string name="delete_download">删除</string>
+    <string name="delete_download_message">确定要删除文件 "%1$s" 吗？</string>
+    <string name="delete_failed">删除失败</string>
+    <string name="delete_local_file_option">同时删除本地文件</string>
+    <string name="desktop_user_agent">桌面版</string>
+    <string name="device_manufacturer">设备制造商: %1$s</string>
+    <string name="device_model">设备型号: %1$s</string>
+    <string name="directory_not_selected">未选择目录</string>
+    <string name="directory_selection_failed">目录选择失败</string>
+    <string name="directory_set_successfully">下载目录已设置为: %1$s</string>
+    <string name="dismiss">忽略</string>
+    <string name="download_completed">已完成</string>
+    <string name="download_deleted">下载已删除</string>
+    <string name="download_directory">下载目录</string>
+    <string name="download_failed">失败</string>
+    <string name="download_paused">已暂停</string>
+    <string name="download_pending">等待中</string>
+    <string name="download_record_deleted">下载记录已删除</string>
+    <string name="download_running">下载中</string>
+    <string name="downloads">下载</string>
+    <string name="enable_desktop_mode">桌面模式</string>
+    <string name="enable_dom_storage">启用 DOM 存储</string>
+    <string name="enable_javascript">启用 JavaScript</string>
+    <string name="enable_mixed_content">允许混合内容</string>
+    <string name="enable_webview_debugging">启用 WebView 调试（Chrome DevTools）</string>
+    <string name="exit_fullscreen">退出全屏</string>
+    <string name="file_chooser_title">选择文件</string>
+    <string name="file_name_placeholder">文件名</string>
+    <string name="file_not_found">文件未找到</string>
+    <string name="file_size_placeholder">大小</string>
+    <string name="file_status_placeholder">状态</string>
+    <string name="forward">前进</string>
+    <string name="gcm_defaultSenderId" translatable="false">786811566353</string>
+    <string name="google_api_key" translatable="false">AIzaSyCt-d7ekpDlzgqmGAwOlzu5qua1BrcEExo</string>
+    <string name="google_app_id" translatable="false">1:786811566353:android:a38a5949df74eb3cd1f4b0</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCt-d7ekpDlzgqmGAwOlzu5qua1BrcEExo</string>
+    <string name="google_storage_bucket" translatable="false">moely-link.firebasestorage.app</string>
+    <string name="history">历史</string>
+    <string name="history_cleared">历史已清除</string>
+    <string name="image_save_failed">图片保存失败</string>
+    <string name="image_saved">图片已保存</string>
+    <string name="js_cancel">取消</string>
+    <string name="js_confirm">确定</string>
+    <string name="js_dialog_title">网页提示</string>
+    <string name="later">稍后</string>
+    <string name="link_copied">链接已复制</string>
+    <string name="loading">加载中…</string>
+    <string name="location_permission_required">需要位置权限才能使用定位功能</string>
+    <string name="mobile_user_agent">移动版</string>
+    <string name="no_app_to_open_file">没有应用可以打开此文件</string>
+    <string name="no_downloads_yet">暂无下载内容</string>
+    <string name="no_internet_connection">无网络连接</string>
+    <string name="no_update_available">当前已是最新版本。</string>
+    <string name="open_file">打开文件</string>
+    <string name="open_link">打开链接</string>
+    <string name="open_link_new_tab">在新标签页打开</string>
+    <string name="page_info">页面信息</string>
+    <string name="page_load_error">页面加载失败</string>
+    <string name="page_loaded">页面加载完成</string>
+    <string name="page_title">标题: %1$s</string>
+    <string name="page_url">网址: %1$s</string>
+    <string name="project_id" translatable="false">moely-link</string>
+    <string name="refresh">刷新</string>
+    <string name="remove_bookmark">移除书签</string>
+    <string name="reset_theme">重置主题</string>
+    <string name="reset_zoom">重置缩放</string>
+    <string name="retry">重试</string>
+    <string name="save_image">保存图片</string>
+    <string name="search">搜索</string>
+    <string name="search_or_enter_url">搜索或输入网址</string>
+    <string name="select_download_directory">选择下载目录</string>
+    <string name="select_theme_color">选择主题色</string>
+    <string name="settings">设置</string>
+    <string name="share_link">分享链接</string>
+    <string name="ssl_cancel">返回</string>
+    <string name="ssl_continue">继续</string>
+    <string name="ssl_error_message">此网站的安全证书存在问题。继续访问可能会泄露您的信息。</string>
+    <string name="ssl_error_title">安全警告</string>
+    <string name="storage_permission_required">需要存储权限才能选择文件</string>
+    <string name="theme_color">主题色</string>
+    <string name="theme_color_changed">主题色已更改为: %1$s</string>
+    <string name="theme_reset_successfully">主题已重置为默认设置</string>
+    <string name="title_activity_downloads">我的下载</string>
+    <string name="title_activity_settings">设置</string>
+    <string name="update_available_message">当前版本：%1$s\n最新版本：%2$s\n\n是否立即更新？</string>
+    <string name="update_available_title">有新版本可用</string>
+    <string name="update_check_failed">检查更新失败，请稍后再试。</string>
+    <string name="update_now">立即更新</string>
+    <string name="update_webview">更新 WebView</string>
+    <string name="user_agent">用户代理</string>
+    <string name="view_image">查看图片</string>
+    <string name="webview_debugging">WebView 调试</string>
+    <string name="webview_version">WebView版本: %1$s</string>
+    <string name="webview_version_warning_message">您的Android System WebView版本过低（当前版本：%1$s）。为了获得最佳体验，请更新到130或更高版本。</string>
+    <string name="webview_version_warning_title">WebView 版本过低</string>
+    <string name="your_downloads">您的下载</string>
+    <string name="zoom_in">放大</string>
+    <string name="zoom_out">缩小</string>
+    <style name="FullscreenTheme" parent="Theme.MoelyApp">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+    <style name="Theme.MoelyApp" parent="Theme.Material3.DayNight.NoActionBar">
+        
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorOnPrimary">@color/colorOnPrimary</item>
+        <item name="colorPrimaryContainer">@color/purple_200</item>
+        <item name="colorOnPrimaryContainer">@color/purple_700</item>
+        
+        
+        <item name="colorSecondary">@color/colorSecondary</item>
+        <item name="colorOnSecondary">@color/colorOnSecondary</item>
+        <item name="colorSecondaryContainer">@color/colorSecondaryVariant</item>
+        <item name="colorOnSecondaryContainer">@color/white</item>
+        
+        
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnSurface">@color/colorOnSurface</item>
+        <item name="colorSurfaceVariant">#FFF5F5F5</item>
+        <item name="colorOnSurfaceVariant">#FF424242</item>
+        
+        
+        <item name="colorOutline">#FFBDBDBD</item>
+        
+        
+        <item name="colorError">@color/colorError</item>
+        <item name="colorOnError">@color/colorOnError</item>
+
+        
+        <item name="android:windowBackground">@color/colorBackground</item>
+        <item name="android:navigationBarColor">@color/colorSurface</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        
+        <item name="android:textColorPrimary">@color/textColorPrimary</item>
+        <item name="android:textColorSecondary">@color/textColorSecondary</item>
+        <item name="android:textColorHint">@color/textColorHint</item>
+        
+        
+        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+        
+        
+        <item name="android:progressBarStyleHorizontal">@style/Widget.AppCompat.ProgressBar.Horizontal</item>
+        
+        
+        <item name="alertDialogTheme">@style/ThemeOverlay.Material3.MaterialAlertDialog</item>
+    </style>
+    <style name="WebViewProgressBar" parent="Widget.AppCompat.ProgressBar.Horizontal">
+        <item name="android:progressTint">?attr/colorPrimary</item>
+        <item name="android:progressBackgroundTint">@android:color/transparent</item>
+        <item name="android:indeterminate">false</item>
+    </style>
+</resources>

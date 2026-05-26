@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 应用内部文件目录的路径 (如果需要) -->
+    <files-path name="my_internal_files" path="." />
+
+    <!-- 应用外部文件目录的路径 (应用专用，无需权限) -->
+    <external-files-path name="my_external_files" path="." />
+
+    <!-- 公共外部存储中特定于 Downloads 目录的路径。
+         这是必需的，因为 DownloadManager 会将文件保存到 Environment.DIRECTORY_DOWNLOADS。
+         'path' 属性应该是外部存储根目录 *内* 的子目录。
+         空字符串 "" 指的是外部存储的根目录 (例如，/storage/emulated/0/)。
+         要专门定位 Downloads 文件夹，您可能需要根据 Android 的映射方式进行调整。
+         为了简单和常用，对公共目录使用空路径的 'external-path' 通常有效。
+         或者，如果 Environment.DIRECTORY_DOWNLOADS 不直接在根目录下，您可能需要使用自定义路径来更精确地控制 Downloads 目录。
+         然而，对于通过 DownloadManager 下载到 DIRECTORY_DOWNLOADS 的文件，
+         COLUMN_LOCAL_URI 通常会提供一个 content:// URI，如果 FileProvider 配置了 external-path，它就可以解析该 URI。
+    -->
+    <external-path name="external_downloads" path="Download/" />
+    <!-- 或者如果您想授予对外部存储根目录的访问权限 (不太安全但更广泛) -->
+    <external-path name="all_external_storage" path="." />
+</paths>

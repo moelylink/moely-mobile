@@ -1,0 +1,541 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="link.moely.mobile"
+4    android:versionCode="18"
+5    android:versionName="1.0.5" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="29"
+9        android:targetSdkVersion="36" />
+10
+11    <!-- ===== 网络相关权限 ===== -->
+12    <!-- 互联网权限：应用访问网络所必需 -->
+13    <uses-permission android:name="android.permission.INTERNET" />
+13-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:8:5-67
+13-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:8:22-64
+14    <!-- 访问网络状态权限：检查网络连接状态 -->
+15    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+15-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:10:5-79
+15-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:10:22-76
+16    <!-- 访问 WiFi 状态权限：检测 WiFi 连接 -->
+17    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+17-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:12:5-76
+17-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:12:22-73
+18
+19    <!-- ===== 存储相关权限 ===== -->
+20    <!-- 存储权限：对于 Android 10 (API 29) 到 Android 12 (API 32) -->
+21    <!-- READ_EXTERNAL_STORAGE 用于读取公共存储中的文件 -->
+22    <!-- WRITE_EXTERNAL_STORAGE 用于写入公共存储中的文件 -->
+23    <uses-permission
+23-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:18:5-19:38
+24        android:name="android.permission.READ_EXTERNAL_STORAGE"
+24-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:18:22-77
+25        android:maxSdkVersion="32" />
+25-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:19:9-35
+26    <uses-permission
+26-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:20:5-21:38
+27        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+27-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:20:22-78
+28        android:maxSdkVersion="32" />
+28-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:21:9-35
+29
+30    <!-- 媒体文件访问权限：对于 Android 13 (API 33) 及更高版本 -->
+31    <!-- 这些权限取代了 READ_EXTERNAL_STORAGE，提供更细粒度的媒体访问控制 -->
+32    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+32-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:25:5-76
+32-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:25:22-73
+33    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+33-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:26:5-75
+33-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:26:22-72
+34    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+34-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:27:5-75
+34-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:27:22-72
+35
+36    <!-- ===== WebView 功能增强权限 ===== -->
+37    <!-- 相机权限：用于网页中的相机功能（如扫码、拍照上传） -->
+38    <uses-permission android:name="android.permission.CAMERA" />
+38-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:31:5-65
+38-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:31:22-62
+39    <!-- 录音权限：用于网页中的语音功能 -->
+40    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+40-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:33:5-71
+40-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:33:22-68
+41    <!-- 地理位置权限：用于网页中的定位功能 -->
+42    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+42-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:35:5-79
+42-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:35:22-76
+43    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+43-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:36:5-81
+43-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:36:22-78
+44
+45    <!-- 声明相机和麦克风功能为可选（不强制要求设备支持） -->
+46    <uses-feature
+46-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:39:5-85
+47        android:name="android.hardware.camera"
+47-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:39:19-57
+48        android:required="false" />
+48-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:39:58-82
+49    <uses-feature
+49-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:40:5-95
+50        android:name="android.hardware.camera.autofocus"
+50-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:40:19-67
+51        android:required="false" />
+51-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:40:68-92
+52    <uses-feature
+52-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:41:5-89
+53        android:name="android.hardware.microphone"
+53-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:41:19-61
+54        android:required="false" />
+54-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:41:62-86
+55
+56    <!-- ===== 其他权限 ===== -->
+57    <!-- 震动权限：用于网页反馈 -->
+58    <uses-permission android:name="android.permission.VIBRATE" />
+58-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:45:5-66
+58-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:45:22-63
+59    <!-- 唤醒锁权限：保持屏幕常亮（视频播放时） -->
+60    <uses-permission android:name="android.permission.WAKE_LOCK" />
+60-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:47:5-68
+60-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:47:22-65
+61    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE" />
+61-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:26:5-110
+61-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:26:22-107
+62    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+62-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:25:5-79
+62-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:25:22-76
+63    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" />
+63-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:26:5-88
+63-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:26:22-85
+64    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" />
+64-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:27:5-82
+64-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:27:22-79
+65
+66    <permission
+66-->[androidx.core:core:1.17.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\fe14ceb0fc28da4568177b20491c5484\transformed\core-1.17.0\AndroidManifest.xml:22:5-24:47
+67        android:name="link.moely.mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+67-->[androidx.core:core:1.17.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\fe14ceb0fc28da4568177b20491c5484\transformed\core-1.17.0\AndroidManifest.xml:23:9-81
+68        android:protectionLevel="signature" />
+68-->[androidx.core:core:1.17.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\fe14ceb0fc28da4568177b20491c5484\transformed\core-1.17.0\AndroidManifest.xml:24:9-44
+69
+70    <uses-permission android:name="link.moely.mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+70-->[androidx.core:core:1.17.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\fe14ceb0fc28da4568177b20491c5484\transformed\core-1.17.0\AndroidManifest.xml:26:5-97
+70-->[androidx.core:core:1.17.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\fe14ceb0fc28da4568177b20491c5484\transformed\core-1.17.0\AndroidManifest.xml:26:22-94
+71
+72    <application
+72-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:49:5-139:19
+73        android:allowBackup="true"
+73-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:50:9-35
+74        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+74-->[androidx.core:core:1.17.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\fe14ceb0fc28da4568177b20491c5484\transformed\core-1.17.0\AndroidManifest.xml:28:18-86
+75        android:dataExtractionRules="@xml/data_extraction_rules"
+75-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:51:9-65
+76        android:debuggable="true"
+77        android:extractNativeLibs="false"
+78        android:fullBackupContent="@xml/backup_rules"
+78-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:52:9-54
+79        android:hardwareAccelerated="true"
+79-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:59:9-43
+80        android:icon="@mipmap/ic_launcher"
+80-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:53:9-43
+81        android:label="@string/app_name"
+81-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:54:9-41
+82        android:largeHeap="true"
+82-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:60:9-33
+83        android:roundIcon="@mipmap/ic_launcher_round"
+83-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:55:9-54
+84        android:supportsRtl="true"
+84-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:56:9-35
+85        android:theme="@style/Theme.MoelyApp"
+85-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:57:9-46
+86        android:usesCleartextTraffic="true" >
+86-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:58:9-44
+87
+88        <!-- ===== 主活动 ===== -->
+89        <activity
+89-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:64:9-107:20
+90            android:name="link.moely.mobile.MainActivity"
+90-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:65:13-41
+91            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+91-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:67:13-113
+92            android:exported="true"
+92-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:66:13-36
+93            android:launchMode="singleTask"
+93-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:69:13-44
+94            android:windowSoftInputMode="adjustResize" >
+94-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:68:13-55
+95
+96            <!-- 应用启动入口 -->
+97            <intent-filter>
+97-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:72:13-75:29
+98                <action android:name="android.intent.action.MAIN" />
+98-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:73:17-69
+98-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:73:25-66
+99
+100                <category android:name="android.intent.category.LAUNCHER" />
+100-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:74:17-77
+100-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:74:27-74
+101            </intent-filter>
+102
+103            <!-- 处理网页链接（Deep Links） -->
+104            <intent-filter android:autoVerify="true" >
+104-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:78:13-86:29
+104-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:78:28-53
+105                <action android:name="android.intent.action.VIEW" />
+105-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:79:17-69
+105-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:79:25-66
+106
+107                <category android:name="android.intent.category.DEFAULT" />
+107-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:80:17-76
+107-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:80:27-73
+108                <category android:name="android.intent.category.BROWSABLE" />
+108-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:81:17-78
+108-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:81:27-75
+109
+110                <data android:scheme="http" />
+110-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+110-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:23-44
+111                <data android:scheme="https" />
+111-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+111-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:23-44
+112                <data android:host="www.moely.link" />
+112-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+112-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:84:23-52
+113                <data android:host="user.moely.link" />
+113-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+113-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:84:23-52
+114            </intent-filter>
+115
+116            <!-- 自定义 Scheme -->
+117            <intent-filter>
+117-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:89:13-94:29
+118                <action android:name="android.intent.action.VIEW" />
+118-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:79:17-69
+118-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:79:25-66
+119
+120                <category android:name="android.intent.category.DEFAULT" />
+120-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:80:17-76
+120-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:80:27-73
+121                <category android:name="android.intent.category.BROWSABLE" />
+121-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:81:17-78
+121-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:81:27-75
+122
+123                <data android:scheme="moely" />
+123-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+123-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:23-44
+124            </intent-filter>
+125
+126            <!-- 处理文件打开（如下载的HTML文件） -->
+127            <intent-filter>
+127-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:97:13-106:29
+128                <action android:name="android.intent.action.VIEW" />
+128-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:79:17-69
+128-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:79:25-66
+129
+130                <category android:name="android.intent.category.DEFAULT" />
+130-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:80:17-76
+130-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:80:27-73
+131                <category android:name="android.intent.category.BROWSABLE" />
+131-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:81:17-78
+131-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:81:27-75
+132
+133                <data android:scheme="file" />
+133-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+133-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:23-44
+134                <data android:scheme="content" />
+134-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+134-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:23-44
+135                <data android:mimeType="text/html" />
+135-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+135-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:103:23-51
+136                <data android:mimeType="text/plain" />
+136-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+136-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:103:23-51
+137                <data android:mimeType="application/xhtml+xml" />
+137-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:82:17-47
+137-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:103:23-51
+138            </intent-filter>
+139        </activity>
+140
+141        <!-- ===== 下载管理活动 ===== -->
+142        <activity
+142-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:110:9-114:58
+143            android:name="link.moely.mobile.DownloadsActivity"
+143-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:111:13-46
+144            android:exported="false"
+144-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:112:13-37
+145            android:label="@string/title_activity_downloads"
+145-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:113:13-61
+146            android:parentActivityName="link.moely.mobile.MainActivity" />
+146-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:114:13-55
+147
+148        <!-- ===== 设置活动 ===== -->
+149        <activity
+149-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:117:9-121:58
+150            android:name="link.moely.mobile.SettingsActivity"
+150-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:118:13-45
+151            android:exported="false"
+151-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:119:13-37
+152            android:label="@string/title_activity_settings"
+152-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:120:13-60
+153            android:parentActivityName="link.moely.mobile.MainActivity" />
+153-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:121:13-55
+154
+155        <!-- ===== FileProvider 用于安全地共享下载文件 ===== -->
+156        <provider
+157            android:name="androidx.core.content.FileProvider"
+157-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:125:13-62
+158            android:authorities="link.moely.mobile.fileprovider"
+158-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:126:13-64
+159            android:exported="false"
+159-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:127:13-37
+160            android:grantUriPermissions="true" >
+160-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:128:13-47
+161            <meta-data
+161-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:129:13-131:54
+162                android:name="android.support.FILE_PROVIDER_PATHS"
+162-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:130:17-67
+163                android:resource="@xml/file_paths" />
+163-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:131:17-51
+164        </provider>
+165
+166        <!-- 翻译 -->
+167        <activity
+167-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:135:9-137:36
+168            android:name="link.moely.mobile.TranslationSettingsActivity"
+168-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:136:13-56
+169            android:label="翻译设置" />
+169-->D:\programs\GitHub\moely-mobile\app\src\main\AndroidManifest.xml:137:13-33
+170
+171        <provider
+171-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+172            android:name="androidx.startup.InitializationProvider"
+172-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:25:13-67
+173            android:authorities="link.moely.mobile.androidx-startup"
+173-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:26:13-68
+174            android:exported="false" >
+174-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:27:13-37
+175            <meta-data
+175-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+176                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+176-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:30:17-75
+177                android:value="androidx.startup" />
+177-->[androidx.emoji2:emoji2:1.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4b50353046e48bcf0b6420302368938e\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:31:17-49
+178            <meta-data
+178-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7d4b60e55e263808a71f997e4ef13663\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+179                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+179-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7d4b60e55e263808a71f997e4ef13663\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+180                android:value="androidx.startup" />
+180-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7d4b60e55e263808a71f997e4ef13663\transformed\jetified-lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+181            <meta-data
+181-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:29:13-31:52
+182                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+182-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:30:17-85
+183                android:value="androidx.startup" />
+183-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:31:17-49
+184            <meta-data
+184-->[com.squareup.okhttp3:okhttp-android:5.3.2] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\525595ecb8e65ded2e31228e960a6bce\transformed\jetified-okhttp-release\AndroidManifest.xml:16:13-18:52
+185                android:name="okhttp3.internal.platform.PlatformInitializer"
+185-->[com.squareup.okhttp3:okhttp-android:5.3.2] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\525595ecb8e65ded2e31228e960a6bce\transformed\jetified-okhttp-release\AndroidManifest.xml:17:17-77
+186                android:value="androidx.startup" />
+186-->[com.squareup.okhttp3:okhttp-android:5.3.2] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\525595ecb8e65ded2e31228e960a6bce\transformed\jetified-okhttp-release\AndroidManifest.xml:18:17-49
+187        </provider>
+188
+189        <receiver
+189-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:29:9-33:20
+190            android:name="com.google.android.gms.measurement.AppMeasurementReceiver"
+190-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:30:13-85
+191            android:enabled="true"
+191-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:31:13-35
+192            android:exported="false" >
+192-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:32:13-37
+193        </receiver>
+194
+195        <service
+195-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:35:9-38:40
+196            android:name="com.google.android.gms.measurement.AppMeasurementService"
+196-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:36:13-84
+197            android:enabled="true"
+197-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:37:13-35
+198            android:exported="false" />
+198-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:38:13-37
+199        <service
+199-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:39:9-43:72
+200            android:name="com.google.android.gms.measurement.AppMeasurementJobService"
+200-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:40:13-87
+201            android:enabled="true"
+201-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:41:13-35
+202            android:exported="false"
+202-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:42:13-37
+203            android:permission="android.permission.BIND_JOB_SERVICE" />
+203-->[com.google.android.gms:play-services-measurement:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\e80a56cf34511a38801557838cd5707d\transformed\jetified-play-services-measurement-23.0.0\AndroidManifest.xml:43:13-69
+204        <service
+204-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:30:9-36:19
+205            android:name="com.google.firebase.components.ComponentDiscoveryService"
+205-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:31:13-84
+206            android:directBootAware="true"
+206-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:32:13-43
+207            android:exported="false" >
+207-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:32:13-37
+208            <meta-data
+208-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:33:13-35:85
+209                android:name="com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar"
+209-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:34:17-139
+210                android:value="com.google.firebase.components.ComponentRegistrar" />
+210-->[com.google.android.gms:play-services-measurement-api:23.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\3047753d7c39233c168d2433e6ba61e0\transformed\jetified-play-services-measurement-api-23.0.0\AndroidManifest.xml:35:17-82
+211            <meta-data
+211-->[com.google.firebase:firebase-crashlytics:20.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d1b5a94a590662e8f6b41d9528cb26a3\transformed\jetified-firebase-crashlytics-20.0.4\AndroidManifest.xml:15:13-17:85
+212                android:name="com.google.firebase.components:com.google.firebase.crashlytics.FirebaseCrashlyticsKtxRegistrar"
+212-->[com.google.firebase:firebase-crashlytics:20.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d1b5a94a590662e8f6b41d9528cb26a3\transformed\jetified-firebase-crashlytics-20.0.4\AndroidManifest.xml:16:17-126
+213                android:value="com.google.firebase.components.ComponentRegistrar" />
+213-->[com.google.firebase:firebase-crashlytics:20.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d1b5a94a590662e8f6b41d9528cb26a3\transformed\jetified-firebase-crashlytics-20.0.4\AndroidManifest.xml:17:17-82
+214            <meta-data
+214-->[com.google.firebase:firebase-crashlytics:20.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d1b5a94a590662e8f6b41d9528cb26a3\transformed\jetified-firebase-crashlytics-20.0.4\AndroidManifest.xml:18:13-20:85
+215                android:name="com.google.firebase.components:com.google.firebase.crashlytics.CrashlyticsRegistrar"
+215-->[com.google.firebase:firebase-crashlytics:20.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d1b5a94a590662e8f6b41d9528cb26a3\transformed\jetified-firebase-crashlytics-20.0.4\AndroidManifest.xml:19:17-115
+216                android:value="com.google.firebase.components.ComponentRegistrar" />
+216-->[com.google.firebase:firebase-crashlytics:20.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d1b5a94a590662e8f6b41d9528cb26a3\transformed\jetified-firebase-crashlytics-20.0.4\AndroidManifest.xml:20:17-82
+217            <meta-data
+217-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:29:13-31:85
+218                android:name="com.google.firebase.components:com.google.firebase.sessions.FirebaseSessionsRegistrar"
+218-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:30:17-117
+219                android:value="com.google.firebase.components.ComponentRegistrar" />
+219-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:31:17-82
+220            <meta-data
+220-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\16ebb056c0cc05221b3aa79526f0b879\transformed\jetified-firebase-installations-19.0.1\AndroidManifest.xml:15:13-17:85
+221                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar"
+221-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\16ebb056c0cc05221b3aa79526f0b879\transformed\jetified-firebase-installations-19.0.1\AndroidManifest.xml:16:17-130
+222                android:value="com.google.firebase.components.ComponentRegistrar" />
+222-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\16ebb056c0cc05221b3aa79526f0b879\transformed\jetified-firebase-installations-19.0.1\AndroidManifest.xml:17:17-82
+223            <meta-data
+223-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\16ebb056c0cc05221b3aa79526f0b879\transformed\jetified-firebase-installations-19.0.1\AndroidManifest.xml:18:13-20:85
+224                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar"
+224-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\16ebb056c0cc05221b3aa79526f0b879\transformed\jetified-firebase-installations-19.0.1\AndroidManifest.xml:19:17-127
+225                android:value="com.google.firebase.components.ComponentRegistrar" />
+225-->[com.google.firebase:firebase-installations:19.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\16ebb056c0cc05221b3aa79526f0b879\transformed\jetified-firebase-installations-19.0.1\AndroidManifest.xml:20:17-82
+226            <meta-data
+226-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:35:13-37:85
+227                android:name="com.google.firebase.components:com.google.firebase.FirebaseCommonKtxRegistrar"
+227-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:36:17-109
+228                android:value="com.google.firebase.components.ComponentRegistrar" />
+228-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:37:17-82
+229            <meta-data
+229-->[com.google.firebase:firebase-datatransport:19.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\ed9bcd93d937f8b6e2ad295dc277a901\transformed\jetified-firebase-datatransport-19.0.0\AndroidManifest.xml:25:13-27:85
+230                android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar"
+230-->[com.google.firebase:firebase-datatransport:19.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\ed9bcd93d937f8b6e2ad295dc277a901\transformed\jetified-firebase-datatransport-19.0.0\AndroidManifest.xml:26:17-115
+231                android:value="com.google.firebase.components.ComponentRegistrar" />
+231-->[com.google.firebase:firebase-datatransport:19.0.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\ed9bcd93d937f8b6e2ad295dc277a901\transformed\jetified-firebase-datatransport-19.0.0\AndroidManifest.xml:27:17-82
+232        </service>
+233        <service
+233-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:22:9-25:40
+234            android:name="com.google.firebase.sessions.SessionLifecycleService"
+234-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:23:13-80
+235            android:enabled="false"
+235-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:24:13-36
+236            android:exported="false" />
+236-->[com.google.firebase:firebase-sessions:3.0.4] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\2cbef9c5b6a71145a213402fe6c9e184\transformed\jetified-firebase-sessions-3.0.4\AndroidManifest.xml:25:13-37
+237
+238        <provider
+238-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:23:9-28:39
+239            android:name="com.google.firebase.provider.FirebaseInitProvider"
+239-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:24:13-77
+240            android:authorities="link.moely.mobile.firebaseinitprovider"
+240-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:25:13-72
+241            android:directBootAware="true"
+241-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:26:13-43
+242            android:exported="false"
+242-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:27:13-37
+243            android:initOrder="100" />
+243-->[com.google.firebase:firebase-common:22.0.1] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\d8e0e9a8ce15d2b88f0407df841ddb07\transformed\jetified-firebase-common-22.0.1\AndroidManifest.xml:28:13-36
+244
+245        <uses-library
+245-->[androidx.privacysandbox.ads:ads-adservices:1.1.0-beta11] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\ddd910aa5c6381864612a8f60231456e\transformed\jetified-ads-adservices-1.1.0-beta11\AndroidManifest.xml:23:9-25:40
+246            android:name="android.ext.adservices"
+246-->[androidx.privacysandbox.ads:ads-adservices:1.1.0-beta11] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\ddd910aa5c6381864612a8f60231456e\transformed\jetified-ads-adservices-1.1.0-beta11\AndroidManifest.xml:24:13-50
+247            android:required="false" />
+247-->[androidx.privacysandbox.ads:ads-adservices:1.1.0-beta11] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\ddd910aa5c6381864612a8f60231456e\transformed\jetified-ads-adservices-1.1.0-beta11\AndroidManifest.xml:25:13-37
+248
+249        <activity
+249-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7c60c832002b0d39df42bdcfc5d5c3ea\transformed\jetified-play-services-base-18.5.0\AndroidManifest.xml:5:9-173
+250            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+250-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7c60c832002b0d39df42bdcfc5d5c3ea\transformed\jetified-play-services-base-18.5.0\AndroidManifest.xml:5:19-85
+251            android:exported="false"
+251-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7c60c832002b0d39df42bdcfc5d5c3ea\transformed\jetified-play-services-base-18.5.0\AndroidManifest.xml:5:146-170
+252            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+252-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\7c60c832002b0d39df42bdcfc5d5c3ea\transformed\jetified-play-services-base-18.5.0\AndroidManifest.xml:5:86-145
+253
+254        <meta-data
+254-->[com.google.android.gms:play-services-basement:18.8.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\bd6207509b977ae30b3058f5ff244e6d\transformed\jetified-play-services-basement-18.8.0\AndroidManifest.xml:21:9-23:69
+255            android:name="com.google.android.gms.version"
+255-->[com.google.android.gms:play-services-basement:18.8.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\bd6207509b977ae30b3058f5ff244e6d\transformed\jetified-play-services-basement-18.8.0\AndroidManifest.xml:22:13-58
+256            android:value="@integer/google_play_services_version" />
+256-->[com.google.android.gms:play-services-basement:18.8.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\bd6207509b977ae30b3058f5ff244e6d\transformed\jetified-play-services-basement-18.8.0\AndroidManifest.xml:23:13-66
+257
+258        <service
+258-->[com.google.android.datatransport:transport-backend-cct:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4ad51d78d86b497a16ca9a4ebea65076\transformed\jetified-transport-backend-cct-3.3.0\AndroidManifest.xml:26:9-32:19
+259            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+259-->[com.google.android.datatransport:transport-backend-cct:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4ad51d78d86b497a16ca9a4ebea65076\transformed\jetified-transport-backend-cct-3.3.0\AndroidManifest.xml:27:13-103
+260            android:exported="false" >
+260-->[com.google.android.datatransport:transport-backend-cct:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4ad51d78d86b497a16ca9a4ebea65076\transformed\jetified-transport-backend-cct-3.3.0\AndroidManifest.xml:28:13-37
+261            <meta-data
+261-->[com.google.android.datatransport:transport-backend-cct:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4ad51d78d86b497a16ca9a4ebea65076\transformed\jetified-transport-backend-cct-3.3.0\AndroidManifest.xml:29:13-31:39
+262                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+262-->[com.google.android.datatransport:transport-backend-cct:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4ad51d78d86b497a16ca9a4ebea65076\transformed\jetified-transport-backend-cct-3.3.0\AndroidManifest.xml:30:17-94
+263                android:value="cct" />
+263-->[com.google.android.datatransport:transport-backend-cct:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\4ad51d78d86b497a16ca9a4ebea65076\transformed\jetified-transport-backend-cct-3.3.0\AndroidManifest.xml:31:17-36
+264        </service>
+265        <service
+265-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:24:9-28:19
+266            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+266-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:25:13-117
+267            android:exported="false"
+267-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:26:13-37
+268            android:permission="android.permission.BIND_JOB_SERVICE" >
+268-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:27:13-69
+269        </service>
+270
+271        <receiver
+271-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:30:9-32:40
+272            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+272-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:31:13-132
+273            android:exported="false" />
+273-->[com.google.android.datatransport:transport-runtime:3.3.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\119762ebab63b0cdde5c60cd18c9c2e8\transformed\jetified-transport-runtime-3.3.0\AndroidManifest.xml:32:13-37
+274        <receiver
+274-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:34:9-52:20
+275            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+275-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:35:13-76
+276            android:directBootAware="false"
+276-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:36:13-44
+277            android:enabled="true"
+277-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:37:13-35
+278            android:exported="true"
+278-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:38:13-36
+279            android:permission="android.permission.DUMP" >
+279-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:39:13-57
+280            <intent-filter>
+280-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:40:13-42:29
+281                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+281-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:41:17-91
+281-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:41:25-88
+282            </intent-filter>
+283            <intent-filter>
+283-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:43:13-45:29
+284                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+284-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:44:17-85
+284-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:44:25-82
+285            </intent-filter>
+286            <intent-filter>
+286-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:46:13-48:29
+287                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+287-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:47:17-88
+287-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:47:25-85
+288            </intent-filter>
+289            <intent-filter>
+289-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:49:13-51:29
+290                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+290-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:50:17-95
+290-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\lenovo\.gradle\caches\9.0-milestone-1\transforms\f17e3707a917c97b41c974bdc8d8d336\transformed\jetified-profileinstaller-1.4.0\AndroidManifest.xml:50:25-92
+291            </intent-filter>
+292        </receiver>
+293    </application>
+294
+295</manifest>
