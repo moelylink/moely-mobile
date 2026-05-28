@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:app_links/app_links.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/image_item.dart';
 import '../views/image_detail_screen.dart';
 import '../views/category_grid_screen.dart';
@@ -36,6 +37,34 @@ class UrlHandlerService {
     }, onError: (err) {
       debugPrint('AppLink stream error: $err');
     });
+  }
+
+  static void _launchExternalLink(BuildContext context, String url) {
+    if (AppSettings.instance.browseInApp) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DenoisedWebScreen(
+            url: url,
+            title: '外部链接',
+          ),
+        ),
+      );
+    } else {
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        launchUrl(uri, mode: LaunchMode.externalApplication).catchError((err) {
+          debugPrint('Failed to launch external URL: $err');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('打开外部链接失败: $err'),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          return false;
+        });
+      }
+    }
   }
 
   /// Handle and route Moely URLs inside the app.
@@ -112,15 +141,7 @@ class UrlHandlerService {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.pop(dialogContext);
-                      Navigator.push(
-                        navContext,
-                        MaterialPageRoute(
-                          builder: (context) => DenoisedWebScreen(
-                            url: normalizedUrl,
-                            title: '外部链接',
-                          ),
-                        ),
-                      );
+                      _launchExternalLink(navContext, normalizedUrl);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
@@ -134,15 +155,7 @@ class UrlHandlerService {
             },
           );
         } else {
-          Navigator.push(
-            navContext,
-            MaterialPageRoute(
-              builder: (context) => DenoisedWebScreen(
-                url: normalizedUrl,
-                title: '外部链接',
-              ),
-            ),
-          );
+          _launchExternalLink(navContext, normalizedUrl);
         }
         return true;
       }

@@ -122,7 +122,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     }
 
     final extension = downloadUrl.contains('.png') ? 'png' : 'jpg';
-    final filename = 'moely_${widget.image.id}_p${index}_orig.$extension';
+    final totalPages = int.tryParse(widget.image.total ?? '') ?? (_details?.downloadUrls.length ?? 1);
+    final filename = totalPages > 1
+        ? '${widget.image.id}_p$index.$extension'
+        : '${widget.image.id}.$extension';
 
     double progress = 0.0;
     showDialog(
@@ -167,36 +170,70 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
       if (mounted) {
         Navigator.pop(context); // Close dialog
+        final theme = Theme.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.green),
-                const SizedBox(width: 8),
-                Expanded(child: Text('保存成功！路径: $savedPath')),
+                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '保存成功！路径: $savedPath',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               ],
             ),
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+            backgroundColor: theme.colorScheme.surface,
+            elevation: 4,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: theme.colorScheme.onSurface.withOpacity(0.08),
+                width: 1,
+              ),
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close dialog
+        final theme = Theme.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.red),
-                const SizedBox(width: 8),
-                Expanded(child: Text('下载失败: $e')),
+                const Icon(Icons.error_outline_rounded, color: Colors.red, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '下载失败: $e',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               ],
             ),
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+            backgroundColor: theme.colorScheme.surface,
+            elevation: 4,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: theme.colorScheme.onSurface.withOpacity(0.08),
+                width: 1,
+              ),
+            ),
           ),
         );
       }
@@ -378,7 +415,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     }
 
     final extension = downloadUrl.contains('.png') ? 'png' : 'jpg';
-    final filename = 'moely_${widget.image.id}_p${index}_orig.$extension';
+    final totalPages = int.tryParse(widget.image.total ?? '') ?? (_details?.downloadUrls.length ?? 1);
+    final filename = totalPages > 1
+        ? '${widget.image.id}_p$index.$extension'
+        : '${widget.image.id}.$extension';
 
     showDialog(
       context: context,

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/image_item.dart';
 import 'user_agent_service.dart';
+import '../utils/cache_helper.dart';
 
 class HtmlPageResult {
   final List<MoelyImage> images;
@@ -14,6 +15,23 @@ class HtmlPageResult {
 
 class HtmlParserService {
   static final Dio _dio = UserAgentService.createDio();
+
+  static Map<String, dynamic> _resultToJson(HtmlPageResult result) {
+    return {
+      'totalPages': result.totalPages,
+      'images': result.images.map((img) => img.toJson()).toList(),
+    };
+  }
+
+  static HtmlPageResult _resultFromJson(Map<String, dynamic> json) {
+    final list = (json['images'] as List? ?? [])
+        .map((item) => MoelyImage.fromJson(item as Map<String, dynamic>))
+        .toList();
+    return HtmlPageResult(
+      images: list,
+      totalPages: json['totalPages'] ?? 1,
+    );
+  }
 
   /// Extract the total number of pages from HTML content
   static int parseTotalPages(String html) {
@@ -87,19 +105,35 @@ class HtmlParserService {
         ? 'https://www.moely.link/category/$category/'
         : 'https://www.moely.link/category/$category/page/$page/';
         
+    final String cacheKey = 'category_${category}_page_$page';
+    
+    // Try offline load first
+    HtmlPageResult? cachedResult;
+    try {
+      final cachedMap = await CacheHelper.loadIndexFromCache(cacheKey);
+      if (cachedMap != null) {
+        cachedResult = _resultFromJson(cachedMap);
+      }
+    } catch (_) {}
+
     try {
       final response = await _dio.get(url);
       if (response.statusCode == 200) {
         final html = response.data.toString();
         final images = parseHtmlToImages(html);
         final parsedPages = parseTotalPages(html);
-        return HtmlPageResult(
+        final result = HtmlPageResult(
           images: images,
           totalPages: parsedPages > page ? parsedPages : page,
         );
+        
+        await CacheHelper.saveIndexToCache(cacheKey, _resultToJson(result));
+        return result;
       }
-    } catch (_) {}
-    return HtmlPageResult(images: [], totalPages: 1);
+    } catch (_) {
+      if (cachedResult != null) return cachedResult;
+    }
+    return cachedResult ?? HtmlPageResult(images: [], totalPages: 1);
   }
 
   /// Fetch illustrations for a specific tag name
@@ -111,19 +145,35 @@ class HtmlParserService {
         ? 'https://www.moely.link/tags/$encodedTag/'
         : 'https://www.moely.link/tags/$encodedTag/page/$page/';
         
+    final String cacheKey = 'tag_${encodedTag}_page_$page';
+    
+    // Try offline load first
+    HtmlPageResult? cachedResult;
+    try {
+      final cachedMap = await CacheHelper.loadIndexFromCache(cacheKey);
+      if (cachedMap != null) {
+        cachedResult = _resultFromJson(cachedMap);
+      }
+    } catch (_) {}
+
     try {
       final response = await _dio.get(url);
       if (response.statusCode == 200) {
         final html = response.data.toString();
         final images = parseHtmlToImages(html);
         final parsedPages = parseTotalPages(html);
-        return HtmlPageResult(
+        final result = HtmlPageResult(
           images: images,
           totalPages: parsedPages > page ? parsedPages : page,
         );
+        
+        await CacheHelper.saveIndexToCache(cacheKey, _resultToJson(result));
+        return result;
       }
-    } catch (_) {}
-    return HtmlPageResult(images: [], totalPages: 1);
+    } catch (_) {
+      if (cachedResult != null) return cachedResult;
+    }
+    return cachedResult ?? HtmlPageResult(images: [], totalPages: 1);
   }
 
   /// Fetch home page illustrations by parsing HTML
@@ -132,19 +182,35 @@ class HtmlParserService {
         ? 'https://www.moely.link/'
         : 'https://www.moely.link/page/$page/';
         
+    final String cacheKey = 'home_page_$page';
+    
+    // Try offline load first
+    HtmlPageResult? cachedResult;
+    try {
+      final cachedMap = await CacheHelper.loadIndexFromCache(cacheKey);
+      if (cachedMap != null) {
+        cachedResult = _resultFromJson(cachedMap);
+      }
+    } catch (_) {}
+
     try {
       final response = await _dio.get(url);
       if (response.statusCode == 200) {
         final html = response.data.toString();
         final images = parseHtmlToImages(html);
         final parsedPages = parseTotalPages(html);
-        return HtmlPageResult(
+        final result = HtmlPageResult(
           images: images,
           totalPages: parsedPages > page ? parsedPages : page,
         );
+        
+        await CacheHelper.saveIndexToCache(cacheKey, _resultToJson(result));
+        return result;
       }
-    } catch (_) {}
-    return HtmlPageResult(images: [], totalPages: 1);
+    } catch (_) {
+      if (cachedResult != null) return cachedResult;
+    }
+    return cachedResult ?? HtmlPageResult(images: [], totalPages: 1);
   }
 
   // Global cache variables for Algolia search configurations

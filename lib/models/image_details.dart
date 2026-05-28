@@ -22,4 +22,34 @@ class ImageDetails {
     required this.description,
     this.translatedText,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'resolution': resolution,
+      'tags': tags,
+      'sourceUrl': sourceUrl,
+      'downloadUrl': downloadUrl,
+      'downloadUrls': downloadUrls,
+      'previewUrls': previewUrls,
+      'description': description,
+      'translatedText': translatedText,
+    };
+  }
+
+  factory ImageDetails.fromJson(Map<String, dynamic> json) {
+    return ImageDetails(
+      id: json['id'] ?? '',
+      title: json['title'] ?? '',
+      resolution: json['resolution'] ?? '',
+      tags: List<String>.from(json['tags'] ?? []),
+      sourceUrl: json['sourceUrl'] ?? '',
+      downloadUrl: json['downloadUrl'] ?? '',
+      downloadUrls: List<String>.from(json['downloadUrls'] ?? []),
+      previewUrls: List<String>.from(json['previewUrls'] ?? []),
+      description: json['description'] ?? '',
+      translatedText: json['translatedText'],
+    );
+  }
 }

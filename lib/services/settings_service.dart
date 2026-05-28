@@ -8,18 +8,24 @@ class AppSettings extends ChangeNotifier {
   AppSettings._();
 
   ThemeMode _themeMode = ThemeMode.system;
-  Color _themeColor = const Color(0xFF3B82F6); // Vibrant Blue default
+  Color _themeColor = const Color(0xFF8B5CF6); // Royal Purple default
+  Color _customColor = const Color(0xFF3B82F6); // Vibrant Blue default custom
   bool _enableTranslation = true;
   String _translationLanguage = 'zh-CN';
   String _translationEngine = 'microsoft'; // 'microsoft' or 'google'
   bool _showJumpConfirmation = true;
+  bool _browseInApp = true;
+  String _downloadPath = '';
 
   ThemeMode get themeMode => _themeMode;
   Color get themeColor => _themeColor;
+  Color get customColor => _customColor;
   bool get enableTranslation => _enableTranslation;
   String get translationLanguage => _translationLanguage;
   String get translationEngine => _translationEngine;
   bool get showJumpConfirmation => _showJumpConfirmation;
+  bool get browseInApp => _browseInApp;
+  String get downloadPath => _downloadPath;
 
   /// Initialize and load settings from disk
   Future<void> init() async {
@@ -34,6 +40,9 @@ class AppSettings extends ChangeNotifier {
         if (data['themeColor'] != null) {
           _themeColor = Color(data['themeColor']);
         }
+        if (data['customColor'] != null) {
+          _customColor = Color(data['customColor']);
+        }
         if (data['enableTranslation'] != null) {
           _enableTranslation = data['enableTranslation'];
         }
@@ -45,6 +54,12 @@ class AppSettings extends ChangeNotifier {
         }
         if (data['showJumpConfirmation'] != null) {
           _showJumpConfirmation = data['showJumpConfirmation'];
+        }
+        if (data['browseInApp'] != null) {
+          _browseInApp = data['browseInApp'];
+        }
+        if (data['downloadPath'] != null) {
+          _downloadPath = data['downloadPath'];
         }
       }
     } catch (_) {}
@@ -58,10 +73,13 @@ class AppSettings extends ChangeNotifier {
       final data = {
         'themeMode': _themeMode.index,
         'themeColor': _themeColor.value,
+        'customColor': _customColor.value,
         'enableTranslation': _enableTranslation,
         'translationLanguage': _translationLanguage,
         'translationEngine': _translationEngine,
         'showJumpConfirmation': _showJumpConfirmation,
+        'browseInApp': _browseInApp,
+        'downloadPath': _downloadPath,
       };
       file.writeAsStringSync(jsonEncode(data));
     } catch (_) {}
@@ -75,6 +93,12 @@ class AppSettings extends ChangeNotifier {
 
   void setThemeColor(Color color) {
     _themeColor = color;
+    save();
+    notifyListeners();
+  }
+
+  void setCustomColor(Color color) {
+    _customColor = color;
     save();
     notifyListeners();
   }
@@ -99,6 +123,18 @@ class AppSettings extends ChangeNotifier {
 
   void setShowJumpConfirmation(bool show) {
     _showJumpConfirmation = show;
+    save();
+    notifyListeners();
+  }
+
+  void setBrowseInApp(bool browse) {
+    _browseInApp = browse;
+    save();
+    notifyListeners();
+  }
+
+  void setDownloadPath(String path) {
+    _downloadPath = path;
     save();
     notifyListeners();
   }

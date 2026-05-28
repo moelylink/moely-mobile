@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'latest_tab.dart';
 import 'random_tab.dart';
 import 'explore_tab.dart';
@@ -15,6 +17,23 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestPermissions();
+  }
+
+  Future<void> _requestPermissions() async {
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        await Permission.storage.request();
+        await Permission.photos.request();
+      }
+    } catch (e) {
+      debugPrint('Failed to request permissions: $e');
+    }
+  }
 
   // Fully Native refactored tabs
   final List<Widget> _tabs = [

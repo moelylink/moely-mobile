@@ -2,12 +2,21 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/image_details.dart';
 import 'user_agent_service.dart';
+import '../utils/cache_helper.dart';
 
 class ImageDetailsParser {
   static final Dio _dio = UserAgentService.createDio();
 
   /// Scrape moely.link detail page HTML for rich native elements
   static Future<ImageDetails?> fetchDetails(String id) async {
+    // Try to load from local cache first for instant offline-first experience
+    try {
+      final cachedMap = await CacheHelper.loadDetailsFromCache(id);
+      if (cachedMap != null) {
+        return ImageDetails.fromJson(cachedMap);
+      }
+    } catch (_) {}
+
     try {
       final response = await _dio.get('https://www.moely.link/img/$id/');
       if (response.statusCode != 200) return null;
@@ -223,7 +232,7 @@ class ImageDetailsParser {
         }
       }
 
-      return ImageDetails(
+      final details = ImageDetails(
         id: id,
         title: title,
         resolution: resolution,
@@ -234,6 +243,11 @@ class ImageDetailsParser {
         previewUrls: previewUrls,
         description: description,
       );
+
+      // Save to offline details cache
+      await CacheHelper.saveDetailsToCache(id, details.toJson());
+
+      return details;
     } catch (e) {
       // Return basic model on network error instead of failing
       return ImageDetails(
