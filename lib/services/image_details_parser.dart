@@ -75,16 +75,27 @@ class ImageDetailsParser {
       final String downloadUrl = downloadUrls.isNotEmpty ? downloadUrls.first : '';
 
       // 4. Extract ALL preview/medium image URLs
-      // E.g. data-src="https://t.moely.link/media/..."
+      // E.g. data-src="https://t.moely.link/media/..." or src="https://t.moely.link/media/..."
       final List<String> previewUrls = [];
-      final previewRegex = RegExp('data-src="([^"]+)"');
+      final previewRegex = RegExp(r'''(?:data-src|src)=["']([^"']+)["']''', caseSensitive: false);
       final previewMatches = previewRegex.allMatches(html);
       for (final match in previewMatches) {
         var url = match.group(1) ?? '';
         url = url.replaceAll('&amp;', '&');
+        if (url.startsWith('/')) {
+          url = 'https://www.moely.link$url';
+        }
         // Only include illustrations which reside in /media/
         if (url.isNotEmpty && url.contains('/media/') && !previewUrls.contains(url)) {
           previewUrls.add(url);
+        }
+      }
+
+      // Self-healing: if previewUrls has fewer items than downloadUrls,
+      // populate from downloadUrls to ensure all pages are visible and browsable
+      if (previewUrls.length < downloadUrls.length) {
+        for (int i = previewUrls.length; i < downloadUrls.length; i++) {
+          previewUrls.add(downloadUrls[i]);
         }
       }
 

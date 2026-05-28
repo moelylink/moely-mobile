@@ -16,6 +16,7 @@ class AppSettings extends ChangeNotifier {
   bool _showJumpConfirmation = true;
   bool _browseInApp = true;
   String _downloadPath = '';
+  bool _enableOverscrollRandom = true;
 
   ThemeMode get themeMode => _themeMode;
   Color get themeColor => _themeColor;
@@ -26,12 +27,28 @@ class AppSettings extends ChangeNotifier {
   bool get showJumpConfirmation => _showJumpConfirmation;
   bool get browseInApp => _browseInApp;
   String get downloadPath => _downloadPath;
+  bool get enableOverscrollRandom => _enableOverscrollRandom;
 
   /// Initialize and load settings from disk
   Future<void> init() async {
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/app_settings.json');
+      final supportDir = await getApplicationSupportDirectory();
+      final newDir = Directory('${supportDir.path}/settings');
+      if (!newDir.existsSync()) {
+        newDir.createSync(recursive: true);
+      }
+      final file = File('${newDir.path}/app_settings.json');
+
+      // Seamless migration from old path (docDir/app_settings.json)
+      final docDir = await getApplicationDocumentsDirectory();
+      final oldFile = File('${docDir.path}/app_settings.json');
+      if (oldFile.existsSync() && !file.existsSync()) {
+        try {
+          oldFile.copySync(file.path);
+          oldFile.deleteSync();
+        } catch (_) {}
+      }
+
       if (file.existsSync()) {
         final data = jsonDecode(file.readAsStringSync());
         if (data['themeMode'] != null) {
@@ -61,6 +78,9 @@ class AppSettings extends ChangeNotifier {
         if (data['downloadPath'] != null) {
           _downloadPath = data['downloadPath'];
         }
+        if (data['enableOverscrollRandom'] != null) {
+          _enableOverscrollRandom = data['enableOverscrollRandom'];
+        }
       }
     } catch (_) {}
   }
@@ -68,8 +88,12 @@ class AppSettings extends ChangeNotifier {
   /// Save current settings to disk
   Future<void> save() async {
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/app_settings.json');
+      final supportDir = await getApplicationSupportDirectory();
+      final newDir = Directory('${supportDir.path}/settings');
+      if (!newDir.existsSync()) {
+        newDir.createSync(recursive: true);
+      }
+      final file = File('${newDir.path}/app_settings.json');
       final data = {
         'themeMode': _themeMode.index,
         'themeColor': _themeColor.value,
@@ -80,6 +104,7 @@ class AppSettings extends ChangeNotifier {
         'showJumpConfirmation': _showJumpConfirmation,
         'browseInApp': _browseInApp,
         'downloadPath': _downloadPath,
+        'enableOverscrollRandom': _enableOverscrollRandom,
       };
       file.writeAsStringSync(jsonEncode(data));
     } catch (_) {}
@@ -135,6 +160,12 @@ class AppSettings extends ChangeNotifier {
 
   void setDownloadPath(String path) {
     _downloadPath = path;
+    save();
+    notifyListeners();
+  }
+
+  void setEnableOverscrollRandom(bool enable) {
+    _enableOverscrollRandom = enable;
     save();
     notifyListeners();
   }

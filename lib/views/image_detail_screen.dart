@@ -1,15 +1,19 @@
 import 'dart:io';
 import 'dart:ui';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/image_item.dart';
 import '../models/image_details.dart';
 import '../services/image_details_parser.dart';
 import '../services/translation_service.dart';
 import '../utils/download_helper.dart';
+import '../utils/cache_helper.dart';
 import 'denoised_web_screen.dart';
 import '../services/wallpaper_service.dart';
 import '../services/settings_service.dart';
@@ -18,6 +22,7 @@ import '../services/url_handler_service.dart';
 import 'tag_grid_screen.dart';
 import 'category_grid_screen.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:open_filex/open_filex.dart';
 
 class ImageDetailScreen extends StatefulWidget {
   final MoelyImage image;
@@ -32,6 +37,7 @@ class ImageDetailScreen extends StatefulWidget {
 }
 
 class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTickerProviderStateMixin {
+  late MoelyImage _currentImage;
   ImageDetails? _details;
   bool _isLoadingDetails = true;
   bool _isFavorited = false;
@@ -46,9 +52,27 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   late final AnimationController _heartController;
   late final Animation<double> _heartScaleAnimation;
 
+  // Overscroll scroll controller and tracking state
+  final ScrollController _scrollController = ScrollController();
+  double _overscrollBottom = 0.0;
+  double _overscrollTop = 0.0;
+  bool _hasPrevImage = false;
+
+  static List<MoelyImage>? _globalIndexList;
+
+  // Preloading state and cached variables for instant transitions
+  MoelyImage? _preloadedNextImage;
+  ImageDetails? _preloadedNextDetails;
+  bool _isPreloadingNext = false;
+
+  // Track all randomly swiped or preloaded images and their URLs for surgical cache eviction on exit
+  final Set<String> _randomImageIds = {};
+  final Set<String> _randomImageUrlsToEvict = {};
+
   @override
   void initState() {
     super.initState();
+    _currentImage = widget.image;
     _heartController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -58,24 +82,388 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       TweenSequenceItem(tween: Tween(begin: 1.4, end: 1.0), weight: 50),
     ]).animate(_heartController);
 
+    _scrollController.addListener(_onScroll);
+    _checkHistoryStatus();
     _loadDetails();
+    if (AppSettings.instance.enableOverscrollRandom) {
+      _preloadNextImage();
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    
+    final offset = _scrollController.offset;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    
+    // Detect overscroll at the bottom
+    if (AppSettings.instance.enableOverscrollRandom && offset > maxScroll) {
+      final overscroll = offset - maxScroll;
+      if (overscroll != _overscrollBottom) {
+        setState(() {
+          _overscrollBottom = overscroll;
+        });
+      }
+    } else {
+      if (_overscrollBottom != 0.0) {
+        setState(() {
+          _overscrollBottom = 0.0;
+        });
+      }
+    }
+    
+    // Detect overscroll at the top
+    if (offset < 0) {
+      final overscroll = -offset;
+      if (overscroll != _overscrollTop) {
+        setState(() {
+          _overscrollTop = overscroll;
+        });
+      }
+    } else {
+      if (_overscrollTop != 0.0) {
+        setState(() {
+          _overscrollTop = 0.0;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkHistoryStatus() async {
+    final status = await _hasHistory();
+    if (mounted) {
+      setState(() {
+        _hasPrevImage = status;
+      });
+    }
+  }
+
+  Future<List<MoelyImage>> _getOrFetchIndexList() async {
+    if (_globalIndexList != null && _globalIndexList!.isNotEmpty) {
+      return _globalIndexList!;
+    }
+    
+    final tempDir = await getTemporaryDirectory();
+    final cacheFile = File('${tempDir.path}/global_index_cache.json');
+    
+    if (await cacheFile.exists()) {
+      try {
+        final content = await cacheFile.readAsString();
+        final List<dynamic> listData = json.decode(content);
+        _globalIndexList = listData.map((e) => MoelyImage.fromJson(e)).toList();
+        if (_globalIndexList!.isNotEmpty) {
+          _fetchIndexAndSaveBackground(cacheFile);
+          return _globalIndexList!;
+        }
+      } catch (_) {}
+    }
+    
+    try {
+      final dio = UserAgentService.createDio();
+      final response = await dio.get('https://www.moely.link/index.json');
+      if (response.statusCode == 200 && response.data is List) {
+        final List<dynamic> listData = response.data;
+        _globalIndexList = listData.map((e) => MoelyImage.fromJson(e)).toList();
+        await cacheFile.writeAsString(json.encode(response.data));
+        return _globalIndexList!;
+      }
+    } catch (_) {}
+    
+    return _globalIndexList ?? [];
+  }
+
+  void _fetchIndexAndSaveBackground(File cacheFile) {
+    Future.microtask(() async {
+      try {
+        final dio = UserAgentService.createDio();
+        final response = await dio.get('https://www.moely.link/index.json');
+        if (response.statusCode == 200 && response.data is List) {
+          _globalIndexList = (response.data as List).map((e) => MoelyImage.fromJson(e)).toList();
+          await cacheFile.writeAsString(json.encode(response.data));
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<File> _getHistoryFile() async {
+    final tempDir = await getTemporaryDirectory();
+    return File('${tempDir.path}/detail_history.json');
+  }
+
+  Future<void> _pushToHistory(MoelyImage image) async {
+    try {
+      final file = await _getHistoryFile();
+      List<dynamic> historyJson = [];
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        historyJson = json.decode(content) as List;
+      }
+      historyJson.add(image.toJson());
+      await file.writeAsString(json.encode(historyJson));
+    } catch (e) {
+      debugPrint('Error pushing to history: $e');
+    }
+  }
+
+  Future<MoelyImage?> _popFromHistory() async {
+    try {
+      final file = await _getHistoryFile();
+      if (!await file.exists()) return null;
+      final content = await file.readAsString();
+      final List<dynamic> historyJson = json.decode(content) as List;
+      if (historyJson.isEmpty) return null;
+      
+      final poppedItemJson = historyJson.removeLast();
+      if (historyJson.isEmpty) {
+        await file.delete();
+      } else {
+        await file.writeAsString(json.encode(historyJson));
+      }
+      return MoelyImage.fromJson(poppedItemJson);
+    } catch (e) {
+      debugPrint('Error popping from history: $e');
+      return null;
+    }
+  }
+
+  Future<bool> _hasHistory() async {
+    try {
+      final file = await _getHistoryFile();
+      if (!await file.exists()) return false;
+      final content = await file.readAsString();
+      final List<dynamic> historyJson = json.decode(content) as List;
+      return historyJson.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _clearHistory() async {
+    try {
+      final file = await _getHistoryFile();
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _preloadNextImage() async {
+    if (!AppSettings.instance.enableOverscrollRandom) return;
+    if (_isPreloadingNext || _preloadedNextImage != null) return;
+    _isPreloadingNext = true;
+    
+    try {
+      final indexList = await _getOrFetchIndexList();
+      if (indexList.isEmpty) return;
+      
+      final random = math.Random();
+      MoelyImage randomImage = indexList[random.nextInt(indexList.length)];
+      int retries = 5;
+      while (randomImage.id == _currentImage.id && retries > 0) {
+        randomImage = indexList[random.nextInt(indexList.length)];
+        retries--;
+      }
+      
+      final details = await ImageDetailsParser.fetchDetails(randomImage.id);
+      
+      _preloadedNextImage = randomImage;
+      _preloadedNextDetails = details;
+      
+      // Track random image ID and preview URLs for cache eviction
+      _randomImageIds.add(randomImage.id);
+      if (details != null && details.previewUrls.isNotEmpty) {
+        _randomImageUrlsToEvict.addAll(details.previewUrls);
+      } else if (randomImage.urls.isNotEmpty) {
+        _randomImageUrlsToEvict.add(_getHighResUrl(randomImage.urls));
+      }
+      
+      if (mounted && details != null && details.previewUrls.isNotEmpty) {
+        final firstImgUrl = details.previewUrls.first;
+        precacheImage(
+          CachedNetworkImageProvider(
+            firstImgUrl,
+            headers: {'User-Agent': UserAgentService.userAgent},
+          ),
+          context,
+        );
+      } else if (mounted && randomImage.urls.isNotEmpty) {
+        final fallbackUrl = _getHighResUrl(randomImage.urls);
+        precacheImage(
+          CachedNetworkImageProvider(
+            fallbackUrl,
+            headers: {'User-Agent': UserAgentService.userAgent},
+          ),
+          context,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error preloading next image: $e');
+    } finally {
+      _isPreloadingNext = false;
+    }
+  }
+
+  Future<void> _loadRandomImage() async {
+    setState(() {
+      _isLoadingDetails = true;
+    });
+    
+    try {
+      if (_preloadedNextImage != null && _preloadedNextDetails != null) {
+        final nextImage = _preloadedNextImage!;
+        final nextDetails = _preloadedNextDetails!;
+        
+        await _pushToHistory(_currentImage);
+        
+        setState(() {
+          _currentImage = nextImage;
+          _details = nextDetails;
+          _isLoadingDetails = false;
+          _isFavorited = false;
+          _isTranslating = false;
+          _isTranslated = false;
+          _translatedTags = '';
+          _translatedDescription = '';
+          _overscrollBottom = 0.0;
+          _overscrollTop = 0.0;
+          
+          _preloadedNextImage = null;
+          _preloadedNextDetails = null;
+        });
+        
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0.0);
+        }
+        
+        _checkHistoryStatus();
+        _preloadNextImage();
+        return;
+      }
+      
+      final indexList = await _getOrFetchIndexList();
+      if (indexList.isEmpty) {
+        throw Exception('Empty index list');
+      }
+      
+      final random = math.Random();
+      MoelyImage randomImage = indexList[random.nextInt(indexList.length)];
+      int retries = 5;
+      while (randomImage.id == _currentImage.id && retries > 0) {
+        randomImage = indexList[random.nextInt(indexList.length)];
+        retries--;
+      }
+
+      await _pushToHistory(_currentImage);
+      
+      // Track random image ID and preview URLs for cache eviction
+      _randomImageIds.add(randomImage.id);
+      if (randomImage.urls.isNotEmpty) {
+        _randomImageUrlsToEvict.add(_getHighResUrl(randomImage.urls));
+      }
+      
+      setState(() {
+        _currentImage = randomImage;
+        _details = null;
+        _isLoadingDetails = true;
+        _isFavorited = false;
+        _isTranslating = false;
+        _isTranslated = false;
+        _translatedTags = '';
+        _translatedDescription = '';
+        _overscrollBottom = 0.0;
+        _overscrollTop = 0.0;
+      });
+      
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+      
+      _checkHistoryStatus();
+      _loadDetails();
+      _preloadNextImage();
+    } catch (e) {
+      debugPrint('Error loading random image: $e');
+      setState(() {
+        _isLoadingDetails = false;
+      });
+    }
+  }
+
+  Future<void> _loadPreviousImage() async {
+    setState(() {
+      _isLoadingDetails = true;
+    });
+    
+    final prevImage = await _popFromHistory();
+    if (prevImage != null) {
+      setState(() {
+        _currentImage = prevImage;
+        _details = null;
+        _isLoadingDetails = true;
+        _isFavorited = false;
+        _isTranslating = false;
+        _isTranslated = false;
+        _translatedTags = '';
+        _translatedDescription = '';
+        _overscrollBottom = 0.0;
+        _overscrollTop = 0.0;
+      });
+      
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+      
+      _checkHistoryStatus();
+      _loadDetails();
+      _preloadNextImage();
+    } else {
+      setState(() {
+        _isLoadingDetails = false;
+      });
+    }
+  }
+
+  Future<void> _handleScrollRelease() async {
+    const double threshold = 80.0;
+    
+    if (_overscrollBottom >= threshold) {
+      _loadRandomImage();
+    } else if (_overscrollTop >= threshold && _hasPrevImage) {
+      _loadPreviousImage();
+    }
   }
 
   String _getDisplayTitle() {
     if (_details != null && _details!.title.isNotEmpty) {
       return _details!.title;
     }
-    return 'ID: ${widget.image.id}';
+    return 'ID: ${_currentImage.id}';
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _heartController.dispose();
+    _clearHistory();
+    
+    // Evict all random and preloaded image and details cache dynamically upon exit
+    for (final url in _randomImageUrlsToEvict) {
+      try {
+        CachedNetworkImage.evictFromCache(url);
+      } catch (_) {}
+    }
+    for (final id in _randomImageIds) {
+      try {
+        CacheHelper.deleteDetailsFromCache(id);
+      } catch (_) {}
+    }
+    
     super.dispose();
   }
 
   Future<void> _loadDetails() async {
-    final details = await ImageDetailsParser.fetchDetails(widget.image.id);
+    final details = await ImageDetailsParser.fetchDetails(_currentImage.id);
     if (mounted) {
       setState(() {
         _details = details;
@@ -116,24 +504,26 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     if (_details != null && _details!.downloadUrls.length > index) {
       downloadUrl = _details!.downloadUrls[index];
     } else if (index == 0) {
-      downloadUrl = _getHighResUrl(widget.image.urls);
+      downloadUrl = _getHighResUrl(_currentImage.urls);
     } else {
       return;
     }
 
     final extension = downloadUrl.contains('.png') ? 'png' : 'jpg';
-    final totalPages = int.tryParse(widget.image.total ?? '') ?? (_details?.downloadUrls.length ?? 1);
+    final totalPages = int.tryParse(_currentImage.total ?? '') ?? (_details?.downloadUrls.length ?? 1);
     final filename = totalPages > 1
-        ? '${widget.image.id}_p$index.$extension'
-        : '${widget.image.id}.$extension';
+        ? '${_currentImage.id}_p$index.$extension'
+        : '${_currentImage.id}.$extension';
 
     double progress = 0.0;
+    StateSetter? dialogStateSetter;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            dialogStateSetter = setDialogState;
             return AlertDialog(
               backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -159,8 +549,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         filename,
         onProgress: (received, total) {
           if (total > 0) {
-            if (mounted) {
-              Navigator.of(context, rootNavigator: true).setState(() {
+            if (mounted && dialogStateSetter != null) {
+              dialogStateSetter!(() {
                 progress = received / total;
               });
             }
@@ -179,7 +569,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '保存成功！路径: $savedPath',
+                    '图片下载成功',
                     style: TextStyle(
                       color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
@@ -188,6 +578,17 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                   ),
                 ),
               ],
+            ),
+            action: SnackBarAction(
+              label: '打开',
+              textColor: theme.colorScheme.primary,
+              onPressed: () async {
+                try {
+                  await OpenFilex.open(savedPath);
+                } catch (e) {
+                  debugPrint('Failed to open file: $e');
+                }
+              },
             ),
             backgroundColor: theme.colorScheme.surface,
             elevation: 4,
@@ -409,16 +810,16 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     if (_details != null && _details!.downloadUrls.length > index) {
       downloadUrl = _details!.downloadUrls[index];
     } else if (index == 0) {
-      downloadUrl = _getHighResUrl(widget.image.urls);
+      downloadUrl = _getHighResUrl(_currentImage.urls);
     } else {
       return;
     }
 
     final extension = downloadUrl.contains('.png') ? 'png' : 'jpg';
-    final totalPages = int.tryParse(widget.image.total ?? '') ?? (_details?.downloadUrls.length ?? 1);
+    final totalPages = int.tryParse(_currentImage.total ?? '') ?? (_details?.downloadUrls.length ?? 1);
     final filename = totalPages > 1
-        ? '${widget.image.id}_p$index.$extension'
-        : '${widget.image.id}.$extension';
+        ? '${_currentImage.id}_p$index.$extension'
+        : '${_currentImage.id}.$extension';
 
     showDialog(
       context: context,
@@ -492,7 +893,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
   void _handleShare(BuildContext context) {
     final RenderBox? box = context.findRenderObject() as RenderBox?;
-    final String shareText = '分享二次元插画 (ID: ${widget.image.id}) By ${widget.image.category} @${widget.image.cleanUser}\n网页链接: https://www.moely.link/img/${widget.image.id}/';
+    final String shareText = '分享二次元插画 (ID: ${_currentImage.id}) By ${_currentImage.category} @${_currentImage.cleanUser}\n网页链接: https://www.moely.link/img/${_currentImage.id}/';
     Share.share(
       shareText,
       sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
@@ -514,29 +915,35 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isPixiv = widget.image.category.toLowerCase() == 'pixiv';
+    final isPixiv = _currentImage.category.toLowerCase() == 'pixiv';
     final platformColor = theme.colorScheme.primary;
 
     // List of previews to display
     final List<String> previewsToDisplay = [];
     if (_isLoadingDetails || _details == null || _details!.previewUrls.isEmpty) {
-      previewsToDisplay.add(_getHighResUrl(widget.image.urls));
+      previewsToDisplay.add(_getHighResUrl(_currentImage.urls));
     } else {
       previewsToDisplay.addAll(_details!.previewUrls);
     }
 
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
-      body: Stack(
-        children: [
-          // Dynamic scrolling view containing all illustrations and then metadata at the end (Pixiv-Style)
-          Positioned.fill(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + 60,
-                bottom: 100, // Room for FAB share and bottom spacing
-              ),
-              child: Column(
+      body: Listener(
+        onPointerUp: (event) {
+          _handleScrollRelease();
+        },
+        child: Stack(
+          children: [
+            // Dynamic scrolling view containing all illustrations and then metadata at the end (Pixiv-Style)
+            Positioned.fill(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 60,
+                  bottom: 100, // Room for FAB share and bottom spacing
+                ),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 1. List of illustrations stacked vertically (前面展示图片)
@@ -565,7 +972,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
                                 child: Hero(
-                                  tag: index == 0 ? 'img_${widget.image.id}' : 'img_${widget.image.id}_p$index',
+                                  tag: index == 0 ? 'img_${_currentImage.id}' : 'img_${_currentImage.id}_p$index',
                                   child: imgUrl.isEmpty
                                       ? Container(
                                           height: 250,
@@ -789,10 +1196,103 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               child: const Icon(Icons.share_rounded),
             ),
           ),
+
+          // 6. Top Overscroll Indicator (Return to previous)
+          if (_overscrollTop > 5 && _hasPrevImage)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 80,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Opacity(
+                  opacity: (math.min(_overscrollTop, 80.0) / 80.0),
+                  child: Transform.scale(
+                    scale: 0.8 + 0.2 * (math.min(_overscrollTop, 80.0) / 80.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: platformColor,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          )
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            _overscrollTop >= 80 ? '释放以返回上一张' : '继续下拉返回上一张 (${_overscrollTop.toInt()}/80)',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 7. Bottom Overscroll Indicator (Random next image)
+          if (_overscrollBottom > 5)
+            Positioned(
+              bottom: 110,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Opacity(
+                  opacity: (math.min(_overscrollBottom, 80.0) / 80.0),
+                  child: Transform.scale(
+                    scale: 0.8 + 0.2 * (math.min(_overscrollBottom, 80.0) / 80.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: platformColor,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          )
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            _overscrollBottom >= 80 ? '释放以探索随机图片' : '继续上拉探索随机图片 (${_overscrollBottom.toInt()}/80)',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPixivDetailsCard(ThemeData theme, Color platformColor) {
     const Map<String, String> languageNames = {
@@ -872,7 +1372,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  widget.image.cleanUser,
+                  _currentImage.cleanUser,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onSurface.withOpacity(0.8),
@@ -885,8 +1385,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                     context,
                     MaterialPageRoute(
                       builder: (context) => CategoryGridScreen(
-                        categoryCode: widget.image.category.toLowerCase(),
-                        title: widget.image.category,
+                        categoryCode: _currentImage.category.toLowerCase(),
+                        title: _currentImage.category,
                       ),
                     ),
                   );
@@ -900,7 +1400,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                     border: Border.all(color: platformColor.withOpacity(0.3)),
                   ),
                   child: Text(
-                    widget.image.category,
+                    _currentImage.category,
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,

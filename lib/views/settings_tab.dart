@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import '../services/settings_service.dart';
 import 'storage_management_screen.dart';
 import '../utils/cache_helper.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 
 class SettingsTab extends StatefulWidget {
@@ -101,26 +100,7 @@ class _SettingsTabState extends State<SettingsTab> {
   }
 
   Future<void> _pickDirectory(BuildContext context) async {
-    try {
-      final selectedDirectory = await FilePicker.getDirectoryPath();
-      if (selectedDirectory != null) {
-        AppSettings.instance.setDownloadPath(selectedDirectory);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('下载目录已成功更新为: $selectedDirectory'),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Native picker failed: $e. Falling back to custom path selection...');
-      if (context.mounted) {
-        _showCustomDirectoryBrowser(context);
-      }
-    }
+    _showCustomDirectoryBrowser(context);
   }
 
   Future<void> _showCustomDirectoryBrowser(BuildContext context) async {
@@ -436,7 +416,7 @@ class _SettingsTabState extends State<SettingsTab> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 120), // Bottom padding for floating bar
             children: [
               // Section 1: Themes & Colors
-              _buildSectionHeader(theme, '主题与外观'),
+              _buildSectionHeader(theme, '主题和外观'),
               Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 child: Padding(
@@ -488,65 +468,8 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
               const SizedBox(height: 20),
 
-              // Section 2: Browsing
-              _buildSectionHeader(theme, '浏览'),
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      secondary: Icon(Icons.security_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                      title: const Text('外部链接确认弹窗', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('关闭后将不再展示安全提示弹窗', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.showJumpConfirmation,
-                      onChanged: (val) {
-                        AppSettings.instance.setShowJumpConfirmation(val);
-                      },
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    SwitchListTile(
-                      secondary: Icon(Icons.open_in_browser_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                      title: const Text('在App内浏览外部网页', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('关闭后将使用系统默认浏览器打开外部链接', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.browseInApp,
-                      onChanged: (val) {
-                        AppSettings.instance.setBrowseInApp(val);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Section 3: Translation
-              _buildSectionHeader(theme, '翻译'),
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      secondary: Icon(Icons.translate_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                      title: const Text('启用翻译功能', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('在作品详情页展示翻译按钮', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.enableTranslation,
-                      onChanged: (val) {
-                        AppSettings.instance.setEnableTranslation(val);
-                      },
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-
-                    // Translation Engine
-                    _buildTranslationEngineSelector(theme),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-
-                    // Translation Target Language
-                    _buildTranslationLanguageSelector(theme),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Section 3: Cache & Storage
-              _buildSectionHeader(theme, '下载与存储管理'),
+              // Section 2: Cache & Storage
+              _buildSectionHeader(theme, '数据和存储'),
               Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 child: Column(
@@ -607,8 +530,76 @@ class _SettingsTabState extends State<SettingsTab> {
               ),
               const SizedBox(height: 20),
 
-              // Section 4: About
-              _buildSectionHeader(theme, '关于萌哩'),
+              // Section 3: Translation
+              _buildSectionHeader(theme, '翻译'),
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      secondary: Icon(Icons.translate_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('启用翻译功能', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('在作品详情页展示翻译按钮', style: TextStyle(fontSize: 12)),
+                      value: AppSettings.instance.enableTranslation,
+                      onChanged: (val) {
+                        AppSettings.instance.setEnableTranslation(val);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+
+                    // Translation Engine
+                    _buildTranslationEngineSelector(theme),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+
+                    // Translation Target Language
+                    _buildTranslationLanguageSelector(theme),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Section 4: Browsing
+              _buildSectionHeader(theme, '浏览'),
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      secondary: Icon(Icons.swipe_up_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('滑动探索随机图片', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('图片详情页底部上拉可探索随机图片', style: TextStyle(fontSize: 12)),
+                      value: AppSettings.instance.enableOverscrollRandom,
+                      onChanged: (val) {
+                        AppSettings.instance.setEnableOverscrollRandom(val);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    SwitchListTile(
+                      secondary: Icon(Icons.security_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('外部链接确认弹窗', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('关闭后将不再展示安全提示弹窗', style: TextStyle(fontSize: 12)),
+                      value: AppSettings.instance.showJumpConfirmation,
+                      onChanged: (val) {
+                        AppSettings.instance.setShowJumpConfirmation(val);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    SwitchListTile(
+                      secondary: Icon(Icons.open_in_browser_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('在App内浏览外部网页', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('关闭后将使用系统默认浏览器打开外部链接', style: TextStyle(fontSize: 12)),
+                      value: AppSettings.instance.browseInApp,
+                      onChanged: (val) {
+                        AppSettings.instance.setBrowseInApp(val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Section 5: About
+              _buildSectionHeader(theme, '关于'),
               Card(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 child: Column(

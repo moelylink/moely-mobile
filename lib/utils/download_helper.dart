@@ -46,7 +46,12 @@ class DownloadHelper {
       }
       return publicDownloadDir;
     } else {
-      return await getApplicationDocumentsDirectory();
+      final docDir = await getApplicationDocumentsDirectory();
+      final moelyDir = Directory('${docDir.path}/MoelyDownloads');
+      if (!await moelyDir.exists()) {
+        await moelyDir.create(recursive: true);
+      }
+      return moelyDir;
     }
   }
 
@@ -143,7 +148,11 @@ class DownloadHelper {
       // Try fallback to absolute safe application directory if public path errors
       try {
         final safeDir = await getApplicationSupportDirectory();
-        final safePath = p.join(safeDir.path, filename);
+        final moelyFallbackDir = Directory('${safeDir.path}/MoelyDownloads');
+        if (!await moelyFallbackDir.exists()) {
+          await moelyFallbackDir.create(recursive: true);
+        }
+        final safePath = p.join(moelyFallbackDir.path, filename);
         
         final response = await _dio.download(
           url,

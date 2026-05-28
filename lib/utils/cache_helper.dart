@@ -110,6 +110,16 @@ class CacheHelper {
     return null;
   }
 
+  static Future<void> deleteDetailsFromCache(String id) async {
+    try {
+      final cacheDir = await getDetailsCacheDir();
+      final cacheFile = File('${cacheDir.path}/$id.json');
+      if (cacheFile.existsSync()) {
+        await cacheFile.delete();
+      }
+    } catch (_) {}
+  }
+
   // Index Cache Operations (home, category, tags)
   static Future<void> saveIndexToCache(String cacheKey, Map<String, dynamic> jsonMap) async {
     try {

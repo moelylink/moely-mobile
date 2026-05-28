@@ -39,9 +39,9 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     'images': true,
     'details': true,
     'index': true,
-    'favorites': false, // Keep favorites safe by default
-    'webview': true,    // WebView cache selected by default
-    'other': false,
+    'favorites': true,
+    'webview': true,
+    'other': true,
   };
 
   late AnimationController _initialScaleController;
@@ -113,14 +113,90 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     final favS = await CacheHelper.getDirSize(favDir);
     final webS = await CacheHelper.getDirSize(webDir);
 
-    // Calculate other files (excluding specific subfolders)
+    // Calculate other files (excluding isolated system and user directories)
     final docDir = await getApplicationDocumentsDirectory();
     final supportDir = await getApplicationSupportDirectory();
-    final docS = await CacheHelper.getDirSize(docDir);
-    final supS = await CacheHelper.getDirSize(supportDir);
+    final tempDir = await getTemporaryDirectory();
+    final parentDir = tempDir.parent;
+    
+    // 1. Scan code_cache (Android V8 compilation shader & bytecode cache)
+    int codeCacheS = 0;
+    final codeCacheDir = Directory('${parentDir.path}/code_cache');
+    if (codeCacheDir.existsSync()) {
+      codeCacheS = await CacheHelper.getDirSize(codeCacheDir);
+    }
 
-    int otherS = (docS + supS) - (detS + idxS + favS);
-    if (otherS < 0) otherS = 0;
+    // 2. Scan the rest of tempDir (excluding libCachedImageData and WebView)
+    int restTempS = 0;
+    if (tempDir.existsSync()) {
+      try {
+        final List<FileSystemEntity> files = tempDir.listSync(recursive: true);
+        for (final FileSystemEntity file in files) {
+          if (file is File) {
+            final path = file.path;
+            if (path.contains('libCachedImageData') || path.contains('WebView')) {
+              continue;
+            }
+            restTempS += file.lengthSync();
+          }
+        }
+      } catch (_) {}
+    }
+    
+    final excludedFolders = [
+      detDir.path,
+      idxDir.path,
+      favDir.path,
+      '${supportDir.path}/settings',
+      '${supportDir.path}/MoelyDownloads',
+      '${docDir.path}/MoelyDownloads',
+    ];
+    final customDownloadPath = AppSettings.instance.downloadPath;
+    if (customDownloadPath.isNotEmpty) {
+      excludedFolders.add(customDownloadPath);
+    }
+    
+    int otherS = codeCacheS + restTempS;
+    
+    void calculateOtherCacheSize(Directory dir) {
+      if (!dir.existsSync()) return;
+      try {
+        final list = dir.listSync(recursive: true);
+        for (final entity in list) {
+          if (entity is File) {
+            final path = entity.path;
+            
+            // Check if file is in any excluded folders
+            bool isExcluded = false;
+            for (final folder in excludedFolders) {
+              if (path.startsWith(folder)) {
+                isExcluded = true;
+                break;
+              }
+            }
+            if (isExcluded) continue;
+            
+            // Also exclude app_settings.json in docDir root (for backward compatible/migrating states)
+            final name = p.basename(path);
+            if (name == 'app_settings.json') {
+              continue;
+            }
+            
+            // Exclude SQLite databases
+            final ext = p.extension(path).toLowerCase();
+            if (ext == '.db' || ext == '.db-shm' || ext == '.db-wal') {
+              continue;
+            }
+            
+            // Otherwise, it is a miscellaneous cache file
+            otherS += entity.lengthSync();
+          }
+        }
+      } catch (_) {}
+    }
+
+    calculateOtherCacheSize(docDir);
+    calculateOtherCacheSize(supportDir);
 
     if (mounted) {
       setState(() {
@@ -220,29 +296,125 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     if (_selected['other'] == true) {
       try {
         final docDir = await getApplicationDocumentsDirectory();
-        final List<FileSystemEntity> files = docDir.listSync(recursive: true);
-        for (final file in files) {
-          if (file is File && !file.path.endsWith('app_settings.json')) {
-            await file.delete();
-          }
+        final supportDir = await getApplicationSupportDirectory();
+        final tempDir = await getTemporaryDirectory();
+        
+        final detDir = await CacheHelper.getDetailsCacheDir();
+        final idxDir = await CacheHelper.getIndexCacheDir();
+        final favDir = await CacheHelper.getFavoritesCacheDir();
+
+        final excludedFolders = [
+          detDir.path,
+          idxDir.path,
+          favDir.path,
+          '${supportDir.path}/settings',
+          '${supportDir.path}/MoelyDownloads',
+          '${docDir.path}/MoelyDownloads',
+        ];
+        final customDownloadPath = AppSettings.instance.downloadPath;
+        if (customDownloadPath.isNotEmpty) {
+          excludedFolders.add(customDownloadPath);
+        }
+
+        // 1. Clear other files in docDir and supportDir
+        void clearOtherCacheFiles(Directory dir) {
+          if (!dir.existsSync()) return;
+          try {
+            final List<FileSystemEntity> files = dir.listSync(recursive: true);
+            for (final file in files) {
+              if (file is File) {
+                final path = file.path;
+                
+                // Check if file is in any excluded folders
+                bool isExcluded = false;
+                for (final folder in excludedFolders) {
+                  if (path.startsWith(folder)) {
+                    isExcluded = true;
+                    break;
+                  }
+                }
+                if (isExcluded) continue;
+                
+                // Also exclude app_settings.json in docDir root (for backward compatible/migrating states)
+                final name = p.basename(path);
+                if (name == 'app_settings.json') {
+                  continue;
+                }
+                
+                // Exclude SQLite databases
+                final ext = p.extension(path).toLowerCase();
+                if (ext == '.db' || ext == '.db-shm' || ext == '.db-wal') {
+                  continue;
+                }
+                
+                // Safe to delete other miscellaneous cache files
+                file.deleteSync();
+              }
+            }
+          } catch (_) {}
+        }
+
+        clearOtherCacheFiles(docDir);
+        clearOtherCacheFiles(supportDir);
+
+        // 2. Clear code_cache (V8 compile and shader bytecode caches)
+        final codeCacheDir = Directory('${tempDir.parent.path}/code_cache');
+        if (codeCacheDir.existsSync()) {
+          try {
+            final List<FileSystemEntity> files = codeCacheDir.listSync(recursive: true);
+            for (final file in files) {
+              if (file is File) {
+                file.deleteSync();
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 3. Clear rest of tempDir (excluding images and WebView caches)
+        if (tempDir.existsSync()) {
+          try {
+            final List<FileSystemEntity> files = tempDir.listSync(recursive: true);
+            for (final file in files) {
+              if (file is File) {
+                final path = file.path;
+                if (path.contains('libCachedImageData') || path.contains('WebView')) {
+                  continue;
+                }
+                file.deleteSync();
+              }
+            }
+          } catch (_) {}
         }
       } catch (_) {}
     }
 
     if (mounted) {
       Navigator.pop(context); // Close dialog
+      final theme = Theme.of(context);
+      final isDark = theme.brightness == Brightness.dark;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
-              SizedBox(width: 8),
-              Text('清理完成！已经释放磁盘空间。'),
+              Icon(
+                Icons.check_circle_rounded, 
+                color: isDark ? Colors.greenAccent : const Color(0xFF10B981),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '清理完成！已经释放磁盘空间。',
+                style: TextStyle(
+                  color: isDark ? theme.colorScheme.onSurface : theme.colorScheme.onInverseSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
             ],
           ),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+          backgroundColor: isDark ? theme.colorScheme.surfaceVariant : theme.colorScheme.inverseSurface,
         ),
       );
       _loadSizes();
@@ -394,23 +566,53 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                   // Device Storage horizontal Progress Bar
                   Center(
                     child: Container(
-                      height: 4,
-                      width: 140,
+                      height: 6,
+                      width: 200,
                       decoration: BoxDecoration(
                         color: theme.colorScheme.onSurface.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(3),
                       ),
-                      child: FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: 0.18, // Mockup progress
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: Row(
+                          children: [
+                            // 1. Moely occupied space (themed color)
+                            Expanded(
+                              flex: 12,
+                              child: Container(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            // 2. Other apps occupied space (light themed color - secondaryContainer)
+                            Expanded(
+                              flex: 58,
+                              child: Container(
+                                color: theme.colorScheme.secondaryContainer,
+                              ),
+                            ),
+                            // 3. Free space (transparent/background of the bar)
+                            Expanded(
+                              flex: 30,
+                              child: Container(
+                                color: Colors.transparent,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Legend row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLegendItem(theme, '萌哩', theme.colorScheme.primary),
+                      const SizedBox(width: 16),
+                      _buildLegendItem(theme, '其他应用', theme.colorScheme.secondaryContainer),
+                      const SizedBox(width: 16),
+                      _buildLegendItem(theme, '系统与剩余', theme.colorScheme.onSurface.withOpacity(0.15)),
+                    ],
                   ),
                   const SizedBox(height: 24),
 
@@ -538,6 +740,31 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
       color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
       indent: 56,
       endIndent: 16,
+    );
+  }
+
+  Widget _buildLegendItem(ThemeData theme, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: theme.colorScheme.onSurface.withOpacity(0.6),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
