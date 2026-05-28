@@ -1,5 +1,6 @@
 class ImageDetails {
   final String id;
+  final String title;
   final String resolution;
   final List<String> tags;
   final String sourceUrl;
@@ -11,6 +12,7 @@ class ImageDetails {
 
   ImageDetails({
     required this.id,
+    required this.title,
     required this.resolution,
     required this.tags,
     required this.sourceUrl,

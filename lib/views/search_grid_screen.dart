@@ -21,8 +21,11 @@ class SearchGridScreen extends StatefulWidget {
 class _SearchGridScreenState extends State<SearchGridScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<MoelyImage> _images = [];
+  final List<MoelyImage> _allFetchedImages = [];
   
-  int _currentPage = 1;
+  late String _currentQuery;
+  late TextEditingController _searchController;
+  
   bool _isLoadingInitial = true;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -31,12 +34,15 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
   @override
   void initState() {
     super.initState();
+    _currentQuery = widget.query;
+    _searchController = TextEditingController(text: _currentQuery);
     _fetchInitialImages();
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -45,17 +51,19 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
     setState(() {
       _isLoadingInitial = true;
       _hasError = false;
-      _currentPage = 1;
       _images.clear();
+      _allFetchedImages.clear();
       _hasMore = true;
     });
 
     try {
-      final items = await HtmlParserService.fetchSearchImages(widget.query, _currentPage);
+      final items = await HtmlParserService.fetchSearchImages(_currentQuery, 1, limit: 100);
       setState(() {
-        _images.addAll(items);
+        _allFetchedImages.addAll(items);
+        final initialBatch = _allFetchedImages.take(20).toList();
+        _images.addAll(initialBatch);
         _isLoadingInitial = false;
-        if (items.length < 30) {
+        if (_allFetchedImages.length <= _images.length) {
           _hasMore = false;
         }
       });
@@ -67,34 +75,25 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
     }
   }
 
-  Future<void> _fetchMoreImages() async {
+  void _fetchMoreImages() {
     if (_isLoadingMore || !_hasMore) return;
 
     setState(() {
       _isLoadingMore = true;
     });
 
-    try {
-      final nextPage = _currentPage + 1;
-      final items = await HtmlParserService.fetchSearchImages(widget.query, nextPage);
-      
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
       setState(() {
-        if (items.isEmpty) {
+        final currentLen = _images.length;
+        final nextBatch = _allFetchedImages.skip(currentLen).take(20).toList();
+        _images.addAll(nextBatch);
+        _isLoadingMore = false;
+        if (_allFetchedImages.length <= _images.length) {
           _hasMore = false;
-        } else {
-          _images.addAll(items);
-          _currentPage = nextPage;
-          if (items.length < 30) {
-            _hasMore = false;
-          }
         }
-        _isLoadingMore = false;
       });
-    } catch (_) {
-      setState(() {
-        _isLoadingMore = false;
-      });
-    }
+    });
   }
 
   void _onScroll() {
@@ -113,11 +112,10 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       appBar: AppBar(
-        title: Text(
-          '搜索: ${widget.query}',
+        title: const Text(
+          '搜索美图',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onBackground,
           ),
         ),
         centerTitle: true,
@@ -134,10 +132,74 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _fetchInitialImages,
-        color: primaryColor,
-        child: _buildBody(theme, primaryColor),
+      body: Column(
+        children: [
+          // Sticky top search bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 12.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(20.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.shadow.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onSubmitted: (val) {
+                  if (val.trim().isNotEmpty) {
+                    setState(() {
+                      _currentQuery = val.trim();
+                    });
+                    _fetchInitialImages();
+                  }
+                },
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: '搜索插画、画师、标签...',
+                  hintStyle: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: theme.colorScheme.primary,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                            });
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20.0,
+                    vertical: 14.0,
+                  ),
+                ),
+                onChanged: (val) {
+                  setState(() {});
+                },
+              ),
+            ),
+          ),
+          // Scrollable grid
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _fetchInitialImages,
+              color: primaryColor,
+              child: _buildBody(theme, primaryColor),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -198,7 +260,7 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                '未找到与 "${widget.query}" 相关的插画',
+                '未找到与 "$_currentQuery" 相关的插画',
                 style: TextStyle(
                   color: theme.colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.bold,
@@ -233,12 +295,13 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
 
   Widget _buildLoaderTile(Color primaryColor) {
     if (!_hasMore) {
-      return const Center(
+      final isLimitReached = _allFetchedImages.length >= 100;
+      return Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 24.0),
+          padding: const EdgeInsets.symmetric(vertical: 24.0),
           child: Text(
-            '已加载全部搜索结果 ~',
-            style: TextStyle(
+            isLimitReached ? '只展示前100条结果' : '已加载全部搜索结果 ~',
+            style: const TextStyle(
               fontSize: 12,
               color: Colors.grey,
               fontStyle: FontStyle.italic,
@@ -263,10 +326,7 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
   }
 
   Widget _buildImageCard(ThemeData theme, MoelyImage image) {
-    final isPixiv = image.category.toLowerCase() == 'pixiv';
-    final platformColor = isPixiv 
-        ? const Color(0xFF0096FA) // Pixiv Blue
-        : const Color(0xFF1DA1F2); // Twitter Sky Blue
+    final platformColor = theme.colorScheme.primary;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -288,31 +348,30 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Image Section
-            AspectRatio(
-              aspectRatio: _getAspectRatioForId(image.id),
-              child: Hero(
-                tag: 'img_${image.id}',
-                child: CachedNetworkImage(
-                  imageUrl: image.urls,
-                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
+            Hero(
+              tag: 'img_${image.id}',
+              child: CachedNetworkImage(
+                imageUrl: image.urls,
+                httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                fit: BoxFit.fitWidth,
+                placeholder: (context, url) => Container(
+                  height: 200,
+                  color: theme.colorScheme.surfaceVariant,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
                       ),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: Icon(Icons.broken_image_rounded),
-                    ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 200,
+                  color: theme.colorScheme.surfaceVariant,
+                  child: const Center(
+                    child: Icon(Icons.broken_image_rounded),
                   ),
                 ),
               ),
@@ -374,6 +433,30 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
                   ),
                   const SizedBox(height: 8),
                   
+                  // Image ID
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.tag_rounded,
+                        size: 12,
+                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'ID: ${image.id}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  
                   // Author Name
                   Row(
                     children: [
@@ -385,7 +468,7 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          image.user,
+                          image.cleanUser,
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onSurface,
@@ -403,10 +486,5 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
         ),
       ),
     );
-  }
-
-  double _getAspectRatioForId(String id) {
-    final code = id.hashCode.abs();
-    return 0.75 + (code % 58) / 100.0;
   }
 }

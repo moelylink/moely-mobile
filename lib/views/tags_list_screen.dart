@@ -15,7 +15,6 @@ class _TagsListScreenState extends State<TagsListScreen> {
   
   bool _isLoading = true;
   bool _hasError = false;
-  String _searchQuery = '';
 
   @override
   void initState() {
@@ -46,7 +45,6 @@ class _TagsListScreenState extends State<TagsListScreen> {
 
   void _filterTags(String query) {
     setState(() {
-      _searchQuery = query;
       if (query.trim().isEmpty) {
         _filteredTags = _allTags;
       } else {
@@ -186,17 +184,11 @@ class _TagsListScreenState extends State<TagsListScreen> {
               runSpacing: 12.0,
               children: _filteredTags.map((tag) {
                 final String name = tag['name'];
+                final String urlName = tag['urlName'] ?? name;
                 final int count = tag['count'];
                 
-                // Dynamically calculate tag size based on popularity
-                double fontSize = 12.0;
-                if (count > 1000) {
-                  fontSize = 16.0;
-                } else if (count > 500) {
-                  fontSize = 14.5;
-                } else if (count > 200) {
-                  fontSize = 13.5;
-                }
+                // Beautifully uniform tag styling matching the website's clean appearance
+                const double fontSize = 13.0;
 
                 return Material(
                   color: Colors.transparent,
@@ -205,7 +197,7 @@ class _TagsListScreenState extends State<TagsListScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => TagGridScreen(tag: name),
+                          builder: (context) => TagGridScreen(tag: urlName, displayName: name),
                         ),
                       );
                     },
@@ -213,11 +205,11 @@ class _TagsListScreenState extends State<TagsListScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(count > 500 ? 0.08 : 0.04),
+                        color: theme.colorScheme.primary.withOpacity(0.06),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: theme.colorScheme.primary.withOpacity(count > 500 ? 0.25 : 0.1),
-                          width: count > 500 ? 1.5 : 1,
+                          color: theme.colorScheme.primary.withOpacity(0.12),
+                          width: 1,
                         ),
                       ),
                       child: Row(
@@ -227,10 +219,8 @@ class _TagsListScreenState extends State<TagsListScreen> {
                             '#$name',
                             style: TextStyle(
                               fontSize: fontSize,
-                              fontWeight: count > 500 ? FontWeight.bold : FontWeight.w500,
-                              color: count > 500 
-                                  ? theme.colorScheme.primary 
-                                  : theme.colorScheme.onSurface.withOpacity(0.8),
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.primary,
                             ),
                           ),
                           const SizedBox(width: 6),

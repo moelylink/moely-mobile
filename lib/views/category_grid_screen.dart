@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -21,45 +22,62 @@ class CategoryGridScreen extends StatefulWidget {
 }
 
 class _CategoryGridScreenState extends State<CategoryGridScreen> {
-  final ScrollController _scrollController = ScrollController();
   final List<MoelyImage> _images = [];
   
   int _currentPage = 1;
+  int _totalPages = 1;
   bool _isLoadingInitial = true;
-  bool _isLoadingMore = false;
   bool _hasMore = true;
   bool _hasError = false;
+  bool _isPaginationVisible = true;
+  Timer? _scrollTimer;
 
   @override
   void initState() {
     super.initState();
-    _fetchInitialImages();
-    _scrollController.addListener(_onScroll);
+    _fetchCategoryImages();
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _scrollTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _fetchInitialImages() async {
+  void _onScrollStarted() {
+    _scrollTimer?.cancel();
+    if (_isPaginationVisible) {
+      setState(() {
+        _isPaginationVisible = false;
+      });
+    }
+  }
+
+  void _onScrollEnded() {
+    _scrollTimer?.cancel();
+    _scrollTimer = Timer(const Duration(seconds: 1), () {
+      if (mounted) {
+        setState(() {
+          _isPaginationVisible = true;
+        });
+      }
+    });
+  }
+
+  Future<void> _fetchCategoryImages() async {
     setState(() {
       _isLoadingInitial = true;
       _hasError = false;
-      _currentPage = 1;
-      _images.clear();
-      _hasMore = true;
     });
 
     try {
-      final items = await HtmlParserService.fetchCategoryImages(widget.categoryCode, _currentPage);
+      final result = await HtmlParserService.fetchCategoryImages(widget.categoryCode, _currentPage);
       setState(() {
-        _images.addAll(items);
+        _images.clear();
+        _images.addAll(result.images);
+        _totalPages = result.totalPages;
         _isLoadingInitial = false;
-        if (items.length < 30) {
-          _hasMore = false; // Usually pages have 30 items
-        }
+        _hasMore = _currentPage < _totalPages;
       });
     } catch (_) {
       setState(() {
@@ -69,49 +87,10 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
     }
   }
 
-  Future<void> _fetchMoreImages() async {
-    if (_isLoadingMore || !_hasMore) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      final nextPage = _currentPage + 1;
-      final items = await HtmlParserService.fetchCategoryImages(widget.categoryCode, nextPage);
-      
-      setState(() {
-        if (items.isEmpty) {
-          _hasMore = false;
-        } else {
-          _images.addAll(items);
-          _currentPage = nextPage;
-          if (items.length < 30) {
-            _hasMore = false;
-          }
-        }
-        _isLoadingMore = false;
-      });
-    } catch (_) {
-      setState(() {
-        _isLoadingMore = false;
-      });
-    }
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final threshold = MediaQuery.of(context).size.height * 0.4; // Trigger 400px before bottom
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - threshold) {
-      _fetchMoreImages();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isPixiv = widget.categoryCode.toLowerCase() == 'pixiv';
-    final brandColor = isPixiv ? const Color(0xFF0096FA) : const Color(0xFF1DA1F2);
+    final brandColor = theme.colorScheme.primary;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
@@ -133,12 +112,12 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: _fetchInitialImages,
+            onPressed: _fetchCategoryImages,
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _fetchInitialImages,
+        onRefresh: _fetchCategoryImages,
         color: brandColor,
         child: _buildBody(theme, brandColor),
       ),
@@ -173,7 +152,7 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                onPressed: _fetchInitialImages,
+                onPressed: _fetchCategoryImages,
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('重新加载'),
                 style: ElevatedButton.styleFrom(
@@ -193,53 +172,241 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: MasonryGridView.count(
-        controller: _scrollController,
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        itemCount: _images.length + 1,
-        padding: const EdgeInsets.only(bottom: 40.0),
-        itemBuilder: (context, index) {
-          if (index == _images.length) {
-            return _buildLoaderTile(brandColor);
-          }
-          final image = _images[index];
-          return _buildImageCard(theme, image, brandColor);
-        },
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (scrollNotification) {
+              if (scrollNotification is ScrollStartNotification) {
+                _onScrollStarted();
+              } else if (scrollNotification is ScrollUpdateNotification) {
+                if (_isPaginationVisible) {
+                  _onScrollStarted();
+                }
+              } else if (scrollNotification is ScrollEndNotification) {
+                _onScrollEnded();
+              }
+              return false;
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: MasonryGridView.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                itemCount: _images.length,
+                padding: const EdgeInsets.only(top: 8.0, bottom: 100.0),
+                itemBuilder: (context, index) {
+                  final image = _images[index];
+                  return _buildImageCard(theme, image, brandColor);
+                },
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            ignoring: !_isPaginationVisible,
+            child: AnimatedOpacity(
+              opacity: _isPaginationVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: AnimatedSlide(
+                offset: _isPaginationVisible ? Offset.zero : const Offset(0.0, 1.5),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: _buildPaginationBar(theme),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaginationBar(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 24), // Safe bottom padding since there's no floating bottom bar here
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(24.0),
+        border: Border.all(
+          color: theme.colorScheme.onSurface.withOpacity(0.08),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton.filledTonal(
+            onPressed: _currentPage > 1
+                ? () {
+                    setState(() {
+                      _currentPage--;
+                      _fetchCategoryImages();
+                    });
+                  }
+                : null,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+            style: IconButton.styleFrom(
+              padding: const EdgeInsets.all(12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+            ),
+          ),
+          InkWell(
+            onTap: () => _showPageJumpDialog(context, theme),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '第 $_currentPage / $_totalPages 页',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.edit_rounded,
+                    size: 14,
+                    color: theme.colorScheme.primary.withOpacity(0.8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton.filledTonal(
+            onPressed: _hasMore
+                ? () {
+                    setState(() {
+                      _currentPage++;
+                      _fetchCategoryImages();
+                    });
+                  }
+                : null,
+            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+            style: IconButton.styleFrom(
+              padding: const EdgeInsets.all(12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLoaderTile(Color brandColor) {
-    if (!_hasMore) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 24.0),
-          child: Text(
-            '没有更多插画了 ~',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontStyle: FontStyle.italic,
+  void _showPageJumpDialog(BuildContext context, ThemeData theme) {
+    final controller = TextEditingController(text: _currentPage.toString());
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.0)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+        title: Text(
+          '跳转到指定页',
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.85,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '可输入范围：1 ~ $_totalPages',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurface.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actionsPadding: const EdgeInsets.only(bottom: 20, left: 16, right: 16),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              '取消',
+              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
             ),
           ),
-        ),
-      );
-    }
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: brandColor,
+          ElevatedButton(
+            onPressed: () {
+              final val = int.tryParse(controller.text);
+              if (val != null && val >= 1 && val <= _totalPages) {
+                Navigator.pop(context);
+                setState(() {
+                  _currentPage = val;
+                  _fetchCategoryImages();
+                });
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('页码超出范围，请输入 1 ~ $_totalPages 之间的数字'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('确认', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -265,31 +432,30 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Image Section
-            AspectRatio(
-              aspectRatio: _getAspectRatioForId(image.id),
-              child: Hero(
-                tag: 'img_${image.id}',
-                child: CachedNetworkImage(
-                  imageUrl: image.urls,
-                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
+            Hero(
+              tag: 'img_${image.id}',
+              child: CachedNetworkImage(
+                imageUrl: image.urls,
+                httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                fit: BoxFit.fitWidth,
+                placeholder: (context, url) => Container(
+                  height: 200,
+                  color: theme.colorScheme.surfaceVariant,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
                       ),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: Icon(Icons.broken_image_rounded),
-                    ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 200,
+                  color: theme.colorScheme.surfaceVariant,
+                  child: const Center(
+                    child: Icon(Icons.broken_image_rounded),
                   ),
                 ),
               ),
@@ -351,6 +517,30 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
                   ),
                   const SizedBox(height: 8),
                   
+                  // Image ID
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.tag_rounded,
+                        size: 12,
+                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'ID: ${image.id}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  
                   // Author Name
                   Row(
                     children: [
@@ -362,7 +552,7 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          image.user,
+                          image.cleanUser,
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onSurface,
@@ -380,10 +570,5 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
         ),
       ),
     );
-  }
-
-  double _getAspectRatioForId(String id) {
-    final code = id.hashCode.abs();
-    return 0.75 + (code % 58) / 100.0;
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'views/home_screen.dart';
 import 'services/user_agent_service.dart';
 import 'services/settings_service.dart';
+import 'services/url_handler_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,9 @@ void main() async {
   
   // Load AppSettings persistent configurations
   await AppSettings.instance.init();
+  
+  // Initialize Deep Linking listeners
+  UrlHandlerService.initialize();
   
   // Set preferred orientations and custom system UI overlay styling
   SystemChrome.setPreferredOrientations([
@@ -57,6 +61,7 @@ class MoelyApp extends StatelessWidget {
         );
 
         return MaterialApp(
+          navigatorKey: UrlHandlerService.navigatorKey,
           title: '萌哩 - 二次元美图',
           debugShowCheckedModeBanner: false,
           

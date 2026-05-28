@@ -1,15 +1,34 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/image_item.dart';
 import 'user_agent_service.dart';
 
+class HtmlPageResult {
+  final List<MoelyImage> images;
+  final int totalPages;
+
+  HtmlPageResult({required this.images, required this.totalPages});
+}
+
 class HtmlParserService {
-  static final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
-    headers: {
-      'User-Agent': UserAgentService.userAgent,
-    },
-  ));
+  static final Dio _dio = UserAgentService.createDio();
+
+  /// Extract the total number of pages from HTML content
+  static int parseTotalPages(String html) {
+    // Standard WordPress pagination pattern: href=".../page/(\d+)/..."
+    final regex = RegExp(r'page/([0-9]+)/');
+    final matches = regex.allMatches(html);
+    int maxPage = 1;
+    for (final match in matches) {
+      final pageNum = int.tryParse(match.group(1) ?? '');
+      if (pageNum != null && pageNum > maxPage) {
+        maxPage = pageNum;
+      }
+    }
+    return maxPage;
+  }
 
   /// Parse portfolio-item lists into MoelyImage objects
   static List<MoelyImage> parseHtmlToImages(String html) {
@@ -29,13 +48,15 @@ class HtmlParserService {
       if (idMatch == null) continue;
       final id = idMatch.group(1)!;
       
-      // 2. Extract Preview Image URL
-      final srcRegex = RegExp('data-src=([^ >]+)');
-      final srcMatch = srcRegex.firstMatch(block);
+      // 2. Extract Preview Image URL (Robust parsing matching data-src first, then falling back to src, and prepending schema for relative URLs)
+      final srcMatch = RegExp(r'''data-src=["']?([^"'\s>]+)''').firstMatch(block) ??
+                       RegExp(r'''src=["']?([^"'\s>]+)''').firstMatch(block);
       if (srcMatch == null) continue;
       var urls = srcMatch.group(1)!;
-      // Strip trailing quotes or brackets
-      urls = urls.replaceAll('"', '').replaceAll("'", '').replaceAll('>', '');
+      if (urls.startsWith('/')) {
+        urls = 'https://www.moely.link$urls';
+      }
+      urls = urls.replaceAll('&amp;', '&');
       
       // 3. Extract Total count (if any)
       final totalRegex = RegExp('class=total-num>([0-9]+)');
@@ -61,7 +82,7 @@ class HtmlParserService {
   }
 
   /// Fetch illustrations for a specific category (e.g. 'pixiv', 'twitter')
-  static Future<List<MoelyImage>> fetchCategoryImages(String category, int page) async {
+  static Future<HtmlPageResult> fetchCategoryImages(String category, int page) async {
     final String url = page == 1
         ? 'https://www.moely.link/category/$category/'
         : 'https://www.moely.link/category/$category/page/$page/';
@@ -69,15 +90,23 @@ class HtmlParserService {
     try {
       final response = await _dio.get(url);
       if (response.statusCode == 200) {
-        return parseHtmlToImages(response.data.toString());
+        final html = response.data.toString();
+        final images = parseHtmlToImages(html);
+        final parsedPages = parseTotalPages(html);
+        return HtmlPageResult(
+          images: images,
+          totalPages: parsedPages > page ? parsedPages : page,
+        );
       }
     } catch (_) {}
-    return [];
+    return HtmlPageResult(images: [], totalPages: 1);
   }
 
   /// Fetch illustrations for a specific tag name
-  static Future<List<MoelyImage>> fetchTagImages(String tag, int page) async {
-    final encodedTag = Uri.encodeComponent(tag);
+  static Future<HtmlPageResult> fetchTagImages(String tag, int page) async {
+    // Decode first to prevent double encoding if tag is already url-encoded (e.g. from tag cloud or detail page slugs)
+    final decodedTag = Uri.decodeComponent(tag);
+    final encodedTag = Uri.encodeComponent(decodedTag);
     final String url = page == 1
         ? 'https://www.moely.link/tags/$encodedTag/'
         : 'https://www.moely.link/tags/$encodedTag/page/$page/';
@@ -85,23 +114,195 @@ class HtmlParserService {
     try {
       final response = await _dio.get(url);
       if (response.statusCode == 200) {
-        return parseHtmlToImages(response.data.toString());
+        final html = response.data.toString();
+        final images = parseHtmlToImages(html);
+        final parsedPages = parseTotalPages(html);
+        return HtmlPageResult(
+          images: images,
+          totalPages: parsedPages > page ? parsedPages : page,
+        );
       }
     } catch (_) {}
-    return [];
+    return HtmlPageResult(images: [], totalPages: 1);
   }
 
-  /// Fetch search query illustrations
-  static Future<List<MoelyImage>> fetchSearchImages(String query, int page) async {
-    final encodedQuery = Uri.encodeComponent(query);
+  /// Fetch home page illustrations by parsing HTML
+  static Future<HtmlPageResult> fetchHomeImages(int page) async {
     final String url = page == 1
-        ? 'https://www.moely.link/?s=$encodedQuery'
-        : 'https://www.moely.link/page/$page/?s=$encodedQuery';
+        ? 'https://www.moely.link/'
+        : 'https://www.moely.link/page/$page/';
         
     try {
       final response = await _dio.get(url);
       if (response.statusCode == 200) {
-        return parseHtmlToImages(response.data.toString());
+        final html = response.data.toString();
+        final images = parseHtmlToImages(html);
+        final parsedPages = parseTotalPages(html);
+        return HtmlPageResult(
+          images: images,
+          totalPages: parsedPages > page ? parsedPages : page,
+        );
+      }
+    } catch (_) {}
+    return HtmlPageResult(images: [], totalPages: 1);
+  }
+
+  // Global cache variables for Algolia search configurations
+  static String _algoliaAppId = 'U0L71ACDM6';
+  static String _algoliaApiKey = '6be7ad4b51ff3ce560c5e5ebf665428a';
+  static String _algoliaIndexName = 'netlify_64116cf5-2468-4c56-9356-24d4d73c4459_main_all';
+  static bool _algoliaConfigLoaded = false;
+
+  /// Load Algolia Config from local cache or fetch from https://www.moely.link/search/
+  static Future<void> _ensureAlgoliaConfig() async {
+    if (_algoliaConfigLoaded) return;
+
+    File? cacheFile;
+    try {
+      final cacheDir = await getTemporaryDirectory();
+      cacheFile = File('${cacheDir.path}/algolia_config.json');
+      
+      // 1. Try reading from persistent cache
+      if (await cacheFile.exists()) {
+        final content = await cacheFile.readAsString();
+        final Map<String, dynamic> data = json.decode(content);
+        if (data.containsKey('appId') && data.containsKey('apiKey') && data.containsKey('indexName')) {
+          _algoliaAppId = data['appId']!;
+          _algoliaApiKey = data['apiKey']!;
+          _algoliaIndexName = data['indexName']!;
+          _algoliaConfigLoaded = true;
+          // Trigger a background update to keep the keys fresh
+          _updateAlgoliaConfigBackground(cacheFile);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // 2. If no cache exists, fetch and parse synchronously to ensure the first search succeeds
+    try {
+      if (cacheFile != null) {
+        await _fetchAndSaveAlgoliaConfig(cacheFile);
+      }
+    } catch (_) {
+      // Fallback to hardcoded defaults is already set
+    }
+    _algoliaConfigLoaded = true;
+  }
+
+  /// Fetch from search page HTML and save to file
+  static Future<void> _fetchAndSaveAlgoliaConfig(File cacheFile) async {
+    final response = await _dio.get('https://www.moely.link/search/');
+    if (response.statusCode == 200) {
+      final html = response.data.toString();
+      
+      // Parse appId and apiKey
+      // E.g., algoliasearch('U0L71ACDM6', '6be7ad4b51ff3ce560c5e5ebf665428a')
+      final clientMatch = RegExp(r'''algoliasearch\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\)''').firstMatch(html);
+      
+      // Parse indexName
+      // E.g., initIndex('netlify_64116cf5-2468-4c56-9356-24d4d73c4459_main_all')
+      final indexMatch = RegExp(r'''initIndex\s*\(\s*['"]([^'"]+)['"]\s*\)''').firstMatch(html);
+
+      if (clientMatch != null && indexMatch != null) {
+        final parsedAppId = clientMatch.group(1)!;
+        final parsedApiKey = clientMatch.group(2)!;
+        final parsedIndexName = indexMatch.group(1)!;
+
+        _algoliaAppId = parsedAppId;
+        _algoliaApiKey = parsedApiKey;
+        _algoliaIndexName = parsedIndexName;
+
+        final configData = {
+          'appId': parsedAppId,
+          'apiKey': parsedApiKey,
+          'indexName': parsedIndexName,
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+
+        await cacheFile.writeAsString(json.encode(configData));
+      }
+    }
+  }
+
+  /// Silently update the cache in the background
+  static void _updateAlgoliaConfigBackground(File cacheFile) {
+    Future.microtask(() async {
+      try {
+        await _fetchAndSaveAlgoliaConfig(cacheFile);
+      } catch (_) {}
+    });
+  }
+
+  /// Fetch search query illustrations via Algolia REST API
+  static Future<List<MoelyImage>> fetchSearchImages(String query, int page, {int limit = 30}) async {
+    await _ensureAlgoliaConfig();
+    final String url = 'https://$_algoliaAppId-dsn.algolia.net/1/indexes/$_algoliaIndexName/query';
+    
+    try {
+      final response = await _dio.post(
+        url,
+        data: {
+          'query': query,
+          'hitsPerPage': limit,
+          'page': page - 1, // Algolia pages are 0-indexed
+        },
+        options: Options(
+          headers: {
+            'X-Algolia-API-Key': _algoliaApiKey,
+            'X-Algolia-Application-Id': _algoliaAppId,
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> resData = response.data;
+        final List<dynamic> hits = resData['hits'] ?? [];
+        final List<MoelyImage> list = [];
+
+        for (final hit in hits) {
+          final String hitUrl = hit['url'] ?? '';
+          if (hitUrl.isEmpty || !hitUrl.contains('/img/')) continue;
+
+          // Get page ID from URL (e.g. /img/1234/ -> 1234)
+          final cleanUrl = hitUrl.endsWith('/') ? hitUrl.substring(0, hitUrl.length - 1) : hitUrl;
+          final pathParts = cleanUrl.split('/');
+          if (pathParts.isEmpty) continue;
+          final pageId = pathParts.last;
+
+          // Parse artist and category from description
+          // Example description: "由 @username 创作的插画 - ID: 1234，发布于Twitter"
+          final String desc = hit['description'] ?? '';
+          String user = 'Unknown';
+          String category = 'Other';
+
+          if (desc.isNotEmpty) {
+            final authorMatch = RegExp(r'由\s*@([^\s，\-]+)\s*创作').firstMatch(desc) ??
+                                RegExp(r'由\s*@([^\s]+)\s*创作').firstMatch(desc);
+            if (authorMatch != null) {
+              user = authorMatch.group(1)?.trim() ?? 'Unknown';
+            }
+
+            final lowerDesc = desc.toLowerCase();
+            if (lowerDesc.contains('pixiv')) {
+              category = 'Pixiv';
+            } else if (lowerDesc.contains('twitter')) {
+              category = 'Twitter';
+            }
+          }
+
+          // Get image preview URL or fallback
+          final String thumbUrl = hit['image'] ?? 'https://www.moely.link/assets/img/favicon.png';
+
+          list.add(MoelyImage(
+            id: pageId,
+            user: user,
+            category: category,
+            urls: thumbUrl,
+            total: '1',
+          ));
+        }
+        return list;
       }
     } catch (_) {}
     return [];

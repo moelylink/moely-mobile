@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/image_item.dart';
 import '../models/image_details.dart';
@@ -12,7 +14,10 @@ import 'denoised_web_screen.dart';
 import '../services/wallpaper_service.dart';
 import '../services/settings_service.dart';
 import '../services/user_agent_service.dart';
+import '../services/url_handler_service.dart';
 import 'tag_grid_screen.dart';
+import 'category_grid_screen.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ImageDetailScreen extends StatefulWidget {
   final MoelyImage image;
@@ -35,6 +40,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   bool _isTranslating = false;
   bool _isTranslated = false;
   String _translatedTags = '';
+  String _translatedDescription = '';
 
   // Animation controller for heart scale effect
   late final AnimationController _heartController;
@@ -53,6 +59,13 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     ]).animate(_heartController);
 
     _loadDetails();
+  }
+
+  String _getDisplayTitle() {
+    if (_details != null && _details!.title.isNotEmpty) {
+      return _details!.title;
+    }
+    return 'ID: ${widget.image.id}';
   }
 
   @override
@@ -198,18 +211,48 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       return;
     }
 
-    if (_details == null || _details!.tags.isEmpty) return;
+    if (_details == null) return;
 
     setState(() {
       _isTranslating = true;
     });
 
     try {
-      final sourceTags = _details!.tags.join(', ');
-      final translated = await TranslationService.translate(sourceTags);
-      
+      // 1. Prepare parallel translation futures
+      Future<String> tagsFuture = Future.value('');
+      if (_details!.tags.isNotEmpty) {
+        final sourceTags = _details!.tags.map((tag) {
+          var clean = tag.replaceAll('|nolink', '');
+          if (clean.contains('|slug:')) {
+            clean = clean.split('|slug:').first;
+          }
+          return clean;
+        }).join(', ');
+        tagsFuture = TranslationService.translate(sourceTags).catchError((err) {
+          debugPrint('Tags translation failed: $err');
+          return '';
+        });
+      }
+
+      Future<String> descFuture = Future.value('');
+      final hasDescription = _details!.description.isNotEmpty && 
+          _details!.description != '暂无描述' && 
+          _details!.description != '获取描述中...';
+      if (hasDescription) {
+        descFuture = TranslationService.translate(_details!.description).catchError((err) {
+          debugPrint('Description translation failed: $err');
+          return '';
+        });
+      }
+
+      // 2. Wait for both in parallel
+      final results = await Future.wait([tagsFuture, descFuture]);
+      final translatedTags = results[0];
+      final translatedDesc = results[1];
+
       setState(() {
-        _translatedTags = translated;
+        _translatedTags = translatedTags;
+        _translatedDescription = translatedDesc;
         _isTranslated = true;
         _isTranslating = false;
       });
@@ -407,92 +450,12 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     }
   }
 
-  void _handleShare() {
-    final theme = Theme.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withOpacity(0.96),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 12),
-                Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurface.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '分享作品链接',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  leading: const Icon(Icons.link_rounded),
-                  title: const Text('复制网页浏览链接', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('https://www.moely.link/img/${widget.image.id}/', style: const TextStyle(fontSize: 11)),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: 'https://www.moely.link/img/${widget.image.id}/'));
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('网页链接已复制到剪贴板！'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.image_rounded),
-                  title: const Text('复制第一张原图链接', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                    _details != null && _details!.downloadUrls.isNotEmpty
-                        ? _details!.downloadUrls.first
-                        : _getHighResUrl(widget.image.urls),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  onTap: () {
-                    final imgUrl = _details != null && _details!.downloadUrls.isNotEmpty
-                        ? _details!.downloadUrls.first
-                        : _getHighResUrl(widget.image.urls);
-                    Clipboard.setData(ClipboardData(text: imgUrl));
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('原图链接已复制到剪贴板！'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-                if (_details != null && _details!.sourceUrl.isNotEmpty) ...[
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  ListTile(
-                    leading: const Icon(Icons.launch_rounded),
-                    title: const Text('复制原始来源链接', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(_details!.sourceUrl, style: const TextStyle(fontSize: 11)),
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: _details!.sourceUrl));
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('来源链接已复制到剪贴板！'), behavior: SnackBarBehavior.floating),
-                      );
-                    },
-                  ),
-                ],
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        );
-      },
+  void _handleShare(BuildContext context) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    final String shareText = '分享二次元插画 (ID: ${widget.image.id}) By ${widget.image.category} @${widget.image.cleanUser}\n网页链接: https://www.moely.link/img/${widget.image.id}/';
+    Share.share(
+      shareText,
+      sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
     );
   }
 
@@ -512,7 +475,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isPixiv = widget.image.category.toLowerCase() == 'pixiv';
-    final platformColor = isPixiv ? const Color(0xFF0096FA) : const Color(0xFF1DA1F2);
+    final platformColor = theme.colorScheme.primary;
 
     // List of previews to display
     final List<String> previewsToDisplay = [];
@@ -547,37 +510,46 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                           // Tap image to trigger immersive zoom view
                           GestureDetector(
                             onTap: () => _openFullscreenViewer(previewsToDisplay, index),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                constraints: BoxConstraints(
-                                  minHeight: 250,
-                                  maxHeight: MediaQuery.of(context).size.height * 0.70,
-                                ),
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceVariant,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.08),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 4),
-                                    )
-                                  ],
-                                ),
+                            child: Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
                                 child: Hero(
                                   tag: index == 0 ? 'img_${widget.image.id}' : 'img_${widget.image.id}_p$index',
-                                  child: CachedNetworkImage(
-                                    imageUrl: imgUrl,
-                                    httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                                    fit: BoxFit.contain,
-                                    placeholder: (context, url) => Center(
-                                      child: CircularProgressIndicator(color: platformColor),
-                                    ),
-                                    errorWidget: (context, url, error) => const Center(
-                                      child: Icon(Icons.broken_image_rounded, size: 48),
-                                    ),
-                                  ),
+                                  child: imgUrl.isEmpty
+                                      ? Container(
+                                          height: 250,
+                                          color: theme.colorScheme.surfaceVariant,
+                                          alignment: Alignment.center,
+                                          child: CircularProgressIndicator(color: platformColor),
+                                        )
+                                      : CachedNetworkImage(
+                                          imageUrl: imgUrl,
+                                          httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                                          fit: BoxFit.fitWidth,
+                                          placeholder: (context, url) => Container(
+                                            height: 250,
+                                            color: theme.colorScheme.surfaceVariant,
+                                            alignment: Alignment.center,
+                                            child: CircularProgressIndicator(color: platformColor),
+                                          ),
+                                          errorWidget: (context, url, error) => Container(
+                                            height: 250,
+                                            color: theme.colorScheme.surfaceVariant,
+                                            alignment: Alignment.center,
+                                            child: const Icon(Icons.broken_image_rounded, size: 48),
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
@@ -637,6 +609,42 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                               ),
                             ),
                           ),
+
+                          // 3. Resolution overlay on BOTTOM-RIGHT of EACH image: Frosted Glass resolution badge
+                          if (!_isLoadingDetails && _details != null && _details!.resolution.isNotEmpty)
+                            Positioned(
+                              bottom: 14,
+                              right: 14,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    color: Colors.black.withOpacity(0.45),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.aspect_ratio_rounded,
+                                          color: Colors.white,
+                                          size: 13,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          _details!.resolution.replaceAll('原图尺寸：', ''),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     );
@@ -665,23 +673,61 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             ),
           ),
 
+          // Status bar background shield (so content doesn't bleed into status bar)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).padding.top,
+            child: Container(
+              color: theme.colorScheme.background,
+            ),
+          ),
+
           // 4. Custom Sleek Transparent App Bar Header
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
             left: 16,
             right: 16,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Back Button
                 ClipOval(
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Container(
+                      width: 48,
+                      height: 48,
                       color: theme.colorScheme.surface.withOpacity(0.6),
                       child: IconButton(
-                        icon: Icon(Icons.arrow_back_ios_new_rounded, color: theme.colorScheme.onSurface),
+                        icon: Icon(Icons.arrow_back_ios_new_rounded, color: theme.colorScheme.onSurface, size: 20),
                         onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
+                        height: 48,
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        color: theme.colorScheme.surface.withOpacity(0.6),
+                        child: Text(
+                          _getDisplayTitle(),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),
@@ -695,7 +741,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             right: 20,
             bottom: 24,
             child: FloatingActionButton(
-              onPressed: _handleShare,
+              onPressed: () => _handleShare(context),
               backgroundColor: platformColor,
               foregroundColor: Colors.white,
               shape: const CircleBorder(),
@@ -709,6 +755,17 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   }
 
   Widget _buildPixivDetailsCard(ThemeData theme, Color platformColor) {
+    const Map<String, String> languageNames = {
+      'zh-CN': '中文(简体)',
+      'zh-TW': '中文(繁体)',
+      'en': '英语',
+      'ja': '日语',
+      'ko': '韩语',
+    };
+
+    final targetLangName = languageNames[AppSettings.instance.translationLanguage] ?? '中文';
+    final engineName = AppSettings.instance.translationEngine == 'google' ? '谷歌翻译' : '微软翻译';
+
     return Container(
       margin: const EdgeInsets.all(16.0),
       padding: const EdgeInsets.all(20.0),
@@ -735,7 +792,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             children: [
               Expanded(
                 child: Text(
-                  'ID: ${widget.image.id}',
+                  _getDisplayTitle(),
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -775,26 +832,40 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  widget.image.user,
+                  widget.image.cleanUser,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onSurface.withOpacity(0.8),
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: platformColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: platformColor.withOpacity(0.3)),
-                ),
-                child: Text(
-                  widget.image.category,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: platformColor,
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CategoryGridScreen(
+                        categoryCode: widget.image.category.toLowerCase(),
+                        title: widget.image.category,
+                      ),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: platformColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: platformColor.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    widget.image.category,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: platformColor,
+                    ),
                   ),
                 ),
               ),
@@ -806,29 +877,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             child: Divider(height: 1),
           ),
 
-          // Illustration size Details
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '原图分辨率',
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5), fontSize: 13),
-              ),
-              _isLoadingDetails
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      _details?.resolution ?? '未知',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Illustration Description (最后显示描述)
+          // Illustration Description (直接渲染文本，去掉多余卡片)
           Text(
             '作品描述',
             style: theme.textTheme.titleSmall?.copyWith(
@@ -836,24 +885,87 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             ),
           ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(14.0),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.03),
-              borderRadius: BorderRadius.circular(16.0),
-              border: Border.all(color: theme.colorScheme.primary.withOpacity(0.06)),
+          _isLoadingDetails 
+              ? Text(
+                  '获取描述中...',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: theme.colorScheme.onSurface.withOpacity(0.85),
+                  ),
+                )
+              : _buildClickableDescription(
+                  (_isTranslated && _translatedDescription.isNotEmpty)
+                      ? _translatedDescription
+                      : _details?.description ?? '暂无描述',
+                  theme,
+                ),
+
+          // Twitter-Style Minimalist Translation Trigger
+          if (!_isLoadingDetails && 
+              _details != null && 
+              AppSettings.instance.enableTranslation) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _isTranslating
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 1.5),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '正在翻译...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    )
+                  : InkWell(
+                      onTap: _handleTranslation,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.translate_rounded,
+                              size: 13,
+                              color: theme.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isTranslated ? '显示原文' : '翻译简介和标签为$targetLangName',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            if (_isTranslated) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '(由$engineName提供)',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
             ),
-            child: Text(
-              _isLoadingDetails 
-                  ? '获取描述中...' 
-                  : _details?.description ?? '暂无描述',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: theme.colorScheme.onSurface.withOpacity(0.85),
-              ),
-            ),
-          ),
+          ],
+
           const SizedBox(height: 20),
 
           // Illustration Tags List
@@ -867,155 +979,195 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
           _isLoadingDetails
               ? const Center(child: CircularProgressIndicator())
               : _buildTagsChipCloud(theme),
-
-          // Translation Module (Twitter-Style, respects AppSettings.instance.enableTranslation)
-          if (!_isLoadingDetails && 
-              _details != null && 
-              _details!.tags.isNotEmpty && 
-              AppSettings.instance.enableTranslation) ...[
-            const SizedBox(height: 24),
-            _buildTranslationModule(theme),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildClickableDescription(String text, ThemeData theme) {
+    if (text.isEmpty) return const SizedBox.shrink();
+
+    final List<InlineSpan> spans = [];
+    final linkRegex = RegExp(r'\[([^\]]+)\]\(([^)]+)\)');
+    
+    int lastIdx = 0;
+    final matches = linkRegex.allMatches(text);
+    
+    for (final match in matches) {
+      // 1. Add plain text before match
+      if (match.start > lastIdx) {
+        spans.add(TextSpan(
+          text: text.substring(lastIdx, match.start),
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.5,
+            color: theme.colorScheme.onSurface.withOpacity(0.85),
+          ),
+        ));
+      }
+      
+      // 2. Add clickable link
+      final linkText = match.group(1) ?? '';
+      final url = match.group(2) ?? '';
+      
+      spans.add(TextSpan(
+        text: linkText,
+        style: TextStyle(
+          fontSize: 13,
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          decoration: TextDecoration.underline,
+        ),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () {
+            UrlHandlerService.handleUrl(context, url);
+          },
+      ));
+      
+      lastIdx = match.end;
+    }
+    
+    // 3. Add remaining text
+    if (lastIdx < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastIdx),
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.5,
+          color: theme.colorScheme.onSurface.withOpacity(0.85),
+        ),
+      ));
+    }
+    
+    return RichText(
+      text: TextSpan(children: spans),
     );
   }
 
   Widget _buildTagsChipCloud(ThemeData theme) {
     if (_details == null || _details!.tags.isEmpty) {
-      return Text(
-        '#暂无标签',
-        style: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.4),
-          fontStyle: FontStyle.italic,
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const TagGridScreen(tag: '暂无标签'),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: theme.colorScheme.primary.withOpacity(0.12)),
+            ),
+            child: Text(
+              '#暂无标签',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ),
       );
     }
+
+    final List<String> translatedTagList = _isTranslated && _translatedTags.isNotEmpty
+        ? _translatedTags.split(RegExp(r'[,，、]+')).map((s) => s.trim()).toList()
+        : [];
+
+    int index = 0;
 
     return Wrap(
       spacing: 8.0,
       runSpacing: 8.0,
       children: _details!.tags.map((tag) {
-        final cleanTag = tag.replaceAll('#', '');
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TagGridScreen(tag: cleanTag),
+        final isClickable = !tag.endsWith('|nolink');
+        final currentIdx = index++;
+
+        // Determine the display tag text
+        String displayTag;
+        if (_isTranslated && translatedTagList.length > currentIdx && translatedTagList[currentIdx].isNotEmpty) {
+          final translatedText = translatedTagList[currentIdx];
+          displayTag = translatedText.startsWith('#') ? translatedText : '#$translatedText';
+        } else {
+          if (tag.contains('|slug:')) {
+            displayTag = tag.split('|slug:').first;
+          } else {
+            displayTag = tag.replaceAll('|nolink', '');
+          }
+        }
+
+        final cleanTag = displayTag.replaceAll('#', '');
+        
+        String targetSlug;
+        if (tag.contains('|slug:')) {
+          targetSlug = tag.split('|slug:').last;
+        } else {
+          targetSlug = cleanTag;
+        }
+
+        if (isClickable) {
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TagGridScreen(tag: targetSlug, displayName: cleanTag),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: theme.colorScheme.primary.withOpacity(0.12)),
                 ),
-              );
-            },
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: theme.colorScheme.primary.withOpacity(0.12)),
-              ),
-              child: Text(
-                tag,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w500,
+                child: Text(
+                  displayTag,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
-          ),
-        );
+          );
+        } else {
+          // Muted non-clickable style
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.onSurface.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: theme.colorScheme.onSurface.withOpacity(0.1)),
+            ),
+            child: Text(
+              displayTag,
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurface.withOpacity(0.55),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          );
+        }
       }).toList(),
     );
   }
-
-  Widget _buildTranslationModule(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.translate_rounded,
-                size: 16,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '译文服务',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const Spacer(),
-              if (_isTranslating)
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                TextButton(
-                  onPressed: _handleTranslation,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(50, 20),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    _isTranslated ? '显示原文' : '翻译标签为中文',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (_isTranslated) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                _translatedTags,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.4,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '由 微软/谷歌 智能翻译引擎提供翻译支持',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontSize: 9,
-                color: theme.colorScheme.onSurface.withOpacity(0.4),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 }
+
 
 /// Fully Immersive fullscreen swipeable & zoomable view for illustration lists
 class FullscreenImageViewer extends StatefulWidget {

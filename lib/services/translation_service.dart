@@ -1,25 +1,45 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'user_agent_service.dart';
+import 'settings_service.dart';
 
 class TranslationService {
-  static final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 8),
-    receiveTimeout: const Duration(seconds: 8),
-  ));
+  static final Dio _dio = UserAgentService.createDio(
+    options: BaseOptions(
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 8),
+    ),
+  );
 
-  /// Main translation method with Microsoft-first and Google-fallback strategy
-  static Future<String> translate(String text, {String toLanguage = 'zh-CN'}) async {
+  /// Main translation method with engine selection & automatic fallback
+  static Future<String> translate(String text, {String? engine, String? toLanguage}) async {
     if (text.trim().isEmpty) return '';
     
-    try {
-      // 1. Try Microsoft Edge Translation (Premium quality, no key required)
-      return await _translateWithMicrosoft(text, toLanguage);
-    } catch (e) {
-      // 2. Failover to Google GTX (High reliability)
+    final targetLang = toLanguage ?? AppSettings.instance.translationLanguage;
+    final preferredEngine = engine ?? AppSettings.instance.translationEngine;
+
+    if (preferredEngine == 'google') {
       try {
-        return await _translateWithGoogle(text, toLanguage);
-      } catch (googleError) {
-        throw Exception('Translation failed on both engines: $googleError');
+        return await _translateWithGoogle(text, targetLang);
+      } catch (e) {
+        // Fallback to Microsoft Edge
+        try {
+          return await _translateWithMicrosoft(text, targetLang);
+        } catch (microsoftError) {
+          throw Exception('Translation failed on both engines: $microsoftError');
+        }
+      }
+    } else {
+      // 'microsoft' is the default
+      try {
+        return await _translateWithMicrosoft(text, targetLang);
+      } catch (e) {
+        // Fallback to Google GTX
+        try {
+          return await _translateWithGoogle(text, targetLang);
+        } catch (googleError) {
+          throw Exception('Translation failed on both engines: $googleError');
+        }
       }
     }
   }

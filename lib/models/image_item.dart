@@ -13,6 +13,14 @@ class MoelyImage {
     this.total,
   });
 
+  /// Dynamically strips any leading '@' symbol to avoid UI duplication
+  String get cleanUser {
+    if (user.startsWith('@')) {
+      return user.substring(1).trim();
+    }
+    return user.trim();
+  }
+
   factory MoelyImage.fromJson(Map<String, dynamic> json) {
     return MoelyImage(
       id: json['id']?.toString() ?? '',

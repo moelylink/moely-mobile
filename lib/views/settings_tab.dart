@@ -398,10 +398,93 @@ class _SettingsTabState extends State<SettingsTab> {
                     SwitchListTile(
                       secondary: const Icon(Icons.translate_rounded),
                       title: const Text('智能译文服务', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('首选微软 Edge，自动降级至 Google 翻译', style: TextStyle(fontSize: 12)),
+                      subtitle: const Text('开启插画简介与标签翻译支持', style: TextStyle(fontSize: 12)),
                       value: AppSettings.instance.enableTranslation,
                       onChanged: (val) {
                         AppSettings.instance.setEnableTranslation(val);
+                      },
+                    ),
+                    if (AppSettings.instance.enableTranslation) ...[
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      
+                      // Translation Engine Selection
+                      ListTile(
+                        leading: const Icon(Icons.psychology_rounded),
+                        title: const Text('翻译引擎', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('选择首选的智能翻译服务提供商', style: TextStyle(fontSize: 12)),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButton<String>(
+                            value: AppSettings.instance.translationEngine,
+                            underline: const SizedBox(),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 'microsoft', child: Text(' 微软 Edge 翻译 ')),
+                              DropdownMenuItem(value: 'google', child: Text(' 谷歌 GTX 翻译 ')),
+                            ],
+                            onChanged: (engine) {
+                              if (engine != null) {
+                                AppSettings.instance.setTranslationEngine(engine);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+
+                      // Translation Target Language Selection
+                      ListTile(
+                        leading: const Icon(Icons.language_rounded),
+                        title: const Text('翻译目标语言', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('翻译的目标地区及语言种类', style: TextStyle(fontSize: 12)),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButton<String>(
+                            value: AppSettings.instance.translationLanguage,
+                            underline: const SizedBox(),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 'zh-CN', child: Text(' 简体中文 ')),
+                              DropdownMenuItem(value: 'zh-TW', child: Text(' 繁体中文 ')),
+                              DropdownMenuItem(value: 'en', child: Text(' English ')),
+                              DropdownMenuItem(value: 'ja', child: Text(' 日本語 ')),
+                              DropdownMenuItem(value: 'ko', child: Text(' 한국어 ')),
+                            ],
+                            onChanged: (lang) {
+                              if (lang != null) {
+                                AppSettings.instance.setTranslationLanguage(lang);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    SwitchListTile(
+                      secondary: const Icon(Icons.security_rounded),
+                      title: const Text('外部跳转确认弹窗', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('点击作品描述中外部链接时弹出确认提示', style: TextStyle(fontSize: 12)),
+                      value: AppSettings.instance.showJumpConfirmation,
+                      onChanged: (val) {
+                        AppSettings.instance.setShowJumpConfirmation(val);
                       },
                     ),
                   ],

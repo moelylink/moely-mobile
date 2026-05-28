@@ -14,7 +14,7 @@ class RandomTab extends StatefulWidget {
 }
 
 class _RandomTabState extends State<RandomTab> {
-  final Dio _dio = Dio();
+  final Dio _dio = UserAgentService.createDio();
   List<MoelyImage> _images = [];
   bool _isLoading = true;
   bool _hasError = false;
@@ -149,10 +149,7 @@ class _RandomTabState extends State<RandomTab> {
   }
 
   Widget _buildImageCard(ThemeData theme, MoelyImage image) {
-    final isPixiv = image.category.toLowerCase() == 'pixiv';
-    final platformColor = isPixiv 
-        ? const Color(0xFF0096FA) // Pixiv Blue
-        : const Color(0xFF1DA1F2); // Twitter Sky Blue
+    final platformColor = theme.colorScheme.primary;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -174,31 +171,30 @@ class _RandomTabState extends State<RandomTab> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Image section
-            AspectRatio(
-              aspectRatio: _getAspectRatioForId(image.id),
-              child: Hero(
-                tag: 'img_${image.id}',
-                child: CachedNetworkImage(
-                  imageUrl: image.urls,
-                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
+            Hero(
+              tag: 'img_${image.id}',
+              child: CachedNetworkImage(
+                imageUrl: image.urls,
+                httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                fit: BoxFit.fitWidth,
+                placeholder: (context, url) => Container(
+                  height: 200,
+                  color: theme.colorScheme.surfaceVariant,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
                       ),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: Icon(Icons.broken_image_rounded),
-                    ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 200,
+                  color: theme.colorScheme.surfaceVariant,
+                  child: const Center(
+                    child: Icon(Icons.broken_image_rounded),
                   ),
                 ),
               ),
@@ -260,6 +256,30 @@ class _RandomTabState extends State<RandomTab> {
                   ),
                   const SizedBox(height: 8),
                   
+                  // Image ID
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.tag_rounded,
+                        size: 12,
+                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'ID: ${image.id}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  
                   // Author Name
                   Row(
                     children: [
@@ -271,7 +291,7 @@ class _RandomTabState extends State<RandomTab> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          image.user,
+                          image.cleanUser,
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.onSurface,
@@ -289,13 +309,5 @@ class _RandomTabState extends State<RandomTab> {
         ),
       ),
     );
-  }
-
-  // Generate a pseudorandom aspect ratio based on image ID for waterfall visual dynamics
-  double _getAspectRatioForId(String id) {
-    final code = id.hashCode.abs();
-    // Return values between 0.75 (portrait) and 1.33 (landscape)
-    final val = 0.75 + (code % 58) / 100.0;
-    return val;
   }
 }

@@ -4,13 +4,7 @@ import '../models/image_details.dart';
 import 'user_agent_service.dart';
 
 class ImageDetailsParser {
-  static final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
-    headers: {
-      'User-Agent': UserAgentService.userAgent,
-    },
-  ));
+  static final Dio _dio = UserAgentService.createDio();
 
   /// Scrape moely.link detail page HTML for rich native elements
   static Future<ImageDetails?> fetchDetails(String id) async {
@@ -20,12 +14,25 @@ class ImageDetailsParser {
       
       final html = response.data.toString();
 
-      // 1. Extract resolution (e.g. 原图尺寸：宽784x高2048)
-      String resolution = '未知尺寸';
-      final resRegex = RegExp('原图尺寸：([^<>\n|]+)');
+      // 1. Extract Title (e.g. <h1>day57 风堇 (ID: 130872940)</h1> or <h1>ID: 2058691399894376532</h1>)
+      String title = '';
+      final titleRegex = RegExp(r'<h1>([^<]+)</h1>', caseSensitive: false);
+      final titleMatch = titleRegex.firstMatch(html);
+      if (titleMatch != null) {
+        title = titleMatch.group(1)?.trim() ?? '';
+      }
+      if (title.isEmpty) {
+        title = 'ID: $id';
+      }
+
+      // 1. Extract resolution (e.g. 原图尺寸：宽<code>1451</code>x高<code>2048</code>)
+      String resolution = '';
+      final resRegex = RegExp(r'原图尺寸：[^<]*宽(?:<code>)?(\d+)(?:</code>)?\s*x\s*高(?:<code>)?(\d+)(?:</code>)?', caseSensitive: false);
       final resMatch = resRegex.firstMatch(html);
       if (resMatch != null) {
-        resolution = resMatch.group(1)?.trim() ?? '未知尺寸';
+        final width = resMatch.group(1) ?? '';
+        final height = resMatch.group(2) ?? '';
+        resolution = '${width}x${height}';
       }
 
       // 2. Extract original source link
@@ -99,28 +106,126 @@ class ImageDetailsParser {
         final endPos = html.indexOf('</div>', startPos);
         if (endPos != -1) {
           description = html.substring(startPos, endPos).trim();
-          // Clean basic HTML tags from description if any
+          // Replace `<br>` and `<p>` tags with actual newlines to preserve formatting
+          description = description
+              .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+              .replaceAll(RegExp(r'</?p>', caseSensitive: false), '\n');
+          
+          // Convert HTML links to Markdown format [TEXT](URL)
+          description = description.replaceAllMapped(
+            RegExp(r"""<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)</a>""", caseSensitive: false),
+            (match) {
+              var url = match.group(1) ?? '';
+              final text = match.group(2) ?? '';
+              if (url.startsWith('/')) {
+                url = 'https://www.moely.link$url';
+              }
+              return '[$text]($url)';
+            },
+          );
+          
+          description = _decodeHtmlEntities(description);
+          // Clean any other remaining HTML tags
           description = description.replaceAll(RegExp('<[^>]*>'), '');
         }
       }
-
-      // 6. Extract tags
+      
+      // 6. Extract tags completely in sync with the website tags container
       final List<String> tags = [];
-      final tagRegex = RegExp('href="[^"]*/tags/[^"]*"[^>]*>#?([^<]+)</a>');
-      final tagMatches = tagRegex.allMatches(html);
-      for (var m in tagMatches) {
-        final t = m.group(1)?.trim();
-        if (t != null && t.isNotEmpty && t != '暂无标签') {
-          if (!t.startsWith('#')) {
-            tags.add('#$t');
-          } else {
-            tags.add(t);
+      
+      final startTagsDouble = '<div class="tags">';
+      final startTagsSingle = '<div class=\'tags\'>';
+      final startTagsNoQuote = '<div class=tags>';
+      
+      int tagsStart = -1;
+      int tIdx = html.indexOf(startTagsDouble);
+      if (tIdx != -1) {
+        tagsStart = tIdx + startTagsDouble.length;
+      } else {
+        tIdx = html.indexOf(startTagsSingle);
+        if (tIdx != -1) {
+          tagsStart = tIdx + startTagsSingle.length;
+        } else {
+          tIdx = html.indexOf(startTagsNoQuote);
+          if (tIdx != -1) {
+            tagsStart = tIdx + startTagsNoQuote.length;
+          }
+        }
+      }
+
+      if (tagsStart != -1) {
+        final tagsEnd = html.indexOf('</div>', tagsStart);
+        if (tagsEnd != -1) {
+          final tagsContent = html.substring(tagsStart, tagsEnd);
+          
+          // Match standard links like <a href="...">#Tag</a> and non-clickable spans like <span>#Tag</span> in order (handles quote-less href and captures slug)
+          final tagRegex = RegExp(
+            r'''<a\s+[^>]*href=["']?/tags/([^"'\s>]+)/?["']?[^>]*>\s*(#?[^<]+)</a>|<span>\s*(#?[^<]+)</span>''',
+            caseSensitive: false,
+          );
+          final matches = tagRegex.allMatches(tagsContent);
+          
+          for (final match in matches) {
+            final slugGroup = match.group(1);
+            final aGroup = match.group(2);
+            final spanGroup = match.group(3);
+            
+            if (aGroup != null) {
+              final tagText = aGroup.trim();
+              if (tagText.isNotEmpty) {
+                final formattedTag = tagText.startsWith('#') ? tagText : '#$tagText';
+                if (slugGroup != null && slugGroup.isNotEmpty) {
+                  tags.add('$formattedTag|slug:$slugGroup');
+                } else {
+                  tags.add(formattedTag);
+                }
+              }
+            } else if (spanGroup != null) {
+              final tagText = spanGroup.trim();
+              if (tagText.isNotEmpty) {
+                final formattedTag = tagText.startsWith('#') ? tagText : '#$tagText';
+                tags.add('$formattedTag|nolink');
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback in case of parsing failures
+      if (tags.isEmpty) {
+        final tagRegex = RegExp(
+          r'''<a\s+[^>]*href=["']?/tags/([^"'\s>]+)/?["']?[^>]*>\s*(#?[^<]+)</a>|<span>\s*(#?[^<]+)</span>''',
+          caseSensitive: false,
+        );
+        final tagMatches = tagRegex.allMatches(html);
+        for (final match in tagMatches) {
+          final slugGroup = match.group(1);
+          final aGroup = match.group(2);
+          final spanGroup = match.group(3);
+          
+          if (aGroup != null) {
+            final tagText = aGroup.trim();
+            if (tagText.isNotEmpty) {
+              final formattedTag = tagText.startsWith('#') ? tagText : '#$tagText';
+              if (slugGroup != null && slugGroup.isNotEmpty) {
+                tags.add('$formattedTag|slug:$slugGroup');
+              } else {
+                tags.add(formattedTag);
+              }
+            }
+          } else if (spanGroup != null) {
+            final tagText = spanGroup.trim();
+            if (tagText.isNotEmpty) {
+              final formattedTag = tagText.startsWith('#') ? tagText : '#$tagText';
+              tags.add('$formattedTag|nolink');
+            }
           }
         }
       }
 
       return ImageDetails(
         id: id,
+        title: title,
         resolution: resolution,
         tags: tags,
         sourceUrl: sourceUrl,
@@ -133,6 +238,7 @@ class ImageDetailsParser {
       // Return basic model on network error instead of failing
       return ImageDetails(
         id: id,
+        title: 'ID: $id',
         resolution: '未连接网络',
         tags: [],
         sourceUrl: '',
@@ -142,5 +248,49 @@ class ImageDetailsParser {
         description: '加载失败，请检查网络连接',
       );
     }
+  }
+
+  /// Decode standard named and numeric HTML character entities
+  static String _decodeHtmlEntities(String input) {
+    var output = input;
+    final entities = {
+      '&nbsp;': ' ',
+      '&amp;': '&',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&quot;': '"',
+      '&#39;': "'",
+      '&#039;': "'",
+      '&apos;': "'",
+      '&mdash;': '—',
+      '&ndash;': '–',
+      '&hellip;': '…',
+      '&mldr;': '…',
+      '&middot;': '·',
+      '&copy;': '©',
+      '&reg;': '®',
+      '&trade;': '™',
+      '&ldquo;': '“',
+      '&rdquo;': '”',
+      '&lsquo;': '‘',
+      '&rsquo;': '’',
+    };
+    
+    entities.forEach((entity, value) {
+      output = output.replaceAll(entity, value);
+    });
+    
+    // Decimal code points
+    output = output.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final code = int.parse(match.group(1)!);
+      return String.fromCharCode(code);
+    });
+    // Hexadecimal code points
+    output = output.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
+      final code = int.parse(match.group(1)!, radix: 16);
+      return String.fromCharCode(code);
+    });
+    
+    return output;
   }
 }

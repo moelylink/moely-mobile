@@ -2,9 +2,10 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../services/user_agent_service.dart';
 
 class DownloadHelper {
-  static final Dio _dio = Dio();
+  static final Dio _dio = UserAgentService.createDio();
 
   /// Downloads an image to public/private storage, adaptively supporting Android & iOS
   static Future<String> downloadImage(
