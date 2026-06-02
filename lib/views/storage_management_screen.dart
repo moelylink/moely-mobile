@@ -9,6 +9,8 @@ import '../utils/download_helper.dart';
 import '../services/settings_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
+import '../utils/toast_helper.dart';
+import '../services/url_handler_service.dart';
 
 // Helper to interpolate double values smoothly
 double lerpDouble(double start, double end, double t) {
@@ -263,12 +265,16 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        content: const Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Text('正在清理选中缓存...', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.85,
+          child: const Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('正在清理选中缓存...', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
         ),
       ),
     );
@@ -390,33 +396,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
 
     if (mounted) {
       Navigator.pop(context); // Close dialog
-      final theme = Theme.of(context);
-      final isDark = theme.brightness == Brightness.dark;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(
-                Icons.check_circle_rounded, 
-                color: isDark ? Colors.greenAccent : const Color(0xFF10B981),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '清理完成！已经释放磁盘空间。',
-                style: TextStyle(
-                  color: isDark ? theme.colorScheme.onSurface : theme.colorScheme.onInverseSurface,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: isDark ? theme.colorScheme.surfaceVariant : theme.colorScheme.inverseSurface,
-        ),
-      );
+      final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+      ToastHelper.show(rootContext, '清理完成！已经释放磁盘空间。', type: ToastType.success);
       _loadSizes();
     }
   }
@@ -977,8 +958,9 @@ class DownloadManagementScreen extends StatefulWidget {
 }
 
 class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
-  List<File> _downloadedFiles = [];
+  List<Map<String, dynamic>> _downloadedFiles = [];
   bool _isLoading = true;
+  bool _sortByNewest = true;
 
   @override
   void initState() {
@@ -992,34 +974,38 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
     }
   }
 
+  void _sortRecords(List<Map<String, dynamic>> records) {
+    try {
+      records.sort((a, b) {
+        final DateTime timeA = DateTime.tryParse(a['downloadTime'] ?? '') ?? DateTime.now();
+        final DateTime timeB = DateTime.tryParse(b['downloadTime'] ?? '') ?? DateTime.now();
+        if (_sortByNewest) {
+          return timeB.compareTo(timeA); // Descending (Newest to Oldest)
+        } else {
+          return timeA.compareTo(timeB); // Ascending (Oldest to Newest)
+        }
+      });
+    } catch (_) {}
+  }
+
   Future<void> _scanDownloadedFiles() async {
     setState(() {
       _isLoading = true;
     });
 
-    final List<File> files = [];
+    List<Map<String, dynamic>> records = [];
+
     try {
-      final downloadDir = await DownloadHelper.getDownloadDirectory();
-      if (downloadDir.existsSync()) {
-        final List<FileSystemEntity> list = downloadDir.listSync(recursive: false);
-        for (final entity in list) {
-          if (entity is File) {
-            final ext = p.extension(entity.path).toLowerCase();
-            if (ext == '.jpg' || ext == '.jpeg' || ext == '.png' || ext == '.gif' || ext == '.webp') {
-              files.add(entity);
-            }
-          }
-        }
-        // Sort files by modified time descending (newest downloads at top)
-        files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-      }
+      records = await DownloadHelper.getRegisteredDownloads();
     } catch (e) {
-      debugPrint('Failed to scan download directory: $e');
+      debugPrint('Failed to load registered downloads: $e');
     }
+
+    _sortRecords(records);
 
     if (mounted) {
       setState(() {
-        _downloadedFiles = files;
+        _downloadedFiles = records;
         _isLoading = false;
       });
     }
@@ -1040,10 +1026,13 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
     setState(() {});
   }
 
-  void _confirmDelete({File? file, DownloadTask? activeTask}) {
+  void _confirmDelete({Map<String, dynamic>? record, DownloadTask? activeTask}) {
     bool deleteLocal = false;
-    final filename = file != null ? p.basename(file.path) : activeTask!.filename;
+    final String? path = record?['path'];
+    final file = path != null ? File(path) : null;
+    final filename = record != null ? record['filename'] : activeTask!.filename;
     final theme = Theme.of(context);
+    final fileExists = file?.existsSync() ?? false;
 
     showDialog(
       context: context,
@@ -1053,6 +1042,7 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
             return AlertDialog(
               backgroundColor: theme.colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
               title: const Row(
                 children: [
                   Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
@@ -1060,35 +1050,38 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
                   Text('确认删除', style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('您确定要从下载任务列表中删除此项目吗？'),
-                  const SizedBox(height: 8),
-                  Text(
-                    filename,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('您确定要从下载任务列表中删除此项目吗？'),
+                    const SizedBox(height: 8),
+                    Text(
+                      filename,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (file != null)
-                    CheckboxListTile(
-                      value: deleteLocal,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          deleteLocal = val ?? true;
-                        });
-                      },
-                      activeColor: theme.colorScheme.primary,
-                      title: const Text('同时删除本地物理存储的文件', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                ],
+                    const SizedBox(height: 16),
+                    if (file != null && fileExists)
+                      CheckboxListTile(
+                        value: deleteLocal,
+                        onChanged: (val) {
+                          setDialogState(() {
+                            deleteLocal = val ?? true;
+                          });
+                        },
+                        activeColor: theme.colorScheme.primary,
+                        title: const Text('同时删除本地文件', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                       ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -1108,23 +1101,21 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
                       DownloadHelper.activeTasks.remove(activeTask);
                     }
 
-                    if (file != null && deleteLocal) {
-                      try {
-                        if (file.existsSync()) {
-                          await file.delete();
+                    if (record != null) {
+                      await DownloadHelper.unregisterDownload(record['path']);
+                      if (deleteLocal && fileExists && file != null) {
+                        try {
+                          if (file.existsSync()) {
+                            await file.delete();
+                          }
+                        } catch (e) {
+                          debugPrint('Delete physical file failed: $e');
                         }
-                      } catch (e) {
-                        debugPrint('Delete physical file failed: $e');
                       }
                     }
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('已成功删除下载项'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
+                    final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                    ToastHelper.show(rootContext, '已成功删除下载项', type: ToastType.success);
 
                     _scanDownloadedFiles();
                   },
@@ -1149,6 +1140,22 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
         title: const Text('下载管理器', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(_sortByNewest ? Icons.trending_down_rounded : Icons.trending_up_rounded),
+            tooltip: _sortByNewest ? '当前排序：由新到旧' : '当前排序：由旧到新',
+            onPressed: () {
+              setState(() {
+                _sortByNewest = !_sortByNewest;
+                _sortRecords(_downloadedFiles);
+              });
+              final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+              ToastHelper.show(
+                rootContext,
+                _sortByNewest ? '排序已切换：由新到旧' : '排序已切换：由旧到新',
+                type: ToastType.success,
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _scanDownloadedFiles,
@@ -1313,41 +1320,65 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
                         sliver: SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {
-                              final file = _downloadedFiles[index];
-                              final filename = p.basename(file.path);
-                              final fileStats = file.statSync();
-                              final sizeString = CacheHelper.formatSize(fileStats.size);
-                              final modifiedDate = fileStats.modified;
+                              final record = _downloadedFiles[index];
+                              final String path = record['path'] ?? '';
+                              final String filename = record['filename'] ?? '';
+                              final int size = record['size'] ?? 0;
+                              final String downloadTimeStr = record['downloadTime'] ?? '';
+
+                              final file = File(path);
+                              final fileExists = file.existsSync();
+                              final sizeString = fileExists
+                                  ? CacheHelper.formatSize(size)
+                                  : '文件已删除';
+                                  
+                              DateTime? downloadTime;
+                              try {
+                                if (downloadTimeStr.isNotEmpty) {
+                                  downloadTime = DateTime.parse(downloadTimeStr);
+                                }
+                              } catch (_) {}
+
+                              final dateText = downloadTime != null
+                                  ? '${downloadTime.year}-${downloadTime.month.toString().padLeft(2, '0')}-${downloadTime.day.toString().padLeft(2, '0')} ${downloadTime.hour.toString().padLeft(2, '0')}:${downloadTime.minute.toString().padLeft(2, '0')}'
+                                  : '';
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(18),
-                                  onTap: () async {
-                                    bool opened = false;
-                                    try {
-                                      final result = await OpenFilex.open(file.path);
-                                      opened = result.type == ResultType.done;
-                                    } catch (e) {
-                                      debugPrint('open_filex failed: $e');
-                                    }
+                                  onTap: fileExists
+                                      ? () async {
+                                          bool opened = false;
+                                          try {
+                                            final result = await OpenFilex.open(file.path);
+                                            opened = result.type == ResultType.done;
+                                          } catch (e) {
+                                            debugPrint('open_filex failed: $e');
+                                          }
 
-                                    if (!opened && context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Text('系统限制无法直接打开，已将路径复制到剪贴板'),
-                                          behavior: SnackBarBehavior.floating,
-                                          action: SnackBarAction(
-                                            label: '复制路径',
-                                            onPressed: () {
-                                              Clipboard.setData(ClipboardData(text: file.path));
-                                            },
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  },
+                                          if (!opened && context.mounted) {
+                                            final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                                            ToastHelper.show(
+                                              rootContext,
+                                              '系统限制无法打开，已复制路径',
+                                              type: ToastType.warning,
+                                              actionLabel: '复制',
+                                              onActionTap: () {
+                                                Clipboard.setData(ClipboardData(text: file.path));
+                                              },
+                                            );
+                                          }
+                                        }
+                                      : () {
+                                          final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                                          ToastHelper.show(
+                                            rootContext,
+                                            '本地文件已被删除，无法查看文件',
+                                            type: ToastType.error,
+                                          );
+                                        },
                                   child: Padding(
                                     padding: const EdgeInsets.all(12),
                                     child: Row(
@@ -1359,12 +1390,18 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
                                             width: 54,
                                             height: 54,
                                             color: theme.colorScheme.surfaceVariant,
-                                            child: Image.file(
-                                              file,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) =>
-                                                  const Icon(Icons.broken_image_rounded, size: 24),
-                                            ),
+                                            child: fileExists
+                                                ? Image.file(
+                                                    file,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) =>
+                                                        const Icon(Icons.broken_image_rounded, size: 24),
+                                                  )
+                                                : const Icon(
+                                                    Icons.image_not_supported_rounded,
+                                                    size: 24,
+                                                    color: Colors.grey,
+                                                  ),
                                           ),
                                         ),
                                         const SizedBox(width: 14),
@@ -1386,17 +1423,21 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
                                                     style: TextStyle(
                                                       fontSize: 11,
                                                       fontWeight: FontWeight.bold,
-                                                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                                      color: fileExists
+                                                          ? theme.colorScheme.onSurface.withOpacity(0.6)
+                                                          : Colors.redAccent.withOpacity(0.8),
                                                     ),
                                                   ),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    '${modifiedDate.year}-${modifiedDate.month.toString().padLeft(2, '0')}-${modifiedDate.day.toString().padLeft(2, '0')}',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                                  if (dateText.isNotEmpty) ...[
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                      dateText,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                                      ),
                                                     ),
-                                                  ),
+                                                  ],
                                                 ],
                                               ),
                                             ],
@@ -1405,7 +1446,7 @@ class _DownloadManagementScreenState extends State<DownloadManagementScreen> {
                                         // Delete button
                                         IconButton(
                                           icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                                          onPressed: () => _confirmDelete(file: file),
+                                          onPressed: () => _confirmDelete(record: record),
                                         ),
                                       ],
                                     ),

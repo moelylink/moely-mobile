@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../services/user_agent_service.dart';
 import '../services/settings_service.dart';
+import '../services/wallpaper_service.dart';
 
 class DownloadTask {
   final String url;
@@ -28,6 +30,88 @@ class DownloadHelper {
   static final Dio _dio = UserAgentService.createDio();
   static final List<DownloadTask> activeTasks = [];
 
+  static Future<File> _getRegistryFile() async {
+    final supportDir = await getApplicationSupportDirectory();
+    final dir = Directory('${supportDir.path}/downloads_cache');
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+    return File('${dir.path}/downloads_registry.json');
+  }
+
+  static Future<List<Map<String, dynamic>>> getRegisteredDownloads() async {
+    try {
+      final file = await _getRegistryFile();
+      if (file.existsSync()) {
+        final content = await file.readAsString();
+        final List<dynamic> list = json.decode(content);
+        final List<Map<String, dynamic>> result = [];
+        
+        for (final item in list) {
+          if (item is Map) {
+            result.add(Map<String, dynamic>.from(item));
+          } else if (item is String) {
+            // Backward compatibility migration:
+            // Convert legacy path string into rich metadata record.
+            final path = item;
+            final f = File(path);
+            final exists = f.existsSync();
+            result.add({
+              'path': path,
+              'filename': p.basename(path),
+              'size': exists ? f.lengthSync() : 0,
+              'downloadTime': exists 
+                  ? f.lastModifiedSync().toIso8601String() 
+                  : DateTime.now().toIso8601String(),
+            });
+          }
+        }
+        return result;
+      }
+    } catch (e) {
+      debugPrint('Failed to read downloads registry: $e');
+    }
+    return [];
+  }
+
+  static Future<void> registerDownload(String path) async {
+    try {
+      final list = await getRegisteredDownloads();
+      final exists = list.any((item) => item['path'] == path);
+      if (!exists) {
+        final f = File(path);
+        final fExists = f.existsSync();
+        final size = fExists ? f.lengthSync() : 0;
+        
+        list.add({
+          'path': path,
+          'filename': p.basename(path),
+          'size': size,
+          'downloadTime': DateTime.now().toIso8601String(),
+        });
+        
+        final file = await _getRegistryFile();
+        await file.writeAsString(json.encode(list));
+      }
+    } catch (e) {
+      debugPrint('Failed to register download: $e');
+    }
+  }
+
+  static Future<void> unregisterDownload(String path) async {
+    try {
+      final list = await getRegisteredDownloads();
+      final lengthBefore = list.length;
+      list.removeWhere((item) => item['path'] == path);
+      if (list.length != lengthBefore) {
+        final file = await _getRegistryFile();
+        await file.writeAsString(json.encode(list));
+      }
+    } catch (e) {
+      debugPrint('Failed to unregister download: $e');
+    }
+  }
+
   /// Returns the current active download directory
   static Future<Directory> getDownloadDirectory() async {
     final customPath = AppSettings.instance.downloadPath;
@@ -40,7 +124,7 @@ class DownloadHelper {
     }
 
     if (Platform.isAndroid) {
-      final publicDownloadDir = Directory('/storage/emulated/0/Download/moely');
+      final publicDownloadDir = Directory('/storage/emulated/0/Download/Moely');
       if (!await publicDownloadDir.exists()) {
         await publicDownloadDir.create(recursive: true);
       }
@@ -131,6 +215,17 @@ class DownloadHelper {
         task.progress = 1.0;
         task.onStateChanged?.call();
         activeTasks.remove(task);
+
+        // Notify Android system MediaScanner to scan and index the new image file
+        if (Platform.isAndroid) {
+          try {
+            WallpaperService.scanFile(savePath);
+          } catch (_) {}
+        }
+
+        // Register the download in the local database
+        await registerDownload(savePath);
+
         return savePath;
       } else {
         task.status = 'failed';
@@ -172,6 +267,17 @@ class DownloadHelper {
           task.progress = 1.0;
           task.onStateChanged?.call();
           activeTasks.remove(task);
+
+          // Notify Android system MediaScanner to scan and index the fallback image file
+          if (Platform.isAndroid) {
+            try {
+              WallpaperService.scanFile(safePath);
+            } catch (_) {}
+          }
+
+          // Register the download in the local database
+          await registerDownload(safePath);
+
           return safePath;
         } else {
           task.status = 'failed';

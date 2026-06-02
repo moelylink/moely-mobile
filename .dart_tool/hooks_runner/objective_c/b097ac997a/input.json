@@ -1,0 +1,29 @@
+{
+  "assets": {},
+  "config": {
+    "build_asset_types": [
+      "code_assets/code"
+    ],
+    "extensions": {
+      "code_assets": {
+        "android": {
+          "target_ndk_api": 24
+        },
+        "c_compiler": {
+          "ar": "C:\\Users\\lenovo\\AppData\\Local\\Android\\sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\llvm-ar.exe",
+          "cc": "C:\\Users\\lenovo\\AppData\\Local\\Android\\sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe",
+          "ld": "C:\\Users\\lenovo\\AppData\\Local\\Android\\sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\ld.lld.exe"
+        },
+        "link_mode_preference": "dynamic",
+        "target_architecture": "arm",
+        "target_os": "android"
+      }
+    },
+    "linking_enabled": false
+  },
+  "out_dir_shared": "D:\\programs\\GitHub\\moely-mobile\\.dart_tool\\hooks_runner\\shared\\objective_c\\build\\",
+  "out_file": "D:\\programs\\GitHub\\moely-mobile\\.dart_tool\\hooks_runner\\objective_c\\b097ac997a\\output.json",
+  "package_name": "objective_c",
+  "package_root": "C:\\Users\\lenovo\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\objective_c-9.4.1\\",
+  "user_defines": {}
+}

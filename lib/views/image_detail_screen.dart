@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/image_item.dart';
 import '../models/image_details.dart';
@@ -23,6 +24,11 @@ import 'tag_grid_screen.dart';
 import 'category_grid_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
+import '../utils/history_helper.dart';
+import '../utils/toast_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class ImageDetailScreen extends StatefulWidget {
   final MoelyImage image;
@@ -40,7 +46,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   late MoelyImage _currentImage;
   ImageDetails? _details;
   bool _isLoadingDetails = true;
-  bool _isFavorited = false;
+  Set<String> _favoritedImageUrls = {};
+  bool _isThumbnailCached = false;
   
   // Translation state
   bool _isTranslating = false;
@@ -84,7 +91,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
     _scrollController.addListener(_onScroll);
     _checkHistoryStatus();
+    _checkThumbnailCache();
     _loadDetails();
+    _checkFavoriteStatus();
+    HistoryHelper.addToHistory(_currentImage.id, _currentImage.urls);
     if (AppSettings.instance.enableOverscrollRandom) {
       _preloadNextImage();
     }
@@ -127,6 +137,119 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         });
       }
     }
+  }
+
+  Future<void> _checkThumbnailCache() async {
+    try {
+      final fileInfo = await DefaultCacheManager().getFileFromCache(_currentImage.urls);
+      if (mounted) {
+        setState(() {
+          _isThumbnailCached = fileInfo != null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isThumbnailCached = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildPlaceholder(BuildContext context, String url, int index, ThemeData theme, Color platformColor) {
+    final plainPlaceholder = Container(
+      height: 250,
+      color: theme.colorScheme.surfaceVariant,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(color: platformColor),
+          const SizedBox(height: 12),
+          Text(
+            '正在加载',
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+              fontSize: 12,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (index == 0) {
+      final blurredThumbnailPlaceholder = Stack(
+        alignment: Alignment.center,
+        children: [
+          CachedNetworkImage(
+            imageUrl: _currentImage.urls,
+            httpHeaders: {'User-Agent': UserAgentService.userAgent},
+            fit: BoxFit.fitWidth,
+            width: double.infinity,
+          ),
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                child: Container(
+                  color: Colors.black.withOpacity(0.4),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      '正在加载',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      return Material(
+        type: MaterialType.transparency,
+        child: AnimatedCrossFade(
+          firstChild: plainPlaceholder,
+          secondChild: blurredThumbnailPlaceholder,
+          crossFadeState: _isThumbnailCached ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 300),
+          firstCurve: Curves.easeInOut,
+          secondCurve: Curves.easeInOut,
+          sizeCurve: Curves.easeInOut,
+        ),
+      );
+    }
+
+    return Material(
+      type: MaterialType.transparency,
+      child: plainPlaceholder,
+    );
   }
 
   Future<void> _checkHistoryStatus() async {
@@ -319,17 +442,22 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
           _currentImage = nextImage;
           _details = nextDetails;
           _isLoadingDetails = false;
-          _isFavorited = false;
+          _favoritedImageUrls.clear();
           _isTranslating = false;
           _isTranslated = false;
           _translatedTags = '';
           _translatedDescription = '';
           _overscrollBottom = 0.0;
           _overscrollTop = 0.0;
+          _isThumbnailCached = false;
           
           _preloadedNextImage = null;
           _preloadedNextDetails = null;
         });
+        
+        _checkThumbnailCache();
+        _checkFavoriteStatus();
+        HistoryHelper.addToHistory(nextImage.id, nextImage.urls);
         
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0.0);
@@ -365,14 +493,19 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         _currentImage = randomImage;
         _details = null;
         _isLoadingDetails = true;
-        _isFavorited = false;
+        _favoritedImageUrls.clear();
         _isTranslating = false;
         _isTranslated = false;
         _translatedTags = '';
         _translatedDescription = '';
         _overscrollBottom = 0.0;
         _overscrollTop = 0.0;
+        _isThumbnailCached = false;
       });
+      
+      _checkThumbnailCache();
+      _checkFavoriteStatus();
+      HistoryHelper.addToHistory(randomImage.id, randomImage.urls);
       
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0.0);
@@ -400,14 +533,19 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         _currentImage = prevImage;
         _details = null;
         _isLoadingDetails = true;
-        _isFavorited = false;
+        _favoritedImageUrls.clear();
         _isTranslating = false;
         _isTranslated = false;
         _translatedTags = '';
         _translatedDescription = '';
         _overscrollBottom = 0.0;
         _overscrollTop = 0.0;
+        _isThumbnailCached = false;
       });
+      
+      _checkThumbnailCache();
+      _checkFavoriteStatus();
+      HistoryHelper.addToHistory(prevImage.id, prevImage.urls);
       
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0.0);
@@ -424,7 +562,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   }
 
   Future<void> _handleScrollRelease() async {
-    const double threshold = 80.0;
+    const double threshold = 100.0;
     
     if (_overscrollBottom >= threshold) {
       _loadRandomImage();
@@ -467,8 +605,20 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     if (mounted) {
       setState(() {
         _details = details;
+        if (details != null) {
+          _currentImage = MoelyImage(
+            id: _currentImage.id,
+            user: (details.user.isNotEmpty && details.user != 'Unknown') ? details.user : _currentImage.user,
+            category: (details.category.isNotEmpty && details.category != 'Other') ? details.category : _currentImage.category,
+            urls: _currentImage.urls.isNotEmpty
+                ? _currentImage.urls
+                : (details.previewUrls.isNotEmpty ? details.previewUrls.first : ''),
+            total: _currentImage.total,
+          );
+        }
         _isLoadingDetails = false;
       });
+      _checkFavoriteStatus();
     }
   }
 
@@ -482,21 +632,267 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     return url;
   }
 
-  void _toggleFavorite() {
+  String _getThumbnailUrl(String rawImgUrl, int index) {
+    // If the HTML successfully parsed a star URL for this specific index, use it directly!
+    if (_details != null && _details!.starUrls.length > index) {
+      return _details!.starUrls[index];
+    }
+    
+    // Otherwise, fall back to our highly reliable string replacement logic!
+    if (rawImgUrl.contains('i.moely.link/') && !rawImgUrl.contains('/c/540x540_70/')) {
+      return rawImgUrl.replaceFirst('i.moely.link/', 'i.moely.link/c/540x540_70/');
+    }
+    return rawImgUrl;
+  }
+
+  void _showNotification(String message, {String type = 'info'}) {
+    if (!mounted) return;
+    ToastType toastType;
+    switch (type) {
+      case 'success':
+        toastType = ToastType.success;
+        break;
+      case 'warning':
+        toastType = ToastType.warning;
+        break;
+      case 'error':
+        toastType = ToastType.error;
+        break;
+      default:
+        toastType = ToastType.info;
+    }
+    final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+    ToastHelper.show(rootContext, message, type: toastType);
+  }
+
+  Future<List<dynamic>> _loadLocalFavorites() async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return [];
+
+    try {
+      final favDir = await CacheHelper.getFavoritesCacheDir();
+      final jsonFile = File('${favDir.path}/favorites.json');
+      
+      // If local cache doesn't exist, lazily fetch all from Supabase once
+      if (!jsonFile.existsSync()) {
+        final response = await Supabase.instance.client
+            .from('bookmarks')
+            .select('id, url, image, created_at')
+            .eq('user_id', userId)
+            .order('created_at', ascending: false);
+            
+        final List<dynamic> cloudBookmarks = response as List;
+        await jsonFile.writeAsString(json.encode(cloudBookmarks));
+        return cloudBookmarks;
+      }
+      
+      final content = await jsonFile.readAsString();
+      return json.decode(content) as List;
+    } catch (e) {
+      debugPrint('Error loading favorites cache: $e');
+      return [];
+    }
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _favoritedImageUrls.clear();
+        });
+      }
+      return;
+    }
+
+    final localList = await _loadLocalFavorites();
+    final targetUrl = '/img/${_currentImage.id}/';
+    
+    // Filter bookmarks belonging to this work ID and extract their thumbnail URLs
+    final matchingBookmarks = localList.where((item) => item['url'] == targetUrl);
+    final favoritedUrls = matchingBookmarks.map((item) => item['image'].toString()).toSet();
+
+    if (mounted) {
+      setState(() {
+        _favoritedImageUrls = favoritedUrls;
+      });
+    }
+  }
+
+  Future<void> _addFavorite(String userId, String rawImgUrl, int index) async {
+    final detailUrl = '/img/${_currentImage.id}/';
+    final thumbnailUrl = _getThumbnailUrl(rawImgUrl, index);
+    
     setState(() {
-      _isFavorited = !_isFavorited;
+      _favoritedImageUrls.add(thumbnailUrl);
     });
     _heartController.forward(from: 0.0);
+
+    try {
+      // 1. Insert into Supabase
+      final response = await Supabase.instance.client
+          .from('bookmarks')
+          .insert([{
+            'user_id': userId,
+            'url': detailUrl,
+            'image': thumbnailUrl,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          }])
+          .select();
+
+      // 2. Update local JSON cache
+      try {
+        final favDir = await CacheHelper.getFavoritesCacheDir();
+        final jsonFile = File('${favDir.path}/favorites.json');
+        if (jsonFile.existsSync()) {
+          final content = await jsonFile.readAsString();
+          final List<dynamic> localList = json.decode(content);
+          if (response is List && response.isNotEmpty) {
+            localList.insert(0, response.first);
+            await jsonFile.writeAsString(json.encode(localList));
+          }
+        }
+      } catch (e) {
+        debugPrint('Error updating local favorites cache: $e');
+      }
+
+      _showNotification('已添加到收藏！', type: 'success');
+    } catch (error) {
+      debugPrint('Error adding to favorites: $error');
+      setState(() {
+        _favoritedImageUrls.remove(thumbnailUrl);
+      });
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            final theme = Theme.of(context);
+            return AlertDialog(
+              backgroundColor: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              title: const Row(
+                children: [
+                  Icon(Icons.error_outline_rounded, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('收藏失败', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: const Text('添加收藏失败，请重试'),
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('确定'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    }
+  }
+
+  Future<void> _removeFavorite(String userId, String rawImgUrl, int index) async {
+    final detailUrl = '/img/${_currentImage.id}/';
+    final thumbnailUrl = _getThumbnailUrl(rawImgUrl, index);
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isFavorited ? '已添加收藏' : '已取消收藏'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        width: 150,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    setState(() {
+      _favoritedImageUrls.remove(thumbnailUrl);
+    });
+
+    try {
+      // 1. Delete from Supabase
+      await Supabase.instance.client
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', userId)
+          .eq('url', detailUrl)
+          .eq('image', thumbnailUrl);
+
+      // 2. Update local JSON cache
+      try {
+        final favDir = await CacheHelper.getFavoritesCacheDir();
+        final jsonFile = File('${favDir.path}/favorites.json');
+        if (jsonFile.existsSync()) {
+          final content = await jsonFile.readAsString();
+          final List<dynamic> localList = json.decode(content);
+          localList.removeWhere((item) => item['url'] == detailUrl && item['image'] == thumbnailUrl);
+          await jsonFile.writeAsString(json.encode(localList));
+        }
+      } catch (e) {
+        debugPrint('Error removing from local favorites cache: $e');
+      }
+
+      _showNotification('已取消收藏', type: 'info');
+    } catch (error) {
+      debugPrint('Error removing from favorites: $error');
+      setState(() {
+        _favoritedImageUrls.add(thumbnailUrl);
+      });
+      _showNotification('取消收藏失败，请重试', type: 'error');
+    }
+  }
+
+  void _toggleFavorite(String rawImgUrl, int index) async {
+    final userId = AuthService.instance.userId;
+    final thumbnailUrl = _getThumbnailUrl(rawImgUrl, index);
+    
+    if (userId.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          final theme = Theme.of(context);
+          return AlertDialog(
+            backgroundColor: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+            title: const Row(
+              children: [
+                Icon(Icons.login_rounded, color: Colors.amber),
+                SizedBox(width: 10),
+                Text('需要登录', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.85,
+              child: const Text('请先登录以使用收藏功能！'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showNotification('用户未登录！', type: 'warning');
+                },
+                child: Text('取消', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6))),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  ).then((_) {
+                    _checkFavoriteStatus();
+                  });
+                },
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    if (_favoritedImageUrls.contains(thumbnailUrl)) {
+      _showNotification('你已经收藏过了', type: 'info');
+    } else {
+      await _addFavorite(userId, rawImgUrl, index);
+    }
   }
 
   Future<void> _handleDownload(int index) async {
@@ -527,15 +923,19 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             return AlertDialog(
               backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
               title: const Text('正在下载原图', style: TextStyle(fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 8),
-                  CircularProgressIndicator(value: progress > 0.0 ? progress : null),
-                  const SizedBox(height: 16),
-                  Text('${(progress * 100).toStringAsFixed(0)}% 下载中...'),
-                ],
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    CircularProgressIndicator(value: progress > 0.0 ? progress : null),
+                    const SizedBox(height: 16),
+                    Text('${(progress * 100).toStringAsFixed(0)}% 下载中...'),
+                  ],
+                ),
               ),
             );
           },
@@ -560,85 +960,146 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
       if (mounted) {
         Navigator.pop(context); // Close dialog
-        final theme = Theme.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '图片下载成功',
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            action: SnackBarAction(
-              label: '打开',
-              textColor: theme.colorScheme.primary,
-              onPressed: () async {
-                try {
-                  await OpenFilex.open(savedPath);
-                } catch (e) {
-                  debugPrint('Failed to open file: $e');
-                }
-              },
-            ),
-            backgroundColor: theme.colorScheme.surface,
-            elevation: 4,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: theme.colorScheme.onSurface.withOpacity(0.08),
-                width: 1,
-              ),
-            ),
-          ),
+        final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+        ToastHelper.show(
+          rootContext,
+          '图片下载成功',
+          type: ToastType.success,
+          actionLabel: '打开',
+          onActionTap: () async {
+            try {
+              await OpenFilex.open(savedPath);
+            } catch (e) {
+              debugPrint('Failed to open file: $e');
+            }
+          },
         );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close dialog
-        final theme = Theme.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.red, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '下载失败: $e',
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: theme.colorScheme.surface,
-            elevation: 4,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: theme.colorScheme.onSurface.withOpacity(0.08),
-                width: 1,
-              ),
-            ),
-          ),
+        final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+        ToastHelper.show(
+          rootContext,
+          '下载失败: $e',
+          type: ToastType.error,
         );
       }
     }
+  }
+
+  Future<String> _translateDescription(String text) async {
+    if (text.isEmpty) return '';
+
+    // We want to support both Markdown links: [text](url) and HTML <a> tags: <a href="url">text</a>
+    final markdownRegex = RegExp(r'\[([^\]]+)\]\(([^)]+)\)');
+    final htmlRegex = RegExp(r'<a\b[^>]*>(.*?)<\/a>', caseSensitive: false);
+
+    final List<String> originalLinks = [];
+    final List<String> innerTexts = [];
+    final List<String> linkUrls = [];
+    final List<bool> isHtml = [];
+
+    String textWithPlaceholders = text;
+
+    // 1. Process Markdown links first
+    var mdMatches = markdownRegex.allMatches(textWithPlaceholders).toList();
+    int placeholderIndex = 0;
+    for (final match in mdMatches) {
+      final original = match.group(0)!;
+      final inner = match.group(1)!;
+      final url = match.group(2)!;
+
+      originalLinks.add(original);
+      innerTexts.add(inner);
+      linkUrls.add(url);
+      isHtml.add(false);
+
+      // Use punctuation-free alphanumeric tokens with spaces so translation engines leave them untouched
+      textWithPlaceholders = textWithPlaceholders.replaceFirst(original, ' XLINK${placeholderIndex}X ');
+      placeholderIndex++;
+    }
+
+    // 2. Process HTML <a> tags next (on the already replaced string)
+    var htmlMatches = htmlRegex.allMatches(textWithPlaceholders).toList();
+    for (final match in htmlMatches) {
+      final original = match.group(0)!;
+      final inner = match.group(1)!;
+
+      // Extract href if possible
+      final hrefMatch = RegExp(r'''href=["']([^"']+)["']''', caseSensitive: false).firstMatch(original);
+      final url = hrefMatch?.group(1) ?? '';
+
+      originalLinks.add(original);
+      innerTexts.add(inner);
+      linkUrls.add(url);
+      isHtml.add(true);
+
+      textWithPlaceholders = textWithPlaceholders.replaceFirst(original, ' XLINK${placeholderIndex}X ');
+      placeholderIndex++;
+    }
+
+    if (placeholderIndex == 0) {
+      return TranslationService.translate(text);
+    }
+
+    // 3. Translate the description text with placeholders
+    String translatedText = await TranslationService.translate(textWithPlaceholders);
+
+    // 4. Translate inner text of each link in parallel
+    final List<String> translatedInnerTexts = await Future.wait(
+      innerTexts.map((inner) async {
+        if (inner.trim().isEmpty) return inner;
+        try {
+          return await TranslationService.translate(inner);
+        } catch (_) {
+          return inner;
+        }
+      }).toList(),
+    );
+
+    // 5. Reconstruct and restore each link back into the translated text
+    for (int i = 0; i < placeholderIndex; i++) {
+      final inner = translatedInnerTexts[i];
+      final url = linkUrls[i];
+      final isTagHtml = isHtml[i];
+
+      String reconstructed;
+      if (isTagHtml) {
+        final original = originalLinks[i];
+        final openTagEndIndex = original.indexOf('>');
+        final openTagPart = original.substring(0, openTagEndIndex + 1);
+        reconstructed = '$openTagPart$inner</a>';
+      } else {
+        reconstructed = '[$inner]($url)';
+      }
+
+      // Try matching our premium alphanumeric token first
+      final primaryRegex = RegExp('X\\s*LINK\\s*${i}\\s*X', caseSensitive: false);
+      
+      // Resilient fallback matching standard brackets (supports missing bracket like [[L_0], [L_0]], L_0, etc.)
+      final bracketRegex = RegExp('\\[*\\s*[lL]_?\\s*${i}\\s*\\]*', caseSensitive: false);
+      
+      // Resilient fallback matching Chinese brackets (e.g. 【L_0】)
+      final chineseBracketRegex = RegExp('【*\\s*[lL]_?\\s*${i}\\s*】*', caseSensitive: false);
+
+      if (primaryRegex.hasMatch(translatedText)) {
+        translatedText = translatedText.replaceFirst(primaryRegex, reconstructed);
+      } else if (bracketRegex.hasMatch(translatedText)) {
+        translatedText = translatedText.replaceFirst(bracketRegex, reconstructed);
+      } else if (chineseBracketRegex.hasMatch(translatedText)) {
+        translatedText = translatedText.replaceFirst(chineseBracketRegex, reconstructed);
+      } else {
+        // Literal replacements
+        translatedText = translatedText
+            .replaceFirst('XLINK${i}X', reconstructed)
+            .replaceFirst('[[L_$i]]', reconstructed)
+            .replaceFirst('[[L_$i]', reconstructed)
+            .replaceFirst('[L_$i]', reconstructed);
+      }
+    }
+
+    return translatedText;
   }
 
   Future<void> _handleTranslation() async {
@@ -656,34 +1117,47 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     });
 
     try {
-      // 1. Prepare parallel translation futures
+      // 1. Prepare parallel translation futures for tags separately
       Future<String> tagsFuture = Future.value('');
       if (_details!.tags.isNotEmpty) {
-        final sourceTags = _details!.tags.map((tag) {
+        final cleanTags = _details!.tags.map((tag) {
           var clean = tag.replaceAll('|nolink', '');
           if (clean.contains('|slug:')) {
             clean = clean.split('|slug:').first;
           }
+          clean = clean.trim();
+          if (clean.startsWith('#')) {
+            clean = clean.substring(1).trim();
+          }
           return clean;
-        }).join(', ');
-        tagsFuture = TranslationService.translate(sourceTags).catchError((err) {
-          debugPrint('Tags translation failed: $err');
-          return '';
+        }).toList();
+
+        final translatedTagFutures = cleanTags.map((tag) {
+          if (tag.trim().isEmpty) return Future.value('');
+          return TranslationService.translate(tag).catchError((err) {
+            debugPrint('Tag "$tag" translation failed: $err');
+            return tag;
+          });
+        }).toList();
+
+        tagsFuture = Future.wait(translatedTagFutures).then((list) {
+          return list.where((t) => t.isNotEmpty).join(', ');
         });
       }
 
+      // 2. Prepare description translation protecting all hyperlink formats
       Future<String> descFuture = Future.value('');
       final hasDescription = _details!.description.isNotEmpty && 
           _details!.description != '暂无描述' && 
           _details!.description != '获取描述中...';
       if (hasDescription) {
-        descFuture = TranslationService.translate(_details!.description).catchError((err) {
+        descFuture = _translateDescription(_details!.description).catchError((err) {
           debugPrint('Description translation failed: $err');
           return '';
         });
       }
 
-      // 2. Wait for both in parallel
+      // 3. Wait for both in parallel
       final results = await Future.wait([tagsFuture, descFuture]);
       final translatedTags = results[0];
       final translatedDesc = results[1];
@@ -699,9 +1173,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         _isTranslating = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('翻译失败，请检查网络后重试')),
-        );
+        final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+        ToastHelper.show(rootContext, '翻译失败，请检查网络后重试', type: ToastType.error);
       }
     }
   }
@@ -827,17 +1300,21 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Row(
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Text(
-                '正在下载并应用壁纸...',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.85,
+          child: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Text(
+                  '正在下载并应用壁纸...',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -854,39 +1331,13 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       if (mounted) {
         Navigator.pop(context); // Close dialog
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle_rounded, color: Colors.green),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('壁纸设置成功！')),
-                ],
-              ),
-              backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
+          _showNotification('壁纸设置成功！', type: 'success');
         }
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.red),
-                const SizedBox(width: 8),
-                Expanded(child: Text('设置壁纸失败: $e')),
-              ],
-            ),
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showNotification('设置壁纸失败: $e', type: 'error');
       }
     }
   }
@@ -974,22 +1425,12 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                 child: Hero(
                                   tag: index == 0 ? 'img_${_currentImage.id}' : 'img_${_currentImage.id}_p$index',
                                   child: imgUrl.isEmpty
-                                      ? Container(
-                                          height: 250,
-                                          color: theme.colorScheme.surfaceVariant,
-                                          alignment: Alignment.center,
-                                          child: CircularProgressIndicator(color: platformColor),
-                                        )
+                                      ? _buildPlaceholder(context, '', index, theme, platformColor)
                                       : CachedNetworkImage(
                                           imageUrl: imgUrl,
                                           httpHeaders: {'User-Agent': UserAgentService.userAgent},
                                           fit: BoxFit.fitWidth,
-                                          placeholder: (context, url) => Container(
-                                            height: 250,
-                                            color: theme.colorScheme.surfaceVariant,
-                                            alignment: Alignment.center,
-                                            child: CircularProgressIndicator(color: platformColor),
-                                          ),
+                                          placeholder: (context, url) => _buildPlaceholder(context, url, index, theme, platformColor),
                                           errorWidget: (context, url, error) => Container(
                                             height: 250,
                                             color: theme.colorScheme.surfaceVariant,
@@ -1018,12 +1459,12 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                     children: [
                                       // Favorite Action
                                       GestureDetector(
-                                        onTap: _toggleFavorite,
+                                        onTap: () => _toggleFavorite(imgUrl, index),
                                         child: ScaleTransition(
                                           scale: _heartScaleAnimation,
-                                          child: Icon(
-                                            _isFavorited ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                            color: _isFavorited ? Colors.pinkAccent : Colors.white,
+                                          child: const Icon(
+                                            Icons.favorite_border_rounded,
+                                            color: Colors.white,
                                             size: 20,
                                           ),
                                         ),
@@ -1205,9 +1646,9 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               right: 0,
               child: Center(
                 child: Opacity(
-                  opacity: (math.min(_overscrollTop, 80.0) / 80.0),
+                  opacity: (math.min(_overscrollTop, 100.0) / 100.0),
                   child: Transform.scale(
-                    scale: 0.8 + 0.2 * (math.min(_overscrollTop, 80.0) / 80.0),
+                    scale: 0.8 + 0.2 * (math.min(_overscrollTop, 100.0) / 100.0),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
@@ -1228,7 +1669,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                           const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
                           const SizedBox(width: 8),
                           Text(
-                            _overscrollTop >= 80 ? '释放以返回上一张' : '继续下拉返回上一张 (${_overscrollTop.toInt()}/80)',
+                            _overscrollTop >= 100 ? '释放以返回上一张' : '继续下拉返回上一张 (${_overscrollTop.toInt()}/100)',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -1251,9 +1692,9 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               right: 0,
               child: Center(
                 child: Opacity(
-                  opacity: (math.min(_overscrollBottom, 80.0) / 80.0),
+                  opacity: (math.min(_overscrollBottom, 100.0) / 100.0),
                   child: Transform.scale(
-                    scale: 0.8 + 0.2 * (math.min(_overscrollBottom, 80.0) / 80.0),
+                    scale: 0.8 + 0.2 * (math.min(_overscrollBottom, 100.0) / 100.0),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
@@ -1274,7 +1715,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                           const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white),
                           const SizedBox(width: 8),
                           Text(
-                            _overscrollBottom >= 80 ? '释放以探索随机图片' : '继续上拉探索随机图片 (${_overscrollBottom.toInt()}/80)',
+                            _overscrollBottom >= 100 ? '释放以探索随机图片' : '继续上拉探索随机图片 (${_overscrollBottom.toInt()}/100)',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,

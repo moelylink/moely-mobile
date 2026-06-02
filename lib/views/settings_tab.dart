@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:path_provider/path_provider.dart';
 import '../services/settings_service.dart';
 import 'storage_management_screen.dart';
 import '../utils/cache_helper.dart';
+import '../utils/toast_helper.dart';
+import '../services/url_handler_service.dart';
 import 'package:path/path.dart' as p;
 
 class SettingsTab extends StatefulWidget {
@@ -14,8 +16,9 @@ class SettingsTab extends StatefulWidget {
   State<SettingsTab> createState() => _SettingsTabState();
 }
 
-class _SettingsTabState extends State<SettingsTab> {
-  String _cacheSize = '正在计算...';
+class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   // Premium Preset Colors
   final List<Map<String, dynamic>> _presetColors = [
@@ -31,73 +34,9 @@ class _SettingsTabState extends State<SettingsTab> {
   @override
   void initState() {
     super.initState();
-    _calculateCacheSize();
   }
 
-  Future<void> _calculateCacheSize() async {
-    try {
-      final cacheDir = await getTemporaryDirectory();
-      double tempSize = 0;
-      if (cacheDir.existsSync()) {
-        cacheDir.listSync(recursive: true).forEach((file) {
-          if (file is File) {
-            tempSize += file.lengthSync();
-          }
-        });
-      }
-      final sizeMb = tempSize / (1024 * 1024);
-      setState(() {
-        _cacheSize = '${sizeMb.toStringAsFixed(2)} MB';
-      });
-    } catch (e) {
-      setState(() {
-        _cacheSize = '未知尺寸';
-      });
-    }
-  }
 
-  Future<void> _clearCache() async {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('清理缓存', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text('确定要清空所有已缓存的二次元美图吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              imageCache.clear();
-              imageCache.clearLiveImages();
-              try {
-                final cacheDir = await getTemporaryDirectory();
-                if (cacheDir.existsSync()) {
-                  cacheDir.deleteSync(recursive: true);
-                }
-              } catch (_) {}
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('缓存清理成功！'),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-                _calculateCacheSize();
-              }
-            },
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _pickDirectory(BuildContext context) async {
     _showCustomDirectoryBrowser(context);
@@ -399,6 +338,7 @@ class _SettingsTabState extends State<SettingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
 
     return AnimatedBuilder(
@@ -484,9 +424,7 @@ class _SettingsTabState extends State<SettingsTab> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const CacheManagementScreen()),
-                        ).then((_) {
-                          _calculateCacheSize();
-                        });
+                        );
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
@@ -750,24 +688,22 @@ class _ThemeColorPickerDialogState extends State<_ThemeColorPickerDialog> {
       keyboardType: TextInputType.number,
       textAlign: TextAlign.center,
       maxLength: 3,
-      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
       decoration: InputDecoration(
         counterText: "",
+        prefixIconConstraints: const BoxConstraints(minWidth: 20, minHeight: 0),
         prefixIcon: Padding(
-          padding: const EdgeInsets.only(left: 8.0, right: 2.0),
-          child: Center(
-            widthFactor: 1.0,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: labelColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
+          padding: const EdgeInsets.only(left: 8.0, right: 4.0),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: labelColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
             ),
           ),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         isDense: true,
         filled: true,
         fillColor: widget.theme.colorScheme.primary.withOpacity(0.04),
@@ -871,6 +807,7 @@ class _ThemeColorPickerDialogState extends State<_ThemeColorPickerDialog> {
     return AlertDialog(
       backgroundColor: widget.theme.colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
       title: Row(
         children: [
           Icon(Icons.palette_rounded, color: _currentColor),
@@ -879,7 +816,7 @@ class _ThemeColorPickerDialogState extends State<_ThemeColorPickerDialog> {
         ],
       ),
       content: SizedBox(
-        width: 320,
+        width: MediaQuery.of(context).size.width * 0.85,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1274,11 +1211,15 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: widget.theme.colorScheme.surface,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
         title: const Text('新建文件夹', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: '请输入文件夹名称',
+        content: SizedBox(
+          width: MediaQuery.of(context).size.width * 0.85,
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: '请输入文件夹名称',
+            ),
           ),
         ),
         actions: [
@@ -1298,9 +1239,7 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
                   Navigator.pop(context);
                   _loadSubDirectories();
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('创建文件夹失败: $e')),
-                  );
+                  ToastHelper.show(context, '创建文件夹失败: $e', type: ToastType.error);
                 }
               }
             },
@@ -1319,6 +1258,7 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
     return AlertDialog(
       backgroundColor: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
       contentPadding: EdgeInsets.zero,
       title: Row(
@@ -1335,7 +1275,7 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
         ],
       ),
       content: SizedBox(
-        width: double.maxFinite,
+        width: MediaQuery.of(context).size.width * 0.85,
         height: 350,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1457,9 +1397,8 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
               onPressed: () {
                 AppSettings.instance.setDownloadPath('');
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('已恢复为默认公共下载目录')),
-                );
+                final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                ToastHelper.show(rootContext, '已恢复为默认公共下载目录', type: ToastType.success);
               },
               child: const Text('恢复默认'),
             ),
@@ -1468,11 +1407,10 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
               onPressed: () {
                 AppSettings.instance.setDownloadPath(_currentDir.path);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('下载目录已设定为: ${_currentDir.path}')),
-                );
+                final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                ToastHelper.show(rootContext, '下载目录已设定为: ${_currentDir.path}', type: ToastType.success);
               },
-              child: const Text('选择当前目录'),
+              child: const Text('选择'),
             ),
           ],
         ),

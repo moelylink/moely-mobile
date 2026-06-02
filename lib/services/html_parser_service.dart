@@ -138,9 +138,9 @@ class HtmlParserService {
 
   /// Fetch illustrations for a specific tag name
   static Future<HtmlPageResult> fetchTagImages(String tag, int page) async {
-    // Decode first to prevent double encoding if tag is already url-encoded (e.g. from tag cloud or detail page slugs)
-    final decodedTag = Uri.decodeComponent(tag);
-    final encodedTag = Uri.encodeComponent(decodedTag);
+    // If the tag slug contains %, it is already the exact percent-encoded URL path segment from the website.
+    // Otherwise, we encode it to make sure it's valid for HTTP.
+    final String encodedTag = tag.contains('%') ? tag : Uri.encodeComponent(tag);
     final String url = page == 1
         ? 'https://www.moely.link/tags/$encodedTag/'
         : 'https://www.moely.link/tags/$encodedTag/page/$page/';
@@ -386,7 +386,7 @@ class HtmlParserService {
         final matches = tagRegex.allMatches(html);
         
         for (final m in matches) {
-          final urlName = Uri.decodeComponent(m.group(1)!);
+          final urlName = m.group(1)!;
           final displayName = m.group(2)!.trim();
           final count = int.tryParse(m.group(3)!) ?? 0;
           

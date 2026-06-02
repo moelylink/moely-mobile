@@ -84,6 +84,7 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="http" />
         </intent>
+        <package android:name="com.android.chrome" />
         <!-- Support text processing -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

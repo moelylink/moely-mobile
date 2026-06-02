@@ -434,26 +434,14 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
                   const SizedBox(height: 8),
                   
                   // Image ID
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.tag_rounded,
-                        size: 12,
-                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'ID: ${image.id}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'ID: ${image.id}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   

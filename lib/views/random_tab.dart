@@ -13,7 +13,10 @@ class RandomTab extends StatefulWidget {
   State<RandomTab> createState() => _RandomTabState();
 }
 
-class _RandomTabState extends State<RandomTab> {
+class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final Dio _dio = UserAgentService.createDio();
   List<MoelyImage> _images = [];
   bool _isLoading = true;
@@ -54,6 +57,7 @@ class _RandomTabState extends State<RandomTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     
     return Scaffold(
@@ -257,26 +261,14 @@ class _RandomTabState extends State<RandomTab> {
                   const SizedBox(height: 8),
                   
                   // Image ID
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.tag_rounded,
-                        size: 12,
-                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'ID: ${image.id}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'ID: ${image.id}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   

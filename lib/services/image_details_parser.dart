@@ -99,6 +99,18 @@ class ImageDetailsParser {
         }
       }
 
+      // 4.5 Extract ALL addStar image URLs (for exact thumbnail/star URLs on each page)
+      // E.g. addStar("starText","130872940","https://i.moely.link/c/540x540_70/...")
+      final List<String> starUrls = [];
+      final starRegex = RegExp(r'''addStar\s*\(\s*["\'][^"\']*["\']\s*,\s*["\'][^"\']*["\']\s*,\s*["\']([^"\']+)["\']\s*\)''');
+      final starMatches = starRegex.allMatches(html);
+      for (final match in starMatches) {
+        final url = match.group(1) ?? '';
+        if (url.isNotEmpty && !starUrls.contains(url)) {
+          starUrls.add(url);
+        }
+      }
+
       // 5. Extract description from #detail_info via pure stable string manipulation
       // e.g. <div id=detail_info>Springあまね😏✨🥺</div>
       String description = '暂无描述';
@@ -243,6 +255,22 @@ class ImageDetailsParser {
         }
       }
 
+      // 7. Extract category
+      String category = 'Other';
+      final categoryRegex = RegExp(r'分类：<a[^>]*>([^<]+)</a>', caseSensitive: false);
+      final categoryMatch = categoryRegex.firstMatch(html);
+      if (categoryMatch != null) {
+        category = categoryMatch.group(1)?.trim() ?? 'Other';
+      }
+
+      // 8. Extract user/author (画师)
+      String user = 'Unknown';
+      final userRegex = RegExp(r'画师：\s*([^<&]+)', caseSensitive: false);
+      final userMatch = userRegex.firstMatch(html);
+      if (userMatch != null) {
+        user = userMatch.group(1)?.trim() ?? 'Unknown';
+      }
+
       final details = ImageDetails(
         id: id,
         title: title,
@@ -252,7 +280,10 @@ class ImageDetailsParser {
         downloadUrl: downloadUrl,
         downloadUrls: downloadUrls,
         previewUrls: previewUrls,
+        starUrls: starUrls,
         description: description,
+        category: category,
+        user: user,
       );
 
       // Save to offline details cache
@@ -270,7 +301,10 @@ class ImageDetailsParser {
         downloadUrl: '',
         downloadUrls: [],
         previewUrls: [],
+        starUrls: [],
         description: '加载失败，请检查网络连接',
+        category: 'Other',
+        user: 'Unknown',
       );
     }
   }

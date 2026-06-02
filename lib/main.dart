@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'views/home_screen.dart';
 import 'services/user_agent_service.dart';
 import 'services/settings_service.dart';
@@ -7,6 +8,15 @@ import 'services/url_handler_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Supabase Client
+  await Supabase.initialize(
+    url: 'https://fefckqwvcvuadiixvhns.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlZmNrcXd2Y3Z1YWRpaXh2aG5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYzNDE5OTUsImV4cCI6MjA1MTkxNzk5NX0.-OUllwH7v2K-j4uIx7QQaV654R5Gz5_1jP4BGdkWWfg',
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
+  );
   
   // Initialize dynamic Native User-Agent resolution from platform version definitions
   await UserAgentService.initialize();
@@ -85,6 +95,23 @@ class MoelyApp extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            snackBarTheme: SnackBarThemeData(
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: lightColorScheme.surface,
+              contentTextStyle: TextStyle(
+                color: lightColorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: lightColorScheme.onSurface.withOpacity(0.08),
+                  width: 1,
+                ),
+              ),
+            ),
           ),
 
           // Dark Mode Theme config
@@ -107,10 +134,27 @@ class MoelyApp extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            snackBarTheme: SnackBarThemeData(
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: darkColorScheme.surface,
+              contentTextStyle: TextStyle(
+                color: darkColorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: darkColorScheme.onSurface.withOpacity(0.08),
+                  width: 1,
+                ),
+              ),
+            ),
           ),
           
           themeMode: AppSettings.instance.themeMode,
-          home: const HomeScreen(),
+          home: HomeScreen(),
         );
       },
     );

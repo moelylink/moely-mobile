@@ -18,4 +18,13 @@ class WallpaperService {
       throw Exception('未知错误: $e');
     }
   }
+
+  /// Scan media file to refresh native gallery.
+  static Future<void> scanFile(String path) async {
+    try {
+      await _channel.invokeMethod('scanFile', {'path': path});
+    } catch (_) {
+      // Ignore errors for media scanning non-critically
+    }
+  }
 }

@@ -9,19 +9,45 @@ import 'settings_tab.dart';
 import 'mine_tab.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  static final GlobalKey<HomeScreenState> homeKey = GlobalKey<HomeScreenState>();
+
+  HomeScreen() : super(key: homeKey);
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  late PageController _pageController;
+
+  void switchTab(int index) {
+    if (mounted) {
+      setState(() {
+        _currentIndex = index;
+      });
+      FocusScope.of(context).unfocus();
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _requestPermissions();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _requestPermissions() async {
@@ -37,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Fully Native refactored tabs
   final List<Widget> _tabs = [
-    const LatestTab(), // Latest WebView
+    LatestTab(), // Latest Tab
     const ExploreTab(), // Explore Category / Search
     const RandomTab(), // Native Random Staggered Grid
     const SettingsTab(), // Native Settings Tab
@@ -53,8 +79,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           // Content Tab Layer
-          IndexedStack(
-            index: _currentIndex,
+          PageView(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+              FocusScope.of(context).unfocus();
+            },
             children: _tabs,
           ),
           
@@ -117,9 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Expanded(
       child: InkWell(
         onTap: () {
-          setState(() {
-            _currentIndex = index;
-          });
+          switchTab(index);
         },
         borderRadius: BorderRadius.circular(20.0),
         splashColor: activeColor.withOpacity(0.1),

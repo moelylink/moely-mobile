@@ -7,7 +7,10 @@ class ImageDetails {
   final String downloadUrl; // First high-res download URL
   final List<String> downloadUrls; // All high-res download URLs (for multi-image)
   final List<String> previewUrls; // All medium-res preview URLs (for multi-image)
+  final List<String> starUrls; // Image URLs extracted from addStar(...) buttons
   final String description; // Description parsed from #detail_info
+  final String category; // Category parsed from HTML (e.g. Twitter, Pixiv)
+  final String user; // Artist/User parsed from HTML (e.g. @beni_0214)
   String? translatedText;
 
   ImageDetails({
@@ -19,7 +22,10 @@ class ImageDetails {
     required this.downloadUrl,
     required this.downloadUrls,
     required this.previewUrls,
+    required this.starUrls,
     required this.description,
+    required this.category,
+    required this.user,
     this.translatedText,
   });
 
@@ -33,7 +39,10 @@ class ImageDetails {
       'downloadUrl': downloadUrl,
       'downloadUrls': downloadUrls,
       'previewUrls': previewUrls,
+      'starUrls': starUrls,
       'description': description,
+      'category': category,
+      'user': user,
       'translatedText': translatedText,
     };
   }
@@ -48,7 +57,10 @@ class ImageDetails {
       downloadUrl: json['downloadUrl'] ?? '',
       downloadUrls: List<String>.from(json['downloadUrls'] ?? []),
       previewUrls: List<String>.from(json['previewUrls'] ?? []),
+      starUrls: List<String>.from(json['starUrls'] ?? []),
       description: json['description'] ?? '',
+      category: json['category'] ?? 'Other',
+      user: json['user'] ?? 'Unknown',
       translatedText: json['translatedText'],
     );
   }

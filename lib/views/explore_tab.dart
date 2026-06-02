@@ -10,11 +10,15 @@ class ExploreTab extends StatefulWidget {
   State<ExploreTab> createState() => _ExploreTabState();
 }
 
-class _ExploreTabState extends State<ExploreTab> {
+class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final TextEditingController _searchController = TextEditingController();
 
   void _handleSearch(String query) {
     if (query.trim().isEmpty) return;
+    FocusScope.of(context).unfocus();
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -31,10 +35,13 @@ class _ExploreTabState extends State<ExploreTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: theme.colorScheme.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20.0, 24.0, 20.0, 120.0), // Room for bottom floating bar
@@ -125,6 +132,7 @@ class _ExploreTabState extends State<ExploreTab> {
                 startColor: const Color(0xFF0052D4),
                 endColor: const Color(0xFF4364F7),
                 onTap: () {
+                  FocusScope.of(context).unfocus();
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -146,6 +154,7 @@ class _ExploreTabState extends State<ExploreTab> {
                 startColor: const Color(0xFF1c92d2),
                 endColor: const Color(0xFF06B6D4),
                 onTap: () {
+                  FocusScope.of(context).unfocus();
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -167,6 +176,7 @@ class _ExploreTabState extends State<ExploreTab> {
                 startColor: const Color(0xFF10B981),
                 endColor: const Color(0xFF12FFF7),
                 onTap: () {
+                  FocusScope.of(context).unfocus();
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -179,8 +189,9 @@ class _ExploreTabState extends State<ExploreTab> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildCategoryCard({
     required String title,

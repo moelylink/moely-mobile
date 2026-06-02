@@ -6,15 +6,23 @@ import '../models/image_item.dart';
 import '../services/user_agent_service.dart';
 import '../services/html_parser_service.dart';
 import 'image_detail_screen.dart';
+import '../utils/toast_helper.dart';
+import '../services/url_handler_service.dart';
 
 class LatestTab extends StatefulWidget {
-  const LatestTab({super.key});
+  static final GlobalKey<LatestTabState> latestTabKey = GlobalKey<LatestTabState>();
+  static int initialPage = 1;
+
+  LatestTab() : super(key: latestTabKey);
 
   @override
-  State<LatestTab> createState() => _LatestTabState();
+  State<LatestTab> createState() => LatestTabState();
 }
 
-class _LatestTabState extends State<LatestTab> {
+class LatestTabState extends State<LatestTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   List<MoelyImage> _images = [];
   bool _isLoading = true;
   bool _hasError = false;
@@ -24,9 +32,20 @@ class _LatestTabState extends State<LatestTab> {
   bool _isPaginationVisible = true;
   Timer? _scrollTimer;
 
+  void jumpToPage(int page) {
+    LatestTab.initialPage = page;
+    if (mounted) {
+      setState(() {
+        _currentPage = page;
+        _fetchLatestImages();
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _currentPage = LatestTab.initialPage;
     _fetchLatestImages();
   }
 
@@ -80,6 +99,7 @@ class _LatestTabState extends State<LatestTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     
     return Scaffold(
@@ -306,95 +326,110 @@ class _LatestTabState extends State<LatestTab> {
 
   void _showPageJumpDialog(BuildContext context, ThemeData theme) {
     final controller = TextEditingController(text: _currentPage.toString());
+    String? errorMessage;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: theme.colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.0)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-        title: Text(
-          '跳转到指定页',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        content: SizedBox(
-          width: MediaQuery.of(context).size.width * 0.85,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '可输入范围：1 ~ $_totalPages',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withOpacity(0.2),
-                    width: 1,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.0)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          title: Text(
+            '跳转到指定页',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '可输入范围：1 ~ $_totalPages',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
                   ),
-                ),
-                child: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: errorMessage != null
+                          ? Colors.redAccent
+                          : theme.colorScheme.primary.withOpacity(0.2),
+                      width: 1,
+                    ),
                   ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  child: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: errorMessage != null ? Colors.redAccent : theme.colorScheme.primary,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        actionsAlignment: MainAxisAlignment.spaceEvenly,
-        actionsPadding: const EdgeInsets.only(bottom: 20, left: 16, right: 16),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              '取消',
-              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final val = int.tryParse(controller.text);
-              if (val != null && val >= 1 && val <= _totalPages) {
-                Navigator.pop(context);
-                setState(() {
-                  _currentPage = val;
-                  _fetchLatestImages();
-                });
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('页码超出范围，请输入 1 ~ $_totalPages 之间的数字'),
-                    behavior: SnackBarBehavior.floating,
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ],
+              ],
             ),
-            child: const Text('确认', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-        ],
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actionsPadding: const EdgeInsets.only(bottom: 20, left: 16, right: 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                '取消',
+                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final val = int.tryParse(controller.text);
+                if (val != null && val >= 1 && val <= _totalPages) {
+                  Navigator.pop(context);
+                  setState(() {
+                    _currentPage = val;
+                    _fetchLatestImages();
+                  });
+                } else {
+                  setDialogState(() {
+                    errorMessage = '页码范围错误，请输入 1 ~ $_totalPages';
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text('确认', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -508,26 +543,14 @@ class _LatestTabState extends State<LatestTab> {
                   const SizedBox(height: 8),
                   
                   // Image ID
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.tag_rounded,
-                        size: 12,
-                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'ID: ${image.id}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'ID: ${image.id}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   

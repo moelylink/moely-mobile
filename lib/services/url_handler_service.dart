@@ -2,13 +2,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/image_item.dart';
 import '../views/image_detail_screen.dart';
 import '../views/category_grid_screen.dart';
 import '../views/tag_grid_screen.dart';
 import '../views/search_grid_screen.dart';
 import '../views/denoised_web_screen.dart';
+import '../views/home_screen.dart';
+import '../views/latest_tab.dart';
 import 'settings_service.dart';
+import '../utils/toast_helper.dart';
 
 class UrlHandlerService {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -55,12 +59,7 @@ class UrlHandlerService {
       if (uri != null) {
         launchUrl(uri, mode: LaunchMode.externalApplication).catchError((err) {
           debugPrint('Failed to launch external URL: $err');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('打开外部链接失败: $err'),
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          ToastHelper.show(context, '打开外部链接失败: $err', type: ToastType.error);
           return false;
         });
       }
@@ -71,6 +70,40 @@ class UrlHandlerService {
   /// Returns `true` if the URL was handled inside the app, `false` otherwise.
   static bool handleUrl(BuildContext? context, String url) {
     if (url.isEmpty) return false;
+
+    // 1. Intercept Deep Link Auth Callbacks before any normalization
+    if (url.startsWith('moely://auth-callback')) {
+      debugPrint("Intercepted Authentication Callback Deep Link: $url");
+      final navContext = context ?? navigatorKey.currentContext;
+
+      // Extract access_token and refresh_token from the callback hash/fragment
+      try {
+        final normalizedLink = url.replaceFirst('#', '?');
+        final uri = Uri.parse(normalizedLink);
+        final accessToken = uri.queryParameters['access_token'];
+        final refreshToken = uri.queryParameters['refresh_token'];
+        
+        if (accessToken != null && refreshToken != null) {
+          debugPrint("Recovering session with accessToken and refreshToken from Web Login Page");
+          Supabase.instance.client.auth.setSession(
+            refreshToken,
+            accessToken: accessToken,
+          ).then((response) {
+            debugPrint("Session successfully recovered: ${response.session?.user.email}");
+          }).catchError((e) {
+            debugPrint("Error recovering session: $e");
+          });
+        }
+      } catch (e) {
+        debugPrint("Error recovering session from deep link: $e");
+      }
+
+      if (navContext != null) {
+        Navigator.popUntil(navContext, (route) => route.isFirst);
+        ToastHelper.show(navContext, '🎉 登录成功，欢迎来到萌哩！', type: ToastType.success);
+      }
+      return true;
+    }
 
     // Normalize moely:// or relative urls
     String normalizedUrl = url.trim();
@@ -122,6 +155,7 @@ class UrlHandlerService {
               return AlertDialog(
                 backgroundColor: theme.colorScheme.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
                 title: Row(
                   children: [
                     Icon(Icons.open_in_new_rounded, color: theme.colorScheme.primary),
@@ -129,9 +163,12 @@ class UrlHandlerService {
                     const Text('提示', style: TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
-                content: Text(
-                  '您即将离开目前页面，前往外部网址：\n\n$normalizedUrl',
-                  style: const TextStyle(fontSize: 14),
+                content: SizedBox(
+                  width: MediaQuery.of(dialogContext).size.width * 0.85,
+                  child: Text(
+                    '您即将离开目前页面，前往外部网址：\n\n$normalizedUrl',
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ),
                 actions: [
                   TextButton(
@@ -203,23 +240,49 @@ class UrlHandlerService {
       return true;
     }
 
-    // 3. Tag page: /tags/<tag_name>/
+    // 3. Random page: /random/ or /random
+    if (path == '/random/' || path == '/random') {
+      Navigator.popUntil(navContext, (route) => route.isFirst);
+      HomeScreen.homeKey.currentState?.switchTab(2); // Switch to Random Tab
+      return true;
+    }
+
+    // 4. Tag page: /tags/<tag_name>/(page/<num>/)?
     final tagMatch = RegExp(r'^/tags/([^/]+)').firstMatch(path);
     if (tagMatch != null) {
       final tagName = Uri.decodeComponent(tagMatch.group(1)!);
+      
+      // Parse optional page number
+      int pageNum = 1;
+      final pageInPathMatch = RegExp(r'/page/(\d+)').firstMatch(path);
+      if (pageInPathMatch != null) {
+        pageNum = int.tryParse(pageInPathMatch.group(1) ?? '1') ?? 1;
+      }
+
       Navigator.push(
         navContext,
         MaterialPageRoute(
-          builder: (context) => TagGridScreen(tag: tagName),
+          builder: (context) => TagGridScreen(
+            tag: tagName,
+            initialPage: pageNum,
+          ),
         ),
       );
       return true;
     }
 
-    // 4. Category page: /category/<category_code>/
+    // 5. Category page: /category/<category_code>/(page/<num>/)?
     final categoryMatch = RegExp(r'^/category/([^/]+)').firstMatch(path);
     if (categoryMatch != null) {
       final categoryCode = categoryMatch.group(1)!.toLowerCase();
+      
+      // Parse optional page number
+      int pageNum = 1;
+      final pageInPathMatch = RegExp(r'/page/(\d+)').firstMatch(path);
+      if (pageInPathMatch != null) {
+        pageNum = int.tryParse(pageInPathMatch.group(1) ?? '1') ?? 1;
+      }
+
       String title = categoryCode;
       if (categoryCode == 'pixiv') {
         title = 'Pixiv 插画';
@@ -234,15 +297,29 @@ class UrlHandlerService {
           builder: (context) => CategoryGridScreen(
             categoryCode: categoryCode,
             title: title,
+            initialPage: pageNum,
           ),
         ),
       );
       return true;
     }
 
-    // 5. Default homepage: / or page/<num>/
-    if (path == '/' || path == '' || RegExp(r'^/page/\d+').hasMatch(path)) {
+    // 6. Latest / Homepage: / or /page/<num>/
+    if (path == '/' || path == '') {
       Navigator.popUntil(navContext, (route) => route.isFirst);
+      HomeScreen.homeKey.currentState?.switchTab(0); // Switch to Latest Tab
+      LatestTab.initialPage = 1;
+      LatestTab.latestTabKey.currentState?.jumpToPage(1);
+      return true;
+    }
+
+    final pageMatch = RegExp(r'^/page/(\d+)').firstMatch(path);
+    if (pageMatch != null) {
+      final pageNum = int.tryParse(pageMatch.group(1) ?? '1') ?? 1;
+      Navigator.popUntil(navContext, (route) => route.isFirst);
+      HomeScreen.homeKey.currentState?.switchTab(0); // Switch to Latest Tab
+      LatestTab.initialPage = pageNum;
+      LatestTab.latestTabKey.currentState?.jumpToPage(pageNum);
       return true;
     }
 

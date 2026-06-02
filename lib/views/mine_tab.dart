@@ -1,4 +1,14 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
+import 'account_settings_screen.dart';
+import 'favorites_screen.dart';
+import 'browsing_history_screen.dart';
+import 'storage_management_screen.dart';
+import 'messages_screen.dart';
+import 'widget_store_screen.dart';
+import '../utils/toast_helper.dart';
+import '../services/url_handler_service.dart';
 
 class MineTab extends StatefulWidget {
   const MineTab({super.key});
@@ -7,70 +17,53 @@ class MineTab extends StatefulWidget {
   State<MineTab> createState() => _MineTabState();
 }
 
-class _MineTabState extends State<MineTab> {
-  bool _isLoggedIn = false;
-  String _userEmail = '';
-
+class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   void _handleLogin() {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
 
+  void _handleLogout() async {
     showDialog(
       context: context,
       builder: (context) {
+        final theme = Theme.of(context);
         return AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
+          backgroundColor: theme.colorScheme.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Row(
-            children: [
-              Icon(Icons.login_rounded, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              const Text('登录萌哩', style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: '电子邮箱',
-                  prefixIcon: const Icon(Icons.email_rounded),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: '密码',
-                  prefixIcon: const Icon(Icons.lock_rounded),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
-            ],
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          title: const Text('退出登录', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: const Text('确认要退出当前萌哩账号吗？'),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
+              child: Text('取消', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6))),
             ),
             FilledButton(
-              onPressed: () {
-                final email = emailController.text.trim();
-                if (email.isNotEmpty) {
-                  setState(() {
-                    _isLoggedIn = true;
-                    _userEmail = email;
-                  });
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('欢迎回来，$email！')),
-                  );
+              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: () async {
+                Navigator.pop(context);
+                try {
+                  await AuthService.instance.signOut();
+                  if (mounted) {
+                    final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                    ToastHelper.show(rootContext, '已成功退出登录', type: ToastType.success);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+                    ToastHelper.show(rootContext, '退出登录失败: $e', type: ToastType.error);
+                  }
                 }
               },
-              child: const Text('登录'),
+              child: const Text('退出'),
             ),
           ],
         );
@@ -78,156 +71,256 @@ class _MineTabState extends State<MineTab> {
     );
   }
 
-  void _handleLogout() {
-    setState(() {
-      _isLoggedIn = false;
-      _userEmail = '';
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已成功退出登录')),
+  Widget _buildProfileHeader(ThemeData theme, bool isLoggedIn, String userEmail) {
+    final avatarLetter = isLoggedIn && userEmail.isNotEmpty ? userEmail[0].toUpperCase() : '';
+    
+    return InkWell(
+      onTap: isLoggedIn 
+          ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AccountSettingsScreen()))
+          : _handleLogin,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primaryContainer.withOpacity(0.25),
+              theme.colorScheme.surface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: theme.colorScheme.primaryContainer.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.015),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Left avatar
+            Hero(
+              tag: 'avatar_profile',
+              child: CircleAvatar(
+                radius: 36,
+                backgroundColor: isLoggedIn 
+                    ? theme.colorScheme.primary 
+                    : theme.colorScheme.onSurface.withOpacity(0.06),
+                child: isLoggedIn
+                    ? Text(
+                        avatarLetter,
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : Icon(
+                        Icons.person_rounded,
+                        size: 38,
+                        color: theme.colorScheme.onSurface.withOpacity(0.4),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 20),
+            // Right account email details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isLoggedIn ? userEmail : '未登录萌哩',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isLoggedIn ? '安全云端同步服务已就绪' : '点击登录以使用云端同步与私信',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: theme.colorScheme.onSurface.withOpacity(0.3),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // Premium Profile Header
-          SliverAppBar(
-            expandedHeight: 220,
-            floating: false,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primaryContainer,
-                      theme.colorScheme.surface,
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
+    return AnimatedBuilder(
+      animation: AuthService.instance,
+      builder: (context, _) {
+        final isLoggedIn = AuthService.instance.isLoggedIn;
+        final userEmail = AuthService.instance.userEmail;
+
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+          appBar: AppBar(
+            title: const Text('我的', style: TextStyle(fontWeight: FontWeight.bold)),
+            centerTitle: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+            children: [
+              // Premium left-aligned Profile Header
+              _buildProfileHeader(theme, isLoggedIn, userEmail),
+              const SizedBox(height: 24),
+
+              // Button actions grid / unified card
+              _buildSectionHeader(theme, '个人云端与收藏'),
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 40),
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: theme.colorScheme.primary,
-                      child: Icon(
-                        _isLoggedIn ? Icons.face_retouching_natural_rounded : Icons.person_rounded,
-                        size: 40,
-                        color: theme.colorScheme.onPrimary,
-                      ),
+                    // (1) 账号设置
+                    ListTile(
+                      leading: Icon(Icons.manage_accounts_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('账号设置', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('账号安全、修改密码、绑定社交账号', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        if (isLoggedIn) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AccountSettingsScreen()),
+                          );
+                        } else {
+                          _handleLogin();
+                        }
+                      },
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _isLoggedIn ? _userEmail : '未登录萌哩',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    const Divider(height: 1, indent: 56, endIndent: 16),
+
+                    // (2) 美图收藏
+                    ListTile(
+                      leading: const Icon(Icons.favorite_rounded, color: Colors.pinkAccent),
+                      title: const Text('美图收藏', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('查看与同步已收藏的精美插图', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FavoritesScreen()),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _isLoggedIn ? 'UID: 20260526' : '登录即可同步收藏夹及云端壁纸',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
-                      ),
+                    const Divider(height: 1, indent: 56, endIndent: 16),
+
+                    // (3) 浏览历史
+                    ListTile(
+                      leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
+                      title: const Text('浏览历史', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('查看与清空本地浏览过的图片纪录', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const BrowsingHistoryScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
+              const SizedBox(height: 20),
 
-          // Profile Actions List
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120), // Bottom padding for bar
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                if (!_isLoggedIn) ...[
-                  FilledButton.icon(
-                    onPressed: _handleLogin,
-                    icon: const Icon(Icons.login_rounded),
-                    label: const Text('登录 / 注册萌哩', style: TextStyle(fontWeight: FontWeight.bold)),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              _buildSectionHeader(theme, '本地管理与服务'),
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                child: Column(
+                  children: [
+                    // (4) 下载管理
+                    ListTile(
+                      leading: Icon(Icons.download_for_offline_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('下载管理', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('查看与清理已下载成功的原画图片', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const DownloadManagementScreen()),
+                        );
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                    const Divider(height: 1, indent: 56, endIndent: 16),
 
-                // Section: Collection & Sync
-                _buildSectionHeader(theme, '收藏与云端服务'),
-                Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.favorite_rounded, color: Colors.pinkAccent),
-                        title: const Text('我的收藏夹', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                        onTap: () {},
-                      ),
-                      const Divider(height: 1, indent: 16, endIndent: 16),
-                      ListTile(
-                        leading: const Icon(Icons.cloud_done_rounded, color: Colors.blue),
-                        title: const Text('云端备份壁纸', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                        onTap: () {},
-                      ),
-                    ],
+                    // (5) 私信消息
+                    ListTile(
+                      leading: Icon(Icons.forum_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('私信消息', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('接收系统广播、与其他小伙伴私信对话', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const MessagesScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, indent: 56, endIndent: 16),
+
+                    // (6) 小部件商城
+                    ListTile(
+                      leading: Icon(Icons.widgets_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('小部件商城', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('获取精美的桌面大/中/小原生插件小工具', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const WidgetStoreScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              if (isLoggedIn) ...[
+                const SizedBox(height: 32),
+                OutlinedButton.icon(
+                  onPressed: _handleLogout,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('退出登录', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Section: Preference Settings
-                _buildSectionHeader(theme, '个性偏好'),
-                Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.palette_rounded),
-                        title: const Text('主题设置', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        trailing: const Text('深色/浅色自适应', style: TextStyle(fontSize: 12)),
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (_isLoggedIn) ...[
-                  const SizedBox(height: 32),
-                  OutlinedButton.icon(
-                    onPressed: _handleLogout,
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('退出当前账号'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                  ),
-                ],
-              ]),
-            ),
+              ],
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildSectionHeader(ThemeData theme, String title) {
     return Padding(
-      padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+      padding: const EdgeInsets.only(left: 12.0, bottom: 8.0),
       child: Text(
         title,
         style: TextStyle(
