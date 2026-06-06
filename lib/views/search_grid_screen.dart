@@ -5,6 +5,7 @@ import '../models/image_item.dart';
 import '../services/html_parser_service.dart';
 import '../services/user_agent_service.dart';
 import 'image_detail_screen.dart';
+import '../widgets/smooth_aspect_ratio_image.dart';
 
 class SearchGridScreen extends StatefulWidget {
   final String query;
@@ -350,28 +351,30 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
             // Image Section
             Hero(
               tag: 'img_${image.id}',
-              child: CachedNetworkImage(
+              child: SmoothAspectRatioImage(
                 imageUrl: image.urls,
                 httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                fit: BoxFit.fitWidth,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                builder: (context, isLoading) => CachedNetworkImage(
+                  imageUrl: image.urls,
+                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: Icon(Icons.broken_image_rounded),
+                  errorWidget: (context, url, error) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: Icon(Icons.broken_image_rounded),
+                    ),
                   ),
                 ),
               ),

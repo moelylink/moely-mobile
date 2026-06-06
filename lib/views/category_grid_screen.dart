@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/image_item.dart';
+import '../models/promo_item.dart';
 import '../services/html_parser_service.dart';
 import '../services/user_agent_service.dart';
+import '../services/promo_service.dart';
 import 'image_detail_screen.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import '../widgets/smooth_aspect_ratio_image.dart';
+import '../widgets/promo_card.dart';
 
 class CategoryGridScreen extends StatefulWidget {
   final String categoryCode; // 'pixiv' or 'twitter'
@@ -26,14 +31,14 @@ class CategoryGridScreen extends StatefulWidget {
 }
 
 class _CategoryGridScreenState extends State<CategoryGridScreen> {
-  final List<MoelyImage> _images = [];
+  final List<dynamic> _images = [];
   
   int _currentPage = 1;
   int _totalPages = 1;
   bool _isLoadingInitial = true;
   bool _hasMore = true;
   bool _hasError = false;
-  bool _isPaginationVisible = true;
+  final ValueNotifier<bool> _isPaginationVisible = ValueNotifier<bool>(true);
   Timer? _scrollTimer;
 
   @override
@@ -46,15 +51,14 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
   @override
   void dispose() {
     _scrollTimer?.cancel();
+    _isPaginationVisible.dispose();
     super.dispose();
   }
 
   void _onScrollStarted() {
     _scrollTimer?.cancel();
-    if (_isPaginationVisible) {
-      setState(() {
-        _isPaginationVisible = false;
-      });
+    if (_isPaginationVisible.value) {
+      _isPaginationVisible.value = false;
     }
   }
 
@@ -62,9 +66,7 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
     _scrollTimer?.cancel();
     _scrollTimer = Timer(const Duration(seconds: 1), () {
       if (mounted) {
-        setState(() {
-          _isPaginationVisible = true;
-        });
+        _isPaginationVisible.value = true;
       }
     });
   }
@@ -77,9 +79,20 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
 
     try {
       final result = await HtmlParserService.fetchCategoryImages(widget.categoryCode, _currentPage);
+      
+      await PromoService.instance.fetchPromos();
+      final items = List<dynamic>.from(result.images);
+      if (items.isNotEmpty) {
+        final promo = PromoService.instance.getRandomPromo();
+        if (promo != null) {
+          final insertIdx = math.Random().nextInt(items.length + 1);
+          items.insert(insertIdx, promo);
+        }
+      }
+
       setState(() {
         _images.clear();
-        _images.addAll(result.images);
+        _images.addAll(items);
         _totalPages = result.totalPages;
         _isLoadingInitial = false;
         _hasMore = _currentPage < _totalPages;
@@ -185,7 +198,7 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
               if (scrollNotification is ScrollStartNotification) {
                 _onScrollStarted();
               } else if (scrollNotification is ScrollUpdateNotification) {
-                if (_isPaginationVisible) {
+                if (_isPaginationVisible.value) {
                   _onScrollStarted();
                 }
               } else if (scrollNotification is ScrollEndNotification) {
@@ -202,8 +215,13 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
                 itemCount: _images.length,
                 padding: const EdgeInsets.only(top: 8.0, bottom: 100.0),
                 itemBuilder: (context, index) {
-                  final image = _images[index];
-                  return _buildImageCard(theme, image, brandColor);
+                  final item = _images[index];
+                  if (item is PromoItem) {
+                    return PromoCard(promo: item);
+                  } else if (item is MoelyImage) {
+                    return _buildImageCard(theme, item, brandColor);
+                  }
+                  return const SizedBox.shrink();
                 },
               ),
             ),
@@ -213,22 +231,27 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
           left: 0,
           right: 0,
           bottom: 0,
-          child: IgnorePointer(
-            ignoring: !_isPaginationVisible,
-            child: AnimatedOpacity(
-              opacity: _isPaginationVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              child: AnimatedSlide(
-                offset: _isPaginationVisible ? Offset.zero : const Offset(0.0, 1.5),
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: _buildPaginationBar(theme),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _isPaginationVisible,
+            builder: (context, visible, child) {
+              return IgnorePointer(
+                ignoring: !visible,
+                child: AnimatedOpacity(
+                  opacity: visible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: AnimatedSlide(
+                    offset: visible ? Offset.zero : const Offset(0.0, 1.5),
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: _buildPaginationBar(theme),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ],
@@ -454,28 +477,30 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
             // Image Section
             Hero(
               tag: 'img_${image.id}',
-              child: CachedNetworkImage(
+              child: SmoothAspectRatioImage(
                 imageUrl: image.urls,
                 httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                fit: BoxFit.fitWidth,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                builder: (context, isLoading) => CachedNetworkImage(
+                  imageUrl: image.urls,
+                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: Icon(Icons.broken_image_rounded),
+                  errorWidget: (context, url, error) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: Icon(Icons.broken_image_rounded),
+                    ),
                   ),
                 ),
               ),

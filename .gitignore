@@ -59,3 +59,10 @@ captures/
 
 # Jetpack Compose
 compose.*
+
+# Flutter-specific build artifacts and logs
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+pub_get_error.txt
+pub_get_out.txt

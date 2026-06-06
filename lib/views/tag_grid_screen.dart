@@ -8,6 +8,7 @@ import '../services/user_agent_service.dart';
 import 'image_detail_screen.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import '../widgets/smooth_aspect_ratio_image.dart';
 
 class TagGridScreen extends StatefulWidget {
   final String tag;
@@ -33,7 +34,7 @@ class _TagGridScreenState extends State<TagGridScreen> {
   bool _isLoadingInitial = true;
   bool _hasMore = true;
   bool _hasError = false;
-  bool _isPaginationVisible = true;
+  final ValueNotifier<bool> _isPaginationVisible = ValueNotifier<bool>(true);
   Timer? _scrollTimer;
 
   @override
@@ -46,15 +47,14 @@ class _TagGridScreenState extends State<TagGridScreen> {
   @override
   void dispose() {
     _scrollTimer?.cancel();
+    _isPaginationVisible.dispose();
     super.dispose();
   }
 
   void _onScrollStarted() {
     _scrollTimer?.cancel();
-    if (_isPaginationVisible) {
-      setState(() {
-        _isPaginationVisible = false;
-      });
+    if (_isPaginationVisible.value) {
+      _isPaginationVisible.value = false;
     }
   }
 
@@ -62,9 +62,7 @@ class _TagGridScreenState extends State<TagGridScreen> {
     _scrollTimer?.cancel();
     _scrollTimer = Timer(const Duration(seconds: 1), () {
       if (mounted) {
-        setState(() {
-          _isPaginationVisible = true;
-        });
+        _isPaginationVisible.value = true;
       }
     });
   }
@@ -185,7 +183,7 @@ class _TagGridScreenState extends State<TagGridScreen> {
               if (scrollNotification is ScrollStartNotification) {
                 _onScrollStarted();
               } else if (scrollNotification is ScrollUpdateNotification) {
-                if (_isPaginationVisible) {
+                if (_isPaginationVisible.value) {
                   _onScrollStarted();
                 }
               } else if (scrollNotification is ScrollEndNotification) {
@@ -213,22 +211,27 @@ class _TagGridScreenState extends State<TagGridScreen> {
           left: 0,
           right: 0,
           bottom: 0,
-          child: IgnorePointer(
-            ignoring: !_isPaginationVisible,
-            child: AnimatedOpacity(
-              opacity: _isPaginationVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              child: AnimatedSlide(
-                offset: _isPaginationVisible ? Offset.zero : const Offset(0.0, 1.5),
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: _buildPaginationBar(theme),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _isPaginationVisible,
+            builder: (context, visible, child) {
+              return IgnorePointer(
+                ignoring: !visible,
+                child: AnimatedOpacity(
+                  opacity: visible ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: AnimatedSlide(
+                    offset: visible ? Offset.zero : const Offset(0.0, 1.5),
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: _buildPaginationBar(theme),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ],
@@ -456,28 +459,30 @@ class _TagGridScreenState extends State<TagGridScreen> {
             // Image Section
             Hero(
               tag: 'img_${image.id}',
-              child: CachedNetworkImage(
+              child: SmoothAspectRatioImage(
                 imageUrl: image.urls,
                 httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                fit: BoxFit.fitWidth,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                builder: (context, isLoading) => CachedNetworkImage(
+                  imageUrl: image.urls,
+                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: Icon(Icons.broken_image_rounded),
+                  errorWidget: (context, url, error) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: Icon(Icons.broken_image_rounded),
+                    ),
                   ),
                 ),
               ),

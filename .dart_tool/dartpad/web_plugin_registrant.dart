@@ -7,6 +7,7 @@
 // ignore_for_file: type=lint
 
 import 'package:app_links_web/app_links_web.dart';
+import 'package:device_info_plus/src/device_info_plus_web.dart';
 import 'package:file_picker/src/platform/web/file_picker_web.dart';
 import 'package:google_sign_in_web/google_sign_in_web.dart';
 import 'package:package_info_plus/src/package_info_plus_web.dart';
@@ -19,6 +20,7 @@ import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 void registerPlugins([final Registrar? pluginRegistrar]) {
   final Registrar registrar = pluginRegistrar ?? webPluginRegistrar;
   AppLinksPluginWeb.registerWith(registrar);
+  DeviceInfoPlusWebPlugin.registerWith(registrar);
   FilePickerWeb.registerWith(registrar);
   GoogleSignInPlugin.registerWith(registrar);
   PackageInfoPlusWebPlugin.registerWith(registrar);

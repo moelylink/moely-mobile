@@ -7,6 +7,7 @@ import 'random_tab.dart';
 import 'explore_tab.dart';
 import 'settings_tab.dart';
 import 'mine_tab.dart';
+import '../services/update_service.dart';
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<HomeScreenState> homeKey = GlobalKey<HomeScreenState>();
@@ -20,20 +21,84 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   late PageController _pageController;
+  bool _isAnimating = false;
+  List<Widget>? _displayTabs;
+
+  final List<GlobalKey> _tabKeys = List.generate(5, (_) => GlobalKey());
+
+  late final List<Widget> _tabs = [
+    LatestTab(), // Latest Tab (internally uses LatestTab.latestTabKey)
+    ExploreTab(key: _tabKeys[1]), // Explore Category / Search
+    RandomTab(key: _tabKeys[2]), // Native Random Staggered Grid
+    SettingsTab(key: _tabKeys[3]), // Native Settings Tab
+    MineTab(key: _tabKeys[4]), // Native Mine/Profile Tab
+  ];
 
   void switchTab(int index) {
-    if (mounted) {
+    if (!mounted || _isAnimating || index == _currentIndex) return;
+
+    FocusScope.of(context).unfocus();
+
+    final int fromIndex = _currentIndex;
+    final int toIndex = index;
+    final int distance = (toIndex - fromIndex).abs();
+
+    if (!_pageController.hasClients) {
       setState(() {
-        _currentIndex = index;
+        _currentIndex = toIndex;
       });
-      FocusScope.of(context).unfocus();
-      if (_pageController.hasClients) {
-        _pageController.animateToPage(
-          index,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+      return;
+    }
+
+    if (distance == 1) {
+      setState(() {
+        _currentIndex = toIndex;
+        _isAnimating = true;
+      });
+      _pageController.animateToPage(
+        toIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      ).then((_) {
+        if (mounted) {
+          setState(() {
+            _isAnimating = false;
+          });
+        }
+      });
+    } else {
+      final tempTabs = List<Widget>.from(_tabs);
+      final int tempTargetIndex = toIndex > fromIndex ? fromIndex + 1 : fromIndex - 1;
+
+      // Place the target tab at the adjacent index
+      tempTabs[tempTargetIndex] = _tabs[toIndex];
+
+      // Put placeholders at all other indices to prevent duplicate widgets in the tree
+      for (int i = 0; i < tempTabs.length; i++) {
+        if (i != fromIndex && i != tempTargetIndex) {
+          tempTabs[i] = const SizedBox();
+        }
       }
+
+      setState(() {
+        _currentIndex = toIndex;
+        _displayTabs = tempTabs;
+        _isAnimating = true;
+      });
+
+      _pageController.animateToPage(
+        tempTargetIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      ).then((_) {
+        if (mounted) {
+          _pageController.jumpToPage(toIndex);
+          setState(() {
+            _displayTabs = null;
+            _isAnimating = false;
+          });
+        }
+      });
     }
   }
 
@@ -42,6 +107,9 @@ class HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     _requestPermissions();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkUpdate();
+    });
   }
 
   @override
@@ -62,13 +130,7 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   // Fully Native refactored tabs
-  final List<Widget> _tabs = [
-    LatestTab(), // Latest Tab
-    const ExploreTab(), // Explore Category / Search
-    const RandomTab(), // Native Random Staggered Grid
-    const SettingsTab(), // Native Settings Tab
-    const MineTab(), // Native Mine/Profile Tab
-  ];
+  // (We use _tabs defined above)
 
   @override
   Widget build(BuildContext context) {
@@ -81,13 +143,16 @@ class HomeScreenState extends State<HomeScreen> {
           // Content Tab Layer
           PageView(
             controller: _pageController,
+            physics: _isAnimating ? const NeverScrollableScrollPhysics() : null,
             onPageChanged: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-              FocusScope.of(context).unfocus();
+              if (!_isAnimating) {
+                setState(() {
+                  _currentIndex = index;
+                });
+                FocusScope.of(context).unfocus();
+              }
             },
-            children: _tabs,
+            children: _displayTabs ?? _tabs,
           ),
           
           // Telegram-Style Floating Glassmorphic Navigation Bar

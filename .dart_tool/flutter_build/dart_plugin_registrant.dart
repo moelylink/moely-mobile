@@ -19,6 +19,7 @@ import 'package:sqflite_darwin/sqflite_darwin.dart' as sqflite_darwin;
 import 'package:url_launcher_ios/url_launcher_ios.dart' as url_launcher_ios;
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart' as webview_flutter_wkwebview;
 import 'package:app_links_linux/app_links_linux.dart' as app_links_linux;
+import 'package:device_info_plus/device_info_plus.dart' as device_info_plus;
 import 'package:file_picker/file_picker.dart' as file_picker;
 import 'package:package_info_plus/package_info_plus.dart' as package_info_plus;
 import 'package:path_provider_linux/path_provider_linux.dart' as path_provider_linux;
@@ -32,6 +33,7 @@ import 'package:shared_preferences_foundation/shared_preferences_foundation.dart
 import 'package:sqflite_darwin/sqflite_darwin.dart' as sqflite_darwin;
 import 'package:url_launcher_macos/url_launcher_macos.dart' as url_launcher_macos;
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart' as webview_flutter_wkwebview;
+import 'package:device_info_plus/device_info_plus.dart' as device_info_plus;
 import 'package:file_picker/file_picker.dart' as file_picker;
 import 'package:package_info_plus/package_info_plus.dart' as package_info_plus;
 import 'package:path_provider_windows/path_provider_windows.dart' as path_provider_windows;
@@ -165,6 +167,15 @@ class _PluginRegistrant {
       }
 
       try {
+        device_info_plus.DeviceInfoPlusLinuxPlugin.registerWith();
+      } catch (err) {
+        print(
+          '`device_info_plus` threw an error: $err. '
+          'The app may not function as expected until you remove this plugin from pubspec.yaml'
+        );
+      }
+
+      try {
         file_picker.FilePickerLinux.registerWith();
       } catch (err) {
         print(
@@ -283,6 +294,15 @@ class _PluginRegistrant {
       }
 
     } else if (Platform.isWindows) {
+      try {
+        device_info_plus.DeviceInfoPlusWindowsPlugin.registerWith();
+      } catch (err) {
+        print(
+          '`device_info_plus` threw an error: $err. '
+          'The app may not function as expected until you remove this plugin from pubspec.yaml'
+        );
+      }
+
       try {
         file_picker.FilePickerWindows.registerWith();
       } catch (err) {

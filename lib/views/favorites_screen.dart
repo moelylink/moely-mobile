@@ -13,6 +13,7 @@ import 'image_detail_screen.dart';
 import '../models/image_item.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import '../widgets/smooth_aspect_ratio_image.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -32,7 +33,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   int _currentPage = 1;
   static const int _itemsPerPage = 20;
   
-  bool _isPaginationVisible = true;
+  final ValueNotifier<bool> _isPaginationVisible = ValueNotifier<bool>(true);
   Timer? _scrollTimer;
 
   @override
@@ -44,15 +45,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void dispose() {
     _scrollTimer?.cancel();
+    _isPaginationVisible.dispose();
     super.dispose();
   }
 
   void _onScrollStarted() {
     _scrollTimer?.cancel();
-    if (_isPaginationVisible) {
-      setState(() {
-        _isPaginationVisible = false;
-      });
+    if (_isPaginationVisible.value) {
+      _isPaginationVisible.value = false;
     }
   }
 
@@ -60,9 +60,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     _scrollTimer?.cancel();
     _scrollTimer = Timer(const Duration(seconds: 1), () {
       if (mounted) {
-        setState(() {
-          _isPaginationVisible = true;
-        });
+        _isPaginationVisible.value = true;
       }
     });
   }
@@ -388,7 +386,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               if (scrollNotification is ScrollStartNotification) {
                 _onScrollStarted();
               } else if (scrollNotification is ScrollUpdateNotification) {
-                if (_isPaginationVisible) {
+                if (_isPaginationVisible.value) {
                   _onScrollStarted();
                 }
               } else if (scrollNotification is ScrollEndNotification) {
@@ -458,41 +456,45 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       return FutureBuilder<Directory>(
                         future: _getFavoritesImagesDir(),
                         builder: (context, snapshot) {
-                          Widget imageWidget;
                           final isOfflineFileExists = snapshot.hasData && 
                               File('${snapshot.data!.path}/$id.jpg').existsSync();
+                          final localFile = isOfflineFileExists ? File('${snapshot.data!.path}/$id.jpg') : null;
 
-                          if (isOfflineFileExists) {
-                            imageWidget = Image.file(
-                              File('${snapshot.data!.path}/$id.jpg'),
-                              fit: BoxFit.fitWidth,
-                              width: double.infinity,
-                            );
-                          } else {
-                            imageWidget = CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              fit: BoxFit.fitWidth,
-                              width: double.infinity,
-                              placeholder: (context, url) => Container(
-                                height: 180,
-                                color: theme.colorScheme.onSurface.withOpacity(0.05),
-                                child: const Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                          final imageWidget = SmoothAspectRatioImage(
+                            imageUrl: localFile == null ? imageUrl : null,
+                            localFile: localFile,
+                            builder: (context, isLoading) {
+                              if (localFile != null) {
+                                return Image.file(
+                                  localFile,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                );
+                              } else {
+                                return CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  placeholder: (context, url) => Container(
+                                    color: theme.colorScheme.onSurface.withOpacity(0.05),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              errorWidget: (context, url, error) => Container(
-                                height: 120,
-                                color: theme.colorScheme.onSurface.withOpacity(0.05),
-                                child: const Center(
-                                  child: Icon(Icons.broken_image_rounded, size: 32),
-                                ),
-                              ),
-                            );
-                          }
+                                  errorWidget: (context, url, error) => Container(
+                                    color: theme.colorScheme.onSurface.withOpacity(0.05),
+                                    child: const Center(
+                                      child: Icon(Icons.broken_image_rounded, size: 32),
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          );
 
                           return Card(
                             clipBehavior: Clip.antiAlias,
@@ -614,22 +616,27 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: IgnorePointer(
-              ignoring: !_isPaginationVisible,
-              child: AnimatedOpacity(
-                opacity: _isPaginationVisible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: AnimatedSlide(
-                  offset: _isPaginationVisible ? Offset.zero : const Offset(0.0, 1.5),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: _buildPaginationBar(theme, totalPages),
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _isPaginationVisible,
+              builder: (context, visible, child) {
+                return IgnorePointer(
+                  ignoring: !visible,
+                  child: AnimatedOpacity(
+                    opacity: visible ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: AnimatedSlide(
+                      offset: visible ? Offset.zero : const Offset(0.0, 1.5),
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: _buildPaginationBar(theme, totalPages),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
       ],

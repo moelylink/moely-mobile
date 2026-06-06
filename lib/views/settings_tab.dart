@@ -3,11 +3,18 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:path_provider/path_provider.dart';
 import '../services/settings_service.dart';
+import '../services/log_service.dart';
 import 'storage_management_screen.dart';
 import '../utils/cache_helper.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
 import 'package:path/path.dart' as p;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter/services.dart';
+import '../services/update_service.dart';
 
 class SettingsTab extends StatefulWidget {
   const SettingsTab({super.key});
@@ -20,6 +27,77 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
   @override
   bool get wantKeepAlive => true;
 
+  int _longPressCount = 0;
+
+  void _showLogViewerDialog(BuildContext context, ThemeData theme) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return FutureBuilder<String>(
+          future: LogService.instance.readLog(),
+          builder: (context, snapshot) {
+            final logContent = snapshot.data ?? '加载中...';
+            return AlertDialog(
+              backgroundColor: theme.colorScheme.surface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('日志信息', style: TextStyle(fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                ],
+              ),
+              content: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.6,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurface.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Scrollbar(
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      logContent,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await LogService.instance.clearLog();
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                      setState(() {});
+                      ToastHelper.show(context, '日志已清空', type: ToastType.success);
+                    }
+                  },
+                  child: const Text('清空日志', style: TextStyle(color: Colors.redAccent)),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await LogService.instance.shareLog();
+                  },
+                  child: const Text('分享日志'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Premium Preset Colors
   final List<Map<String, dynamic>> _presetColors = [
     {'name': '皇家紫', 'color': const Color(0xFF8B5CF6)},
@@ -31,9 +109,23 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
     {'name': '晴空青', 'color': const Color(0xFF06B6D4)},
   ];
 
+  String _appVersion = '2.0.0';
+
   @override
   void initState() {
     super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = packageInfo.version;
+        });
+      }
+    } catch (_) {}
   }
 
 
@@ -260,6 +352,7 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
             items: const [
               DropdownMenuItem(value: 'microsoft', child: Text(' Microsoft ')),
               DropdownMenuItem(value: 'google', child: Text(' Google ')),
+              DropdownMenuItem(value: 'reverso', child: Text(' Reverso ')),
             ],
             onChanged: isEnabled
                 ? (engine) {
@@ -544,20 +637,126 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
                   children: [
                     ListTile(
                       leading: Icon(Icons.info_outline_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                      title: Text('应用版本', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      trailing: Text('v2.0.0 (Native Flutter next)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      title: const Text('应用版本', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('查看应用与设备详细信息', style: TextStyle(fontSize: 12)),
+                      trailing: Text('v$_appVersion', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => const _AppInfoDialog(),
+                        );
+                      },
+                      onLongPress: () {
+                        if (AppSettings.instance.debugMode) {
+                          AppSettings.instance.setDebugMode(false);
+                          _longPressCount = 0;
+                          ToastHelper.show(context, '已关闭调试模式', type: ToastType.success);
+                        } else {
+                          _longPressCount++;
+                          if (_longPressCount >= 5) {
+                            AppSettings.instance.setDebugMode(true);
+                            _longPressCount = 0;
+                            ToastHelper.show(context, '已开启调试模式，日志开始记录', type: ToastType.success);
+                          }
+                        }
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    SwitchListTile(
+                      secondary: Icon(Icons.system_update_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('自动检查更新', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('开启后，每次打开App自动检查并提示新版本', style: TextStyle(fontSize: 12)),
+                      value: AppSettings.instance.autoCheckUpdate,
+                      onChanged: (val) {
+                        AppSettings.instance.setAutoCheckUpdate(val);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ListTile(
+                      leading: Icon(Icons.update_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('检查更新', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('手动检查是否有最新版本', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        UpdateService.checkUpdate(force: true);
+                      },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       leading: Icon(Icons.code_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                      title: const Text('开源存储库', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('https://github.com/moelylink/moely.link', style: TextStyle(fontSize: 12)),
+                      title: const Text('开源仓库', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('https://github.com/moelylink/moely-mobile', style: TextStyle(fontSize: 12)),
                       trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                      onTap: () {},
+                      onTap: () async {
+                        final url = Uri.parse('https://github.com/moelylink/moely-mobile');
+                        try {
+                          if (await canLaunchUrl(url)) {
+                            await launchUrl(url, mode: LaunchMode.externalApplication);
+                          } else {
+                            if (context.mounted) {
+                              ToastHelper.show(context, '无法打开外部浏览器', type: ToastType.error);
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ToastHelper.show(context, '打开链接出错: $e', type: ToastType.error);
+                          }
+                        }
+                      },
                     ),
                   ],
                 ),
               ),
+              if (AppSettings.instance.debugMode) ...[
+                const SizedBox(height: 20),
+                _buildSectionHeader(theme, '日志'),
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  child: Column(
+                    children: [
+                      FutureBuilder<String>(
+                        future: LogService.instance.getLogSize(),
+                        builder: (context, snapshot) {
+                          final size = snapshot.data ?? '0 B';
+                          return ListTile(
+                            leading: Icon(Icons.receipt_long_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                            title: const Text('日志大小', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            subtitle: const Text('点击可以查看日志信息', style: TextStyle(fontSize: 12)),
+                            trailing: Text(size, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            onTap: () {
+                              _showLogViewerDialog(context, theme);
+                            },
+                          );
+                        },
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      ListTile(
+                        leading: Icon(Icons.share_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                        title: const Text('导出日志', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('将 logs.txt 日志数据分享到其他应用', style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                        onTap: () async {
+                          await LogService.instance.shareLog();
+                        },
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      ListTile(
+                        leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                        title: const Text('清空日志', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.redAccent)),
+                        subtitle: const Text('清空当前记录的所有日志数据', style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.redAccent),
+                        onTap: () async {
+                          await LogService.instance.clearLog();
+                          if (mounted) {
+                            setState(() {});
+                            ToastHelper.show(context, '日志已清空', type: ToastType.success);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -1415,6 +1614,236 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _AppInfoDialog extends StatefulWidget {
+  const _AppInfoDialog();
+
+  @override
+  State<_AppInfoDialog> createState() => _AppInfoDialogState();
+}
+
+class _AppInfoDialogState extends State<_AppInfoDialog> {
+  bool _loading = true;
+  String _appVersionStr = '';
+  String _osVersionStr = '';
+  String _deviceModelStr = '';
+  String _webviewVersionStr = '';
+  String _installTimeStr = '';
+  String _updateTimeStr = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInfo();
+  }
+
+  Future<void> _loadInfo() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      _appVersionStr = 'v${packageInfo.version} (${packageInfo.buildNumber})';
+
+      // 1. Device Info
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        _deviceModelStr = '${androidInfo.manufacturer} ${androidInfo.model}';
+        _osVersionStr = 'Android ${androidInfo.version.release} (API ${androidInfo.version.sdkInt})';
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        _deviceModelStr = iosInfo.name;
+        _osVersionStr = 'iOS ${iosInfo.systemVersion}';
+      } else if (Platform.isWindows) {
+        final windowsInfo = await deviceInfo.windowsInfo;
+        _deviceModelStr = windowsInfo.computerName;
+        _osVersionStr = 'Windows ${windowsInfo.displayVersion}';
+      } else {
+        _deviceModelStr = Platform.localHostname;
+        _osVersionStr = '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
+      }
+
+      // 2. Webview Version
+      try {
+        String? userAgent;
+        if (Platform.isAndroid) {
+          try {
+            userAgent = await const MethodChannel('link.moely.mobile/app_info').invokeMethod<String>('getWebViewUserAgent');
+          } catch (_) {}
+        }
+        
+        if (userAgent == null || userAgent.isEmpty || userAgent == 'null') {
+          final controller = WebViewController();
+          await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+          await controller.loadRequest(Uri.parse('about:blank'));
+          final jsRes = await controller.runJavaScriptReturningResult('navigator.userAgent');
+          userAgent = jsRes.toString().replaceAll('"', '');
+        }
+
+        final cleanUA = userAgent.trim();
+        if (cleanUA.contains('Chrome/')) {
+          final match = RegExp(r'Chrome\/([0-9.]+)').firstMatch(cleanUA);
+          if (match != null) {
+            _webviewVersionStr = 'Chrome ${match.group(1)}';
+          } else {
+            _webviewVersionStr = cleanUA;
+          }
+        } else if (cleanUA.contains('Version/')) {
+          final match = RegExp(r'Version\/([0-9.]+)').firstMatch(cleanUA);
+          if (match != null) {
+            _webviewVersionStr = 'Safari ${match.group(1)}';
+          } else {
+            _webviewVersionStr = cleanUA;
+          }
+        } else if (cleanUA.contains('AppleWebKit/')) {
+          final match = RegExp(r'AppleWebKit\/([0-9.]+)').firstMatch(cleanUA);
+          if (match != null) {
+            _webviewVersionStr = 'WebKit ${match.group(1)}';
+          } else {
+            _webviewVersionStr = cleanUA;
+          }
+        } else {
+          _webviewVersionStr = cleanUA.isNotEmpty ? cleanUA : 'Unknown';
+        }
+      } catch (e) {
+        _webviewVersionStr = 'Unknown';
+      }
+
+      // 3. Install/Update times
+      DateTime? firstInstallTime;
+      DateTime? lastUpdateTime;
+      if (Platform.isAndroid) {
+        try {
+          final Map? times = await const MethodChannel('link.moely.mobile/app_info').invokeMethod('getInstallTimes');
+          if (times != null) {
+            firstInstallTime = DateTime.fromMillisecondsSinceEpoch(times['firstInstallTime'] as int);
+            lastUpdateTime = DateTime.fromMillisecondsSinceEpoch(times['lastUpdateTime'] as int);
+          }
+        } catch (_) {}
+      }
+      
+      if (firstInstallTime == null) {
+        try {
+          final docDir = await getApplicationDocumentsDirectory();
+          final stat = await docDir.stat();
+          firstInstallTime = stat.changed;
+          lastUpdateTime = stat.modified;
+        } catch (_) {}
+      }
+
+      String formatDate(DateTime? dt) {
+        if (dt == null) return 'Unknown';
+        return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      }
+
+      _installTimeStr = formatDate(firstInstallTime);
+      _updateTimeStr = formatDate(lastUpdateTime);
+
+    } catch (e) {
+      debugPrint('Failed to load app info details: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      backgroundColor: theme.colorScheme.surface,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.85,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  '应用及设备信息',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (_loading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  _buildInfoRow('应用版本', _appVersionStr),
+                  _buildInfoRow('设备型号', _deviceModelStr),
+                  _buildInfoRow('系统版本', _osVersionStr),
+                  _buildInfoRow('Webview版本', _webviewVersionStr),
+                  _buildInfoRow('安装时间', _installTimeStr),
+                  _buildInfoRow('更新时间', _updateTimeStr),
+                ],
+              ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('确定', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: theme.colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

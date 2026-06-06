@@ -54,6 +54,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   bool _isTranslated = false;
   String _translatedTags = '';
   String _translatedDescription = '';
+  String _actualTranslationEngine = '';
 
   // Animation controller for heart scale effect
   late final AnimationController _heartController;
@@ -447,6 +448,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
           _isTranslated = false;
           _translatedTags = '';
           _translatedDescription = '';
+          _actualTranslationEngine = '';
           _overscrollBottom = 0.0;
           _overscrollTop = 0.0;
           _isThumbnailCached = false;
@@ -498,6 +500,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         _isTranslated = false;
         _translatedTags = '';
         _translatedDescription = '';
+        _actualTranslationEngine = '';
         _overscrollBottom = 0.0;
         _overscrollTop = 0.0;
         _isThumbnailCached = false;
@@ -538,6 +541,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         _isTranslated = false;
         _translatedTags = '';
         _translatedDescription = '';
+        _actualTranslationEngine = '';
         _overscrollBottom = 0.0;
         _overscrollTop = 0.0;
         _isThumbnailCached = false;
@@ -1040,18 +1044,23 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     }
 
     if (placeholderIndex == 0) {
-      return TranslationService.translate(text);
+      final res = await TranslationService.translate(text);
+      _actualTranslationEngine = res.engine;
+      return res.text;
     }
 
     // 3. Translate the description text with placeholders
-    String translatedText = await TranslationService.translate(textWithPlaceholders);
+    final descriptionResult = await TranslationService.translate(textWithPlaceholders);
+    _actualTranslationEngine = descriptionResult.engine;
+    String translatedText = descriptionResult.text;
 
     // 4. Translate inner text of each link in parallel
     final List<String> translatedInnerTexts = await Future.wait(
       innerTexts.map((inner) async {
         if (inner.trim().isEmpty) return inner;
         try {
-          return await TranslationService.translate(inner);
+          final res = await TranslationService.translate(inner);
+          return res.text;
         } catch (_) {
           return inner;
         }
@@ -1134,7 +1143,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
         final translatedTagFutures = cleanTags.map((tag) {
           if (tag.trim().isEmpty) return Future.value('');
-          return TranslationService.translate(tag).catchError((err) {
+          return TranslationService.translate(tag).then((res) => res.text).catchError((err) {
             debugPrint('Tag "$tag" translation failed: $err');
             return tag;
           });
@@ -1745,7 +1754,17 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     };
 
     final targetLangName = languageNames[AppSettings.instance.translationLanguage] ?? '中文';
-    final engineName = AppSettings.instance.translationEngine == 'google' ? '谷歌翻译' : '微软翻译';
+    final actualEngine = _actualTranslationEngine.isNotEmpty 
+        ? _actualTranslationEngine 
+        : AppSettings.instance.translationEngine;
+    final String engineName;
+    if (actualEngine == 'google') {
+      engineName = '谷歌翻译';
+    } else if (actualEngine == 'reverso') {
+      engineName = 'Reverso 翻译';
+    } else {
+      engineName = '微软翻译';
+    }
 
     return Container(
       margin: const EdgeInsets.all(16.0),

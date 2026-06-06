@@ -3,8 +3,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/image_item.dart';
+import '../models/promo_item.dart';
 import '../services/user_agent_service.dart';
+import '../services/promo_service.dart';
 import 'image_detail_screen.dart';
+import '../widgets/smooth_aspect_ratio_image.dart';
+import '../widgets/promo_card.dart';
 
 class RandomTab extends StatefulWidget {
   const RandomTab({super.key});
@@ -18,7 +22,7 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
   bool get wantKeepAlive => true;
 
   final Dio _dio = UserAgentService.createDio();
-  List<MoelyImage> _images = [];
+  List<dynamic> _images = [];
   bool _isLoading = true;
   bool _hasError = false;
 
@@ -40,8 +44,24 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
         final List<dynamic> listData = response.data;
         final images = listData.map((e) => MoelyImage.fromJson(e)).toList();
         images.shuffle(); // Randomize the list
+
+        await PromoService.instance.fetchPromos();
+
+        final List<dynamic> items = [];
+        int imageCount = 0;
+        for (final img in images) {
+          items.add(img);
+          imageCount++;
+          if (imageCount % 20 == 0) {
+            final promo = PromoService.instance.getRandomPromo();
+            if (promo != null) {
+              items.add(promo);
+            }
+          }
+        }
+
         setState(() {
-          _images = images;
+          _images = items;
           _isLoading = false;
         });
       } else {
@@ -145,8 +165,13 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
         itemCount: _images.length,
         padding: const EdgeInsets.only(bottom: 96.0), // Padding for the floating bottom bar
         itemBuilder: (context, index) {
-          final image = _images[index];
-          return _buildImageCard(theme, image);
+          final item = _images[index];
+          if (item is PromoItem) {
+            return PromoCard(promo: item);
+          } else if (item is MoelyImage) {
+            return _buildImageCard(theme, item);
+          }
+          return const SizedBox.shrink();
         },
       ),
     );
@@ -177,28 +202,30 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
             // Image section
             Hero(
               tag: 'img_${image.id}',
-              child: CachedNetworkImage(
+              child: SmoothAspectRatioImage(
                 imageUrl: image.urls,
                 httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                fit: BoxFit.fitWidth,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                builder: (context, isLoading) => CachedNetworkImage(
+                  imageUrl: image.urls,
+                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  height: 200,
-                  color: theme.colorScheme.surfaceVariant,
-                  child: const Center(
-                    child: Icon(Icons.broken_image_rounded),
+                  errorWidget: (context, url, error) => Container(
+                    color: theme.colorScheme.surfaceVariant,
+                    child: const Center(
+                      child: Icon(Icons.broken_image_rounded),
+                    ),
                   ),
                 ),
               ),

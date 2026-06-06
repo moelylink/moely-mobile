@@ -20,10 +20,14 @@ class UserAgentService {
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
     ));
-    // Add interceptor to dynamically inject latest headers on every request
+    // Add interceptor to dynamically inject latest headers on every request if not already present
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
-        options.headers.addAll(headers);
+        for (final entry in headers.entries) {
+          if (!options.headers.containsKey(entry.key)) {
+            options.headers[entry.key] = entry.value;
+          }
+        }
         return handler.next(options);
       },
     ));

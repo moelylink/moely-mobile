@@ -5,6 +5,7 @@ import 'views/home_screen.dart';
 import 'services/user_agent_service.dart';
 import 'services/settings_service.dart';
 import 'services/url_handler_service.dart';
+import 'services/log_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,15 @@ void main() async {
   
   // Load AppSettings persistent configurations
   await AppSettings.instance.init();
+
+  // Redirect debugPrint to capture application logs in Debug Mode
+  final originalDebugPrint = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) {
+      LogService.log(message);
+    }
+    originalDebugPrint(message, wrapWidth: wrapWidth);
+  };
   
   // Initialize Deep Linking listeners
   UrlHandlerService.initialize();

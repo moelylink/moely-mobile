@@ -39,6 +39,31 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        // App Info custom channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "link.moely.mobile/app_info").setMethodCallHandler { call, result ->
+            if (call.method == "getInstallTimes") {
+                try {
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    val map = mapOf(
+                        "firstInstallTime" to packageInfo.firstInstallTime,
+                        "lastUpdateTime" to packageInfo.lastUpdateTime
+                    )
+                    result.success(map)
+                } catch (e: Exception) {
+                    result.error("ERROR", e.localizedMessage, null)
+                }
+            } else if (call.method == "getWebViewUserAgent") {
+                try {
+                    val userAgent = android.webkit.WebSettings.getDefaultUserAgent(applicationContext)
+                    result.success(userAgent)
+                } catch (e: Exception) {
+                    result.error("ERROR", e.localizedMessage, null)
+                }
+            } else {
+                result.notImplemented()
+            }
+        }
+
         // Wallpaper and scan file channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "setWallpaper") {

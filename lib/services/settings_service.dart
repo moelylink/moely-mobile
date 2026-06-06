@@ -17,6 +17,8 @@ class AppSettings extends ChangeNotifier {
   bool _browseInApp = true;
   String _downloadPath = '';
   bool _enableOverscrollRandom = true;
+  bool _autoCheckUpdate = true;
+  bool _debugMode = false;
 
   ThemeMode get themeMode => _themeMode;
   Color get themeColor => _themeColor;
@@ -28,6 +30,8 @@ class AppSettings extends ChangeNotifier {
   bool get browseInApp => _browseInApp;
   String get downloadPath => _downloadPath;
   bool get enableOverscrollRandom => _enableOverscrollRandom;
+  bool get autoCheckUpdate => _autoCheckUpdate;
+  bool get debugMode => _debugMode;
 
   /// Initialize and load settings from disk
   Future<void> init() async {
@@ -81,6 +85,12 @@ class AppSettings extends ChangeNotifier {
         if (data['enableOverscrollRandom'] != null) {
           _enableOverscrollRandom = data['enableOverscrollRandom'];
         }
+        if (data['autoCheckUpdate'] != null) {
+          _autoCheckUpdate = data['autoCheckUpdate'];
+        }
+        if (data['debugMode'] != null) {
+          _debugMode = data['debugMode'];
+        }
       }
     } catch (_) {}
   }
@@ -105,6 +115,8 @@ class AppSettings extends ChangeNotifier {
         'browseInApp': _browseInApp,
         'downloadPath': _downloadPath,
         'enableOverscrollRandom': _enableOverscrollRandom,
+        'autoCheckUpdate': _autoCheckUpdate,
+        'debugMode': _debugMode,
       };
       file.writeAsStringSync(jsonEncode(data));
     } catch (_) {}
@@ -166,6 +178,18 @@ class AppSettings extends ChangeNotifier {
 
   void setEnableOverscrollRandom(bool enable) {
     _enableOverscrollRandom = enable;
+    save();
+    notifyListeners();
+  }
+
+  void setAutoCheckUpdate(bool check) {
+    _autoCheckUpdate = check;
+    save();
+    notifyListeners();
+  }
+
+  void setDebugMode(bool debug) {
+    _debugMode = debug;
     save();
     notifyListeners();
   }
