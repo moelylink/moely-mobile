@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'views/home_screen.dart';
+import 'views/video_splash_screen.dart';
 import 'services/user_agent_service.dart';
 import 'services/settings_service.dart';
 import 'services/url_handler_service.dart';
@@ -164,7 +165,7 @@ class MoelyApp extends StatelessWidget {
           ),
           
           themeMode: AppSettings.instance.themeMode,
-          home: HomeScreen(),
+          home: const VideoSplashScreen(),
         );
       },
     );

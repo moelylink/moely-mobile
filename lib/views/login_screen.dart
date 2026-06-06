@@ -61,15 +61,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           
           // Back button
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8.0, top: 8.0),
-              child: IconButton.filledTonal(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                onPressed: () => Navigator.pop(context),
+          if (Navigator.canPop(context))
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8.0, top: 8.0),
+                child: IconButton.filledTonal(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ),
             ),
-          ),
 
           // 2. Main Login Area
           Center(
@@ -80,46 +81,52 @@ class _LoginScreenState extends State<LoginScreen> {
                 shadowColor: theme.colorScheme.shadow.withOpacity(0.08),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 40.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 32.0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Brand Header
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        child: Icon(Icons.favorite_rounded, size: 40, color: theme.colorScheme.primary),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.asset(
+                          'logo.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       Text(
-                        '加入萌哩社区',
+                        '登录以继续',
                         style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '开启二次元云端收藏新纪元',
-                        style: theme.textTheme.bodySmall?.copyWith(
+                        '登录萌哩账号，探索次元美图',
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          fontSize: 14,
                         ),
                       ),
-                      const SizedBox(height: 36),
+                      const SizedBox(height: 28),
 
                       // Web login prompt card
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.shield_outlined, color: theme.colorScheme.primary),
-                            const SizedBox(width: 12),
+                            Icon(Icons.shield_outlined, color: theme.colorScheme.primary, size: 20),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '我们将拉起您的系统浏览器以进行安全登录，登录后将自动返回应用。',
+                                '我们将拉起您的浏览器以进行安全登录，登录后将自动返回应用。',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   height: 1.4,
+                                  fontSize: 12,
                                   color: theme.colorScheme.onSurface.withOpacity(0.6),
                                 ),
                               ),

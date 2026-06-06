@@ -24,6 +24,7 @@ class SmoothAspectRatioImage extends StatefulWidget {
 
 class _SmoothAspectRatioImageState extends State<SmoothAspectRatioImage> {
   double? _aspectRatio;
+  bool _shouldAnimate = true;
 
   // Global static cache to record resolved image aspect ratios, preventing layout shift on scroll
   static final Map<String, double> _aspectRatioCache = {};
@@ -48,11 +49,12 @@ class _SmoothAspectRatioImageState extends State<SmoothAspectRatioImage> {
 
     // 1. Try memory cache first
     if (_aspectRatioCache.containsKey(cacheKey)) {
-      setState(() {
-        _aspectRatio = _aspectRatioCache[cacheKey];
-      });
+      _aspectRatio = _aspectRatioCache[cacheKey];
+      _shouldAnimate = false;
       return;
     }
+
+    _shouldAnimate = true;
 
     // 2. Fetch using ImageStream to get size dimensions
     try {
@@ -73,6 +75,7 @@ class _SmoothAspectRatioImageState extends State<SmoothAspectRatioImage> {
           if (mounted) {
             setState(() {
               _aspectRatio = ratio;
+              _shouldAnimate = !synchronousCall;
             });
           }
           // Remove listener after we resolve the ratio
@@ -91,6 +94,13 @@ class _SmoothAspectRatioImageState extends State<SmoothAspectRatioImage> {
   @override
   Widget build(BuildContext context) {
     final double targetRatio = _aspectRatio ?? widget.defaultAspectRatio;
+
+    if (!_shouldAnimate) {
+      return AspectRatio(
+        aspectRatio: targetRatio,
+        child: widget.builder(context, false),
+      );
+    }
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: widget.defaultAspectRatio, end: targetRatio),

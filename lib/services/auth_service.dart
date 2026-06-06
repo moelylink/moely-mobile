@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../views/turnstile_verifier_dialog.dart';
+import 'url_handler_service.dart';
+import '../views/home_screen.dart';
+import '../views/login_screen.dart';
 
 class AuthService extends ChangeNotifier {
   AuthService._privateConstructor() {
@@ -10,6 +13,7 @@ class AuthService extends ChangeNotifier {
       _currentSession = data.session;
       debugPrint("Auth State Change: Event = ${data.event}, User = ${currentUser?.email}");
       notifyListeners();
+      _handleAuthTransition();
     });
   }
 
@@ -17,6 +21,44 @@ class AuthService extends ChangeNotifier {
   
   final SupabaseClient _client = Supabase.instance.client;
   Session? _currentSession;
+
+  bool _isReadyForTransitions = false;
+  bool? _wasLoggedIn;
+
+  set isReadyForTransitions(bool value) {
+    _isReadyForTransitions = value;
+    if (value) {
+      _wasLoggedIn = isLoggedIn;
+    }
+  }
+
+  void _handleAuthTransition() {
+    if (!_isReadyForTransitions) return;
+
+    final loggedIn = isLoggedIn;
+    if (_wasLoggedIn == loggedIn) return;
+    _wasLoggedIn = loggedIn;
+
+    final navContext = UrlHandlerService.navigatorKey.currentContext;
+    if (navContext != null) {
+      final targetScreen = loggedIn ? HomeScreen() : const LoginScreen();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(navContext).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 800),
+          ),
+          (route) => false,
+        );
+      });
+    }
+  }
 
   // Reactivity state
   bool get isLoggedIn => _currentSession != null || _client.auth.currentSession != null;

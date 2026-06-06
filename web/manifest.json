@@ -1,6 +1,6 @@
 {
-    "name": "mobile",
-    "short_name": "mobile",
+    "name": "萌哩手机客户端",
+    "short_name": "萌哩",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
