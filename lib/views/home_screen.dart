@@ -8,6 +8,7 @@ import 'explore_tab.dart';
 import 'settings_tab.dart';
 import 'mine_tab.dart';
 import '../services/update_service.dart';
+import '../services/url_handler_service.dart';
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<HomeScreenState> homeKey = GlobalKey<HomeScreenState>();
@@ -109,6 +110,7 @@ class HomeScreenState extends State<HomeScreen> {
     _requestPermissions();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       UpdateService.checkUpdate();
+      UrlHandlerService.handlePendingUrl(context);
     });
   }
 

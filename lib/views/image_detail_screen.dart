@@ -623,6 +623,9 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         _isLoadingDetails = false;
       });
       _checkFavoriteStatus();
+      if (details != null && widget.image.urls.isEmpty) {
+        HistoryHelper.addToHistory(_currentImage.id, _currentImage.urls);
+      }
     }
   }
 
@@ -2168,7 +2171,6 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   }
 }
 
-
 /// Fully Immersive fullscreen swipeable & zoomable view for illustration lists
 class FullscreenImageViewer extends StatefulWidget {
   final List<String> imageUrls;
@@ -2187,6 +2189,7 @@ class FullscreenImageViewer extends StatefulWidget {
 class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   late final PageController _pageController;
   late int _currentIndex;
+  bool _isZoomed = false;
 
   @override
   void initState() {
@@ -2211,6 +2214,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
           Positioned.fill(
             child: PageView.builder(
               controller: _pageController,
+              physics: _isZoomed ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
               itemCount: widget.imageUrls.length,
               onPageChanged: (idx) {
                 setState(() {
@@ -2218,18 +2222,13 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
                 });
               },
               itemBuilder: (context, index) {
-                return InteractiveViewer(
-                  minScale: 0.8,
-                  maxScale: 4.0,
-                  child: Center(
-                    child: CachedNetworkImage(
-                      imageUrl: widget.imageUrls[index],
-                      httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                      fit: BoxFit.contain,
-                      placeholder: (context, url) => const CircularProgressIndicator(color: Colors.white70),
-                      errorWidget: (context, url, error) => const Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
-                    ),
-                  ),
+                return FullscreenImageItem(
+                  imageUrl: widget.imageUrls[index],
+                  onZoomStateChanged: (zoomed) {
+                    setState(() {
+                      _isZoomed = zoomed;
+                    });
+                  },
                 );
               },
             ),
@@ -2277,3 +2276,121 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
     );
   }
 }
+
+class FullscreenImageItem extends StatefulWidget {
+  final String imageUrl;
+  final ValueChanged<bool> onZoomStateChanged;
+
+  const FullscreenImageItem({
+    super.key,
+    required this.imageUrl,
+    required this.onZoomStateChanged,
+  });
+
+  @override
+  State<FullscreenImageItem> createState() => _FullscreenImageItemState();
+}
+
+class _FullscreenImageItemState extends State<FullscreenImageItem> with SingleTickerProviderStateMixin {
+  final TransformationController _transformationController = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+  bool _isZoomed = false;
+  
+  AnimationController? _animationController;
+  Animation<Matrix4>? _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformationController.addListener(_handleTransformChanged);
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+  }
+
+  @override
+  void dispose() {
+    _transformationController.removeListener(_handleTransformChanged);
+    _transformationController.dispose();
+    _animationController?.dispose();
+    super.dispose();
+  }
+
+  void _handleTransformChanged() {
+    final double scale = _transformationController.value.getMaxScaleOnAxis();
+    final bool isZoomed = scale > 1.001;
+    if (isZoomed != _isZoomed) {
+      setState(() {
+        _isZoomed = isZoomed;
+      });
+      widget.onZoomStateChanged(isZoomed);
+    }
+  }
+
+  void _runAnimation(Matrix4 targetMatrix) {
+    _animation?.removeListener(_onAnimationTick);
+    _animationController!.stop();
+
+    _animation = Matrix4Tween(
+      begin: _transformationController.value,
+      end: targetMatrix,
+    ).animate(
+      CurvedAnimation(
+        parent: _animationController!,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    _animation!.addListener(_onAnimationTick);
+    _animationController!.forward(from: 0.0);
+  }
+
+  void _onAnimationTick() {
+    _transformationController.value = _animation!.value;
+  }
+
+  void _handleDoubleTap() {
+    if (_isZoomed) {
+      // Smoothly zoom out/reset
+      _runAnimation(Matrix4.identity());
+    } else {
+      // Smoothly zoom in at double tap position
+      final position = _doubleTapDetails?.localPosition ?? Offset.zero;
+      final double scale = 2.5;
+      final x = -position.dx * (scale - 1.0);
+      final y = -position.dy * (scale - 1.0);
+      
+      final targetMatrix = Matrix4.identity()
+        ..translate(x, y)
+        ..scale(scale);
+
+      _runAnimation(targetMatrix);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onDoubleTapDown: (details) => _doubleTapDetails = details,
+      onDoubleTap: _handleDoubleTap,
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        minScale: 1.0,
+        maxScale: 4.0,
+        child: Center(
+          child: CachedNetworkImage(
+            imageUrl: widget.imageUrl,
+            httpHeaders: {'User-Agent': UserAgentService.userAgent},
+            fit: BoxFit.contain,
+            placeholder: (context, url) => const CircularProgressIndicator(color: Colors.white70),
+            errorWidget: (context, url, error) => const Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+

@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../services/settings_service.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import '../utils/notification_helper.dart';
 
 class UpdateService {
   static bool _isDownloading = false;
@@ -267,13 +268,35 @@ class UpdateService {
       final directory = await getTemporaryDirectory();
       final savePath = '${directory.path}/moely_release.apk';
       
+      // Show starting notification
+      NotificationHelper.showDownloadNotification(
+        filename: 'moely_release.apk',
+        progress: 0.0,
+      );
+
       final dio = Dio();
       await dio.download(
         'https://mobile.moely.link/app/release.apk',
         savePath,
+        onReceiveProgress: (received, total) {
+          if (total > 0) {
+            NotificationHelper.showDownloadNotification(
+              filename: 'moely_release.apk',
+              progress: received / total,
+            );
+          }
+        },
       );
 
       _isDownloading = false;
+
+      // Show completed notification
+      NotificationHelper.showDownloadNotification(
+        filename: 'moely_release.apk',
+        progress: 1.0,
+        filePath: savePath,
+        isCompleted: true,
+      );
       
       // Auto install
       final installResult = await OpenFilex.open(savePath);
@@ -286,6 +309,14 @@ class UpdateService {
     } catch (e) {
       _isDownloading = false;
       debugPrint('Download update failed: $e');
+      
+      // Show failure notification
+      NotificationHelper.showDownloadNotification(
+        filename: 'moely_release.apk',
+        progress: 0.0,
+        isFailed: true,
+      );
+
       final errContext = UrlHandlerService.navigatorKey.currentContext;
       if (errContext != null) {
         ToastHelper.show(errContext, '更新包下载失败，请检查网络', type: ToastType.error);

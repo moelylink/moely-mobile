@@ -206,6 +206,7 @@ class _BrowsingHistoryScreenState extends State<BrowsingHistoryScreen> {
           background: Container(
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 20),
+            margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               color: Colors.redAccent.withOpacity(0.9),
               borderRadius: BorderRadius.circular(16),

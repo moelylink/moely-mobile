@@ -136,6 +136,9 @@ class _TagsListScreenState extends State<TagsListScreen> {
       );
     }
 
+    final int chunkSize = 30;
+    final int itemCount = (_filteredTags.length / chunkSize).ceil();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -175,77 +178,88 @@ class _TagsListScreenState extends State<TagsListScreen> {
           ),
         ),
 
-        // Tags Scroll View
+        // Tags Scroll View (Virtualized)
         Expanded(
-          child: SingleChildScrollView(
+          child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 40.0),
-            child: Wrap(
-              spacing: 10.0,
-              runSpacing: 12.0,
-              children: _filteredTags.map((tag) {
-                final String name = tag['name'];
-                final String urlName = tag['urlName'] ?? name;
-                final int count = tag['count'];
-                
-                // Beautifully uniform tag styling matching the website's clean appearance
-                const double fontSize = 13.0;
+            itemCount: itemCount,
+            itemBuilder: (context, index) {
+              final int startIndex = index * chunkSize;
+              final int endIndex = (startIndex + chunkSize < _filteredTags.length)
+                  ? startIndex + chunkSize
+                  : _filteredTags.length;
+              final List<Map<String, dynamic>> chunk = _filteredTags.sublist(startIndex, endIndex);
 
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TagGridScreen(tag: urlName, displayName: name),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.06),
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: Wrap(
+                  spacing: 10.0,
+                  runSpacing: 12.0,
+                  children: chunk.map((tag) {
+                    final String name = tag['name'];
+                    final String urlName = tag['urlName'] ?? name;
+                    final int count = tag['count'];
+                    
+                    const double fontSize = 13.0;
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TagGridScreen(tag: urlName, displayName: name),
+                            ),
+                          );
+                        },
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withOpacity(0.12),
-                          width: 1,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: theme.colorScheme.primary.withOpacity(0.12),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '#$name',
+                                style: TextStyle(
+                                  fontSize: fontSize,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '$count',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '#$name',
-                            style: TextStyle(
-                              fontSize: fontSize,
-                              fontWeight: FontWeight.w500,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '$count',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
+                    );
+                  }).toList(),
+                ),
+              );
+            },
           ),
         ),
       ],

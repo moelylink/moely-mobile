@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 class CacheHelper {
@@ -139,5 +140,43 @@ class CacheHelper {
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Query actual system storage information (totalSpace and freeSpace)
+  static Future<Map<String, int>> getSystemStorageInfo() async {
+    // Standard fallbacks (e.g., 256GB total, 150GB free)
+    int total = 256 * 1024 * 1024 * 1024;
+    int free = 150 * 1024 * 1024 * 1024;
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        const channel = MethodChannel('link.moely.mobile/app_info');
+        final Map? result = await channel.invokeMethod('getStorageSpace');
+        if (result != null) {
+          total = (result['totalSpace'] as num).toInt();
+          free = (result['freeSpace'] as num).toInt();
+        }
+      } catch (_) {}
+    } else if (Platform.isWindows) {
+      try {
+        final result = await Process.run('powershell', [
+          '-Command',
+          "Get-CimInstance -ClassName Win32_LogicalDisk | Where-Object DeviceID -eq 'C:' | Select-Object Size, FreeSpace | Format-List"
+        ]);
+        if (result.exitCode == 0) {
+          final output = result.stdout.toString();
+          final sizeMatch = RegExp(r'Size\s*:\s*(\d+)').firstMatch(output);
+          final freeMatch = RegExp(r'FreeSpace\s*:\s*(\d+)').firstMatch(output);
+          if (sizeMatch != null && freeMatch != null) {
+            total = int.parse(sizeMatch.group(1)!);
+            free = int.parse(freeMatch.group(1)!);
+          }
+        }
+      } catch (_) {}
+    }
+    return {
+      'totalSpace': total,
+      'freeSpace': free,
+    };
   }
 }

@@ -59,6 +59,21 @@ class MainActivity : FlutterActivity() {
                 } catch (e: Exception) {
                     result.error("ERROR", e.localizedMessage, null)
                 }
+            } else if (call.method == "getStorageSpace") {
+                try {
+                    val path = android.os.Environment.getDataDirectory().path
+                    val stat = android.os.StatFs(path)
+                    val blockSize = stat.blockSizeLong
+                    val totalBlocks = stat.blockCountLong
+                    val availableBlocks = stat.availableBlocksLong
+                    val map = mapOf(
+                        "totalSpace" to totalBlocks * blockSize,
+                        "freeSpace" to availableBlocks * blockSize
+                    )
+                    result.success(map)
+                } catch (e: Exception) {
+                    result.error("ERROR", e.localizedMessage, null)
+                }
             } else {
                 result.notImplemented()
             }

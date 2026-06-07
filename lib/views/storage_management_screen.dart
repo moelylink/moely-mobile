@@ -34,6 +34,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
   int _favoritesSize = 0;
   int _webviewSize = 0;
   int _otherSize = 0;
+  int _systemTotalSpace = 0;
+  int _systemFreeSpace = 0;
   bool _isLoading = true;
 
   // Selected categories to clear
@@ -200,6 +202,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     calculateOtherCacheSize(docDir);
     calculateOtherCacheSize(supportDir);
 
+    final sysSpace = await CacheHelper.getSystemStorageInfo();
+    final systemTotal = sysSpace['totalSpace'] ?? (256 * 1024 * 1024 * 1024);
+    final systemFree = sysSpace['freeSpace'] ?? (150 * 1024 * 1024 * 1024);
+
     if (mounted) {
       setState(() {
         _imagesSize = imgS;
@@ -208,6 +214,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
         _favoritesSize = favS;
         _webviewSize = webS;
         _otherSize = otherS;
+        _systemTotalSpace = systemTotal;
+        _systemFreeSpace = systemFree;
         _isLoading = false;
 
         // Initialize target and old values for smooth pie chart animations
@@ -409,6 +417,35 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
 
     final totalSize = _imagesSize + _detailsSize + _indexSize + _favoritesSize + _webviewSize + _otherSize;
     
+    // Proportional flex calculation for actual system storage
+    final double moelyPct = _systemTotalSpace > 0 ? (totalSize / _systemTotalSpace * 100) : 0.0;
+    
+    int moelyFlex = 0;
+    int freeFlex = 0;
+    int otherFlex = 0;
+    
+    if (_systemTotalSpace > 0) {
+      final double moelyRatio = totalSize / _systemTotalSpace;
+      final double freeRatio = _systemFreeSpace / _systemTotalSpace;
+      
+      moelyFlex = (moelyRatio * 1000).round();
+      freeFlex = (freeRatio * 1000).round();
+      
+      if (totalSize > 0 && moelyFlex == 0) {
+        moelyFlex = 1;
+      }
+      
+      otherFlex = 1000 - moelyFlex - freeFlex;
+      if (otherFlex < 0) {
+        otherFlex = 0;
+        freeFlex = 1000 - moelyFlex;
+      }
+    } else {
+      moelyFlex = 12;
+      otherFlex = 58;
+      freeFlex = 30;
+    }
+    
     // Sum of selected items (for dynamic button display)
     int selectedSize = 0;
     if (_selected['images'] == true) selectedSize += _imagesSize;
@@ -535,7 +572,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                   const SizedBox(height: 6),
                   Center(
                     child: Text(
-                      '萌哩已占用您设备 <1.0% 的存储空间。',
+                      '萌哩已占用您设备 ${moelyPct < 0.1 ? "<0.1" : moelyPct.toStringAsFixed(1)}% 的存储空间。',
                       style: TextStyle(
                         fontSize: 12,
                         color: theme.colorScheme.onSurface.withOpacity(0.5),
@@ -557,27 +594,27 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                         borderRadius: BorderRadius.circular(3),
                         child: Row(
                           children: [
-                            // 1. Moely occupied space (themed color)
-                            Expanded(
-                              flex: 12,
-                              child: Container(
-                                color: theme.colorScheme.primary,
+                            if (moelyFlex > 0)
+                              Expanded(
+                                flex: moelyFlex,
+                                child: Container(
+                                  color: theme.colorScheme.primary,
+                                ),
                               ),
-                            ),
-                            // 2. Other apps occupied space (light themed color - secondaryContainer)
-                            Expanded(
-                              flex: 58,
-                              child: Container(
-                                color: theme.colorScheme.secondaryContainer,
+                            if (otherFlex > 0)
+                              Expanded(
+                                flex: otherFlex,
+                                child: Container(
+                                  color: theme.colorScheme.secondaryContainer,
+                                ),
                               ),
-                            ),
-                            // 3. Free space (transparent/background of the bar)
-                            Expanded(
-                              flex: 30,
-                              child: Container(
-                                color: Colors.transparent,
+                            if (freeFlex > 0)
+                              Expanded(
+                                flex: freeFlex,
+                                child: Container(
+                                  color: Colors.transparent,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ),

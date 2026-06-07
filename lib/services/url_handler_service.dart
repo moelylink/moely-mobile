@@ -17,6 +17,7 @@ import '../utils/toast_helper.dart';
 class UrlHandlerService {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   static final AppLinks _appLinks = AppLinks();
+  static String? pendingUrl;
 
   /// Initialize system-wide AppLinks listeners for deep linking.
   static void initialize() {
@@ -24,10 +25,7 @@ class UrlHandlerService {
     _appLinks.getInitialLink().then((uri) {
       if (uri != null) {
         debugPrint('Cold start AppLink received: $uri');
-        // Give a delay to ensure the navigator is mounted and ready
-        Future.delayed(const Duration(milliseconds: 800), () {
-          handleUrl(null, uri.toString());
-        });
+        pendingUrl = uri.toString();
       }
     });
 
@@ -41,6 +39,17 @@ class UrlHandlerService {
     }, onError: (err) {
       debugPrint('AppLink stream error: $err');
     });
+  }
+
+  /// Check and route any pending cold-start URL
+  static void handlePendingUrl(BuildContext context) {
+    if (pendingUrl != null) {
+      final url = pendingUrl!;
+      pendingUrl = null;
+      Future.delayed(const Duration(milliseconds: 500), () {
+        handleUrl(context, url);
+      });
+    }
   }
 
   static void _launchExternalLink(BuildContext context, String url) {

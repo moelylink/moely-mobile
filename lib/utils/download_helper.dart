@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../services/user_agent_service.dart';
 import '../services/settings_service.dart';
 import '../services/wallpaper_service.dart';
+import 'notification_helper.dart';
 
 class DownloadTask {
   final String url;
@@ -144,6 +145,7 @@ class DownloadHelper {
     task.status = 'paused';
     task.cancelToken?.cancel('User paused download');
     task.onStateChanged?.call();
+    NotificationHelper.cancelNotification(task.filename);
   }
 
   /// Resume a paused download task
@@ -193,6 +195,12 @@ class DownloadHelper {
       task.cancelToken = CancelToken();
     }
 
+    // Trigger start notification
+    NotificationHelper.showDownloadNotification(
+      filename: filename,
+      progress: 0.0,
+    );
+
     try {
       final targetDir = await getDownloadDirectory();
       final savePath = p.join(targetDir.path, filename);
@@ -205,6 +213,10 @@ class DownloadHelper {
           if (total > 0) {
             task.progress = received / total;
             task.onStateChanged?.call();
+            NotificationHelper.showDownloadNotification(
+              filename: filename,
+              progress: task.progress,
+            );
           }
           onProgress(received, total);
         },
@@ -215,6 +227,14 @@ class DownloadHelper {
         task.progress = 1.0;
         task.onStateChanged?.call();
         activeTasks.remove(task);
+
+        // Show completed notification
+        NotificationHelper.showDownloadNotification(
+          filename: filename,
+          progress: 1.0,
+          filePath: savePath,
+          isCompleted: true,
+        );
 
         // Notify Android system MediaScanner to scan and index the new image file
         if (Platform.isAndroid) {
@@ -230,6 +250,11 @@ class DownloadHelper {
       } else {
         task.status = 'failed';
         task.onStateChanged?.call();
+        NotificationHelper.showDownloadNotification(
+          filename: filename,
+          progress: 0.0,
+          isFailed: true,
+        );
         throw Exception('Download failed with status: ${response.statusCode}');
       }
     } catch (e) {
@@ -237,6 +262,7 @@ class DownloadHelper {
       if (e is DioException && CancelToken.isCancel(e)) {
         task.status = 'paused';
         task.onStateChanged?.call();
+        NotificationHelper.cancelNotification(filename);
         throw Exception('下载已暂停');
       }
 
@@ -257,6 +283,10 @@ class DownloadHelper {
             if (total > 0) {
               task.progress = received / total;
               task.onStateChanged?.call();
+              NotificationHelper.showDownloadNotification(
+                filename: filename,
+                progress: task.progress,
+              );
             }
             onProgress(received, total);
           },
@@ -267,6 +297,14 @@ class DownloadHelper {
           task.progress = 1.0;
           task.onStateChanged?.call();
           activeTasks.remove(task);
+
+          // Show completed notification
+          NotificationHelper.showDownloadNotification(
+            filename: filename,
+            progress: 1.0,
+            filePath: safePath,
+            isCompleted: true,
+          );
 
           // Notify Android system MediaScanner to scan and index the fallback image file
           if (Platform.isAndroid) {
@@ -282,16 +320,27 @@ class DownloadHelper {
         } else {
           task.status = 'failed';
           task.onStateChanged?.call();
+          NotificationHelper.showDownloadNotification(
+            filename: filename,
+            progress: 0.0,
+            isFailed: true,
+          );
           throw Exception('Secure download fallback also failed: ${response.statusCode}');
         }
       } catch (fallbackError) {
         if (fallbackError is DioException && CancelToken.isCancel(fallbackError)) {
           task.status = 'paused';
           task.onStateChanged?.call();
+          NotificationHelper.cancelNotification(filename);
           throw Exception('下载已暂停');
         }
         task.status = 'failed';
         task.onStateChanged?.call();
+        NotificationHelper.showDownloadNotification(
+          filename: filename,
+          progress: 0.0,
+          isFailed: true,
+        );
         rethrow;
       }
     }

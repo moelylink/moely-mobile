@@ -7,9 +7,14 @@ import 'services/user_agent_service.dart';
 import 'services/settings_service.dart';
 import 'services/url_handler_service.dart';
 import 'services/log_service.dart';
+import 'services/auth_service.dart';
+import 'utils/notification_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize notifications
+  await NotificationHelper.init();
   
   // Initialize Supabase Client
   await Supabase.initialize(
@@ -37,6 +42,9 @@ void main() async {
   
   // Initialize Deep Linking listeners
   UrlHandlerService.initialize();
+  
+  // Pre-initialize AuthService to ensure it starts listening to session recovery events immediately
+  AuthService.instance;
   
   // Set preferred orientations and custom system UI overlay styling
   SystemChrome.setPreferredOrientations([

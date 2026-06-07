@@ -14,8 +14,8 @@
         "dio",
         "file_picker",
         "flutter",
+        "flutter_local_notifications",
         "flutter_staggered_grid_view",
-        "google_sign_in",
         "open_filex",
         "package_info_plus",
         "path_provider",
@@ -97,6 +97,17 @@
       ]
     },
     {
+      "name": "flutter_local_notifications",
+      "version": "17.2.4",
+      "dependencies": [
+        "clock",
+        "flutter",
+        "flutter_local_notifications_linux",
+        "flutter_local_notifications_platform_interface",
+        "timezone"
+      ]
+    },
+    {
       "name": "video_player",
       "version": "2.11.1",
       "dependencies": [
@@ -110,19 +121,8 @@
       ]
     },
     {
-      "name": "google_sign_in",
-      "version": "6.3.0",
-      "dependencies": [
-        "flutter",
-        "google_sign_in_android",
-        "google_sign_in_ios",
-        "google_sign_in_platform_interface",
-        "google_sign_in_web"
-      ]
-    },
-    {
       "name": "supabase_flutter",
-      "version": "2.12.4",
+      "version": "2.14.1",
       "dependencies": [
         "app_links",
         "async",
@@ -140,7 +140,7 @@
     },
     {
       "name": "permission_handler",
-      "version": "12.0.1",
+      "version": "12.0.3",
       "dependencies": [
         "flutter",
         "meta",
@@ -191,7 +191,7 @@
     },
     {
       "name": "app_links",
-      "version": "6.4.1",
+      "version": "7.1.1",
       "dependencies": [
         "app_links_linux",
         "app_links_platform_interface",
@@ -221,7 +221,7 @@
     },
     {
       "name": "device_info_plus",
-      "version": "10.1.2",
+      "version": "12.4.0",
       "dependencies": [
         "device_info_plus_platform_interface",
         "ffi",
@@ -345,7 +345,7 @@
     },
     {
       "name": "xml",
-      "version": "7.0.1",
+      "version": "6.6.1",
       "dependencies": [
         "collection",
         "meta",
@@ -373,9 +373,10 @@
     },
     {
       "name": "image",
-      "version": "4.9.1",
+      "version": "4.8.0",
       "dependencies": [
         "archive",
+        "meta",
         "xml"
       ]
     },
@@ -503,6 +504,33 @@
       ]
     },
     {
+      "name": "timezone",
+      "version": "0.9.4",
+      "dependencies": [
+        "path"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications_platform_interface",
+      "version": "7.2.0",
+      "dependencies": [
+        "flutter",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "flutter_local_notifications_linux",
+      "version": "4.0.1",
+      "dependencies": [
+        "dbus",
+        "ffi",
+        "flutter",
+        "flutter_local_notifications_platform_interface",
+        "path",
+        "xdg_directories"
+      ]
+    },
+    {
       "name": "video_player_web",
       "version": "2.4.0",
       "dependencies": [
@@ -538,42 +566,6 @@
       ]
     },
     {
-      "name": "google_sign_in_web",
-      "version": "0.12.4+4",
-      "dependencies": [
-        "flutter",
-        "flutter_web_plugins",
-        "google_identity_services_web",
-        "google_sign_in_platform_interface",
-        "http",
-        "web"
-      ]
-    },
-    {
-      "name": "google_sign_in_platform_interface",
-      "version": "2.5.0",
-      "dependencies": [
-        "flutter",
-        "plugin_platform_interface"
-      ]
-    },
-    {
-      "name": "google_sign_in_ios",
-      "version": "5.9.0",
-      "dependencies": [
-        "flutter",
-        "google_sign_in_platform_interface"
-      ]
-    },
-    {
-      "name": "google_sign_in_android",
-      "version": "6.2.1",
-      "dependencies": [
-        "flutter",
-        "google_sign_in_platform_interface"
-      ]
-    },
-    {
       "name": "web",
       "version": "1.1.1",
       "dependencies": []
@@ -598,7 +590,7 @@
     },
     {
       "name": "supabase",
-      "version": "2.10.6",
+      "version": "2.12.1",
       "dependencies": [
         "functions_client",
         "gotrue",
@@ -665,7 +657,7 @@
     },
     {
       "name": "permission_handler_apple",
-      "version": "9.4.7",
+      "version": "9.4.9",
       "dependencies": [
         "flutter",
         "permission_handler_platform_interface"
@@ -686,7 +678,7 @@
     },
     {
       "name": "dbus",
-      "version": "0.7.13",
+      "version": "0.7.14",
       "dependencies": [
         "args",
         "ffi",
@@ -718,7 +710,7 @@
     },
     {
       "name": "flutter_plugin_android_lifecycle",
-      "version": "2.0.34",
+      "version": "2.0.35",
       "dependencies": [
         "flutter"
       ]
@@ -775,7 +767,7 @@
     },
     {
       "name": "url_launcher_android",
-      "version": "6.3.30",
+      "version": "6.3.32",
       "dependencies": [
         "flutter",
         "meta",
@@ -837,9 +829,10 @@
     },
     {
       "name": "win32_registry",
-      "version": "1.1.5",
+      "version": "2.1.0",
       "dependencies": [
         "ffi",
+        "meta",
         "win32"
       ]
     },
@@ -894,7 +887,7 @@
     },
     {
       "name": "webview_flutter_wkwebview",
-      "version": "3.25.1",
+      "version": "3.26.0",
       "dependencies": [
         "flutter",
         "meta",
@@ -913,7 +906,7 @@
     },
     {
       "name": "webview_flutter_android",
-      "version": "4.12.0",
+      "version": "4.13.0",
       "dependencies": [
         "flutter",
         "meta",
@@ -1083,11 +1076,11 @@
       ]
     },
     {
-      "name": "google_identity_services_web",
-      "version": "0.3.3+1",
+      "name": "xdg_directories",
+      "version": "1.1.0",
       "dependencies": [
         "meta",
-        "web"
+        "path"
       ]
     },
     {
@@ -1142,7 +1135,7 @@
     },
     {
       "name": "shared_preferences_android",
-      "version": "2.4.23",
+      "version": "2.4.25",
       "dependencies": [
         "flutter",
         "shared_preferences_platform_interface"
@@ -1162,7 +1155,7 @@
     },
     {
       "name": "storage_client",
-      "version": "2.5.2",
+      "version": "2.5.5",
       "dependencies": [
         "http",
         "http_parser",
@@ -1195,7 +1188,7 @@
     },
     {
       "name": "gotrue",
-      "version": "2.20.0",
+      "version": "2.21.0",
       "dependencies": [
         "collection",
         "crypto",
@@ -1211,7 +1204,7 @@
     },
     {
       "name": "functions_client",
-      "version": "2.5.0",
+      "version": "2.6.0",
       "dependencies": [
         "http",
         "logging",
@@ -1236,14 +1229,6 @@
       ]
     },
     {
-      "name": "xdg_directories",
-      "version": "1.1.0",
-      "dependencies": [
-        "meta",
-        "path"
-      ]
-    },
-    {
       "name": "objective_c",
       "version": "9.4.1",
       "dependencies": [
@@ -1258,7 +1243,7 @@
     },
     {
       "name": "sqflite",
-      "version": "2.4.2+1",
+      "version": "2.4.3",
       "dependencies": [
         "flutter",
         "path",
@@ -1326,7 +1311,7 @@
     },
     {
       "name": "hooks",
-      "version": "2.0.0",
+      "version": "2.0.2",
       "dependencies": [
         "collection",
         "crypto",
@@ -1339,7 +1324,7 @@
     },
     {
       "name": "code_assets",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "dependencies": [
         "collection",
         "hooks"
@@ -1347,7 +1332,7 @@
     },
     {
       "name": "sqflite_common",
-      "version": "2.5.8",
+      "version": "2.5.9",
       "dependencies": [
         "meta",
         "path",
@@ -1356,7 +1341,7 @@
     },
     {
       "name": "sqflite_platform_interface",
-      "version": "2.4.0",
+      "version": "2.4.1",
       "dependencies": [
         "flutter",
         "meta",
@@ -1367,7 +1352,7 @@
     },
     {
       "name": "sqflite_darwin",
-      "version": "2.4.2",
+      "version": "2.4.3",
       "dependencies": [
         "flutter",
         "meta",
@@ -1378,7 +1363,7 @@
     },
     {
       "name": "sqflite_android",
-      "version": "2.4.2+3",
+      "version": "2.4.3",
       "dependencies": [
         "flutter",
         "path",
@@ -1419,7 +1404,7 @@
     },
     {
       "name": "synchronized",
-      "version": "3.4.0+1",
+      "version": "3.4.1",
       "dependencies": []
     }
   ],
