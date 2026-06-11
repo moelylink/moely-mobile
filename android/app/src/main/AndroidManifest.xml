@@ -68,6 +68,51 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/moely_widget_info" />
         </receiver>
+
+        <!-- 3x2 Portrait Daily Image (Columns: 2, Rows: 3) -->
+        <receiver android:name=".DailyImagePortraitProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_daily_image_portrait_info" />
+        </receiver>
+
+        <!-- 2x3 Landscape Daily Image (Columns: 3, Rows: 2) -->
+        <receiver android:name=".DailyImageLandscapeProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_daily_image_landscape_info" />
+        </receiver>
+
+        <!-- 3x4 Desktop Pet Widget -->
+        <receiver android:name=".PetWidgetProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="link.moely.mobile.action.PET_FEED" />
+                <action android:name="link.moely.mobile.action.PET_INTERACT" />
+                <action android:name="link.moely.mobile.action.PET_STATUS" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_pet_info" />
+        </receiver>
+
+        <!-- 3x3 Custom Gallery Widget -->
+        <receiver android:name=".GalleryWidgetProvider" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="link.moely.mobile.action.GALLERY_PREV" />
+                <action android:name="link.moely.mobile.action.GALLERY_NEXT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_gallery_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

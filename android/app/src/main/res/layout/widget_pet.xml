@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/moely_widget_bg">
+
+    <!-- Actual Pet Content Layer -->
+    <RelativeLayout
+        android:id="@+id/pet_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp">
+
+        <!-- Dialogue Bubble -->
+        <RelativeLayout
+            android:id="@+id/pet_bubble_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="4dp"
+            android:background="#A6000000"
+            android:padding="6dp">
+
+            <TextView
+                android:id="@+id/pet_bubble_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="主人，贴贴！"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+        </RelativeLayout>
+
+        <!-- Pet Character Area -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_above="@id/pet_action_bar"
+            android:layout_below="@id/pet_bubble_layout"
+            android:layout_margin="8dp">
+
+            <!-- ImageView for WebP/Bitmap assets -->
+            <ImageView
+                android:id="@+id/pet_image"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:layout_centerInParent="true"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+
+            <!-- TextView for Emoji pet (default fallback) -->
+            <TextView
+                android:id="@+id/pet_emoji"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="🐱"
+                android:textSize="54sp" />
+        </RelativeLayout>
+
+        <!-- Interactive Action Bar -->
+        <LinearLayout
+            android:id="@+id/pet_action_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal"
+            android:weightSum="3">
+
+            <TextView
+                android:id="@+id/btn_feed"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_margin="2dp"
+                android:layout_weight="1"
+                android:background="#80000000"
+                android:gravity="center"
+                android:text="🍲 喂食"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/btn_interact"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_margin="2dp"
+                android:layout_weight="1"
+                android:background="#80000000"
+                android:gravity="center"
+                android:text="✨ 互动"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/btn_status"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_margin="2dp"
+                android:layout_weight="1"
+                android:background="#80000000"
+                android:gravity="center"
+                android:text="📊 状态"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+    </RelativeLayout>
+
+    <!-- Premium Lock Overlay Layer -->
+    <RelativeLayout
+        android:id="@+id/lock_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F21E1E24"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="16dp"
+        android:visibility="visible">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔒"
+                android:textSize="40sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="萌哩桌宠 (高级版)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="解锁后可在桌面开启可爱的互动宠物角色，拥有独立的作息与丰富的互动特效。"
+                android:textColor="#A0A0A0"
+                android:textSize="10sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="#FF9800"
+                android:paddingLeft="16dp"
+                android:paddingTop="6dp"
+                android:paddingRight="16dp"
+                android:paddingBottom="6dp"
+                android:text="点击去 App 解锁"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </RelativeLayout>
+
+</FrameLayout>
