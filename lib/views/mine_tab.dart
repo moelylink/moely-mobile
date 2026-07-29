@@ -7,6 +7,7 @@ import 'browsing_history_screen.dart';
 import 'storage_management_screen.dart';
 import 'messages_screen.dart';
 import 'widget_store_screen.dart';
+import 'my_widgets_screen.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
 
@@ -290,6 +291,21 @@ class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const WidgetStoreScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, indent: 56, endIndent: 16),
+
+                    // (7) 我的小组件
+                    ListTile(
+                      leading: Icon(Icons.palette_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('我的小组件', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('独立管理已放置和预设的桌面小部件', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const MyWidgetsScreen()),
                         );
                       },
                     ),

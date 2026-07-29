@@ -86,8 +86,7 @@ class PetWidgetProvider : AppWidgetProvider() {
     }
 
     private fun isPremiumUnlocked(context: Context): Boolean {
-        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        return prefs.getBoolean("flutter.is_premium_unlocked", false)
+        return true
     }
 
     private fun setupButtons(context: Context, views: RemoteViews) {

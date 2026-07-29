@@ -5,6 +5,7 @@ import android.app.WallpaperManager
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -22,11 +23,17 @@ class MoelyWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+            val pendingResult = goAsync()
+            updateAppWidget(context, appWidgetManager, appWidgetId, pendingResult)
         }
     }
 
-    private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+    private fun updateAppWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        pendingResult: BroadcastReceiver.PendingResult? = null
+    ) {
         val views = RemoteViews(context.packageName, R.layout.moely_widget_layout)
 
         // Set pending intent to launch main app when clicked
@@ -46,7 +53,7 @@ class MoelyWidgetProvider : AppWidgetProvider() {
                 conn.connectTimeout = 8000
                 conn.readTimeout = 8000
                 conn.requestMethod = "GET"
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+                conn.setRequestProperty("User-Agent", getUserAgent(context))
 
                 if (conn.responseCode == 200) {
                     val reader = BufferedReader(InputStreamReader(conn.inputStream))
@@ -70,7 +77,8 @@ class MoelyWidgetProvider : AppWidgetProvider() {
                         val imgConn = imgUrl.openConnection() as HttpURLConnection
                         imgConn.connectTimeout = 10000
                         imgConn.readTimeout = 10000
-                        imgConn.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        imgConn.setRequestProperty("User-Agent", getUserAgent(context))
+                        imgConn.setRequestProperty("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
                         
                         val bitmap = BitmapFactory.decodeStream(imgConn.inputStream)
                         if (bitmap != null) {
@@ -84,6 +92,8 @@ class MoelyWidgetProvider : AppWidgetProvider() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                pendingResult?.finish()
             }
         }
     }

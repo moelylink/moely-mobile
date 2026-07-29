@@ -8,6 +8,10 @@ import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
 import java.io.File
 
 class MainActivity : FlutterActivity() {
@@ -16,6 +20,292 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Widget custom channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "link.moely.mobile/widget").setMethodCallHandler { call, result ->
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            when (call.method) {
+                "pinWidget" -> {
+                    val providerName = call.argument<String>("providerName")
+                    if (providerName == null) {
+                        result.error("INVALID_ARGUMENT", "providerName is null", null)
+                        return@setMethodCallHandler
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                        val myProvider = ComponentName(applicationContext, "link.moely.mobile.$providerName")
+                        if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                            val successCallback = PendingIntent.getBroadcast(
+                                applicationContext,
+                                100,
+                                Intent(applicationContext, MainActivity::class.java),
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_UPDATE_CURRENT
+                            )
+                            appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
+                            result.success(true)
+                        } else {
+                            result.success(false)
+                        }
+                    } else {
+                        result.error("NOT_SUPPORTED", "Requires Android O (API 26) or higher", null)
+                    }
+                }
+                "isPremiumUnlocked" -> {
+                    val isUnlocked = prefs.getBoolean("flutter.is_premium_unlocked", false)
+                    result.success(isUnlocked)
+                }
+                "setPremiumUnlocked" -> {
+                    val value = call.argument<Boolean>("value") ?: false
+                    prefs.edit().putBoolean("flutter.is_premium_unlocked", value).apply()
+                    
+                    // Trigger widgets update to reflect premium status immediately
+                    val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                    
+                    val petProvider = ComponentName(applicationContext, PetWidgetProvider::class.java)
+                    val petIds = appWidgetManager.getAppWidgetIds(petProvider)
+                    val petIntent = Intent(applicationContext, PetWidgetProvider::class.java).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, petIds)
+                    }
+                    sendBroadcast(petIntent)
+                    
+                    val galleryProvider = ComponentName(applicationContext, GalleryWidgetProvider::class.java)
+                    val galleryIds = appWidgetManager.getAppWidgetIds(galleryProvider)
+                    val galleryIntent = Intent(applicationContext, GalleryWidgetProvider::class.java).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, galleryIds)
+                    }
+                    sendBroadcast(galleryIntent)
+
+                    result.success(true)
+                }
+                "updateWidget" -> {
+                    val providerName = call.argument<String>("providerName")
+                    if (providerName == null) {
+                        result.error("INVALID_ARGUMENT", "providerName is null", null)
+                        return@setMethodCallHandler
+                    }
+                    val cls = when (providerName) {
+                        "MoelyWidgetProvider" -> MoelyWidgetProvider::class.java
+                        "DailyImagePortraitProvider" -> DailyImagePortraitProvider::class.java
+                        "DailyImageLandscapeProvider" -> DailyImageLandscapeProvider::class.java
+                        "PetWidgetProvider" -> PetWidgetProvider::class.java
+                        "GalleryWidgetProvider" -> GalleryWidgetProvider::class.java
+                        else -> null
+                    }
+                    if (cls != null) {
+                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                        val myProvider = ComponentName(applicationContext, cls)
+                        val ids = appWidgetManager.getAppWidgetIds(myProvider)
+                        val intent = Intent(applicationContext, cls).apply {
+                            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                        }
+                        sendBroadcast(intent)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_PROVIDER", "Unknown provider: $providerName", null)
+                    }
+                }
+                "setGalleryImages" -> {
+                    val images = call.argument<List<String>>("images") ?: emptyList()
+                    val widgetId = call.argument<Int>("widgetId") ?: -1
+                    val title = call.argument<String>("title") ?: ""
+                    val scale = call.argument<Int>("scale") ?: 6
+                    
+                    val imagesString = images.joinToString(",")
+                    
+                    if (widgetId != -1) {
+                        prefs.edit()
+                            .putString("flutter.gallery_images_$widgetId", imagesString)
+                            .putString("flutter.gallery_title_$widgetId", title)
+                            .putString("flutter.widget_custom_name_$widgetId", title)
+                            .putInt("flutter.gallery_scale_$widgetId", scale)
+                            .putInt("flutter.gallery_current_index_$widgetId", 0)
+                            .apply()
+                    } else {
+                        prefs.edit()
+                            .putString("flutter.gallery_images", imagesString)
+                            .putString("flutter.gallery_title", title)
+                            .putInt("flutter.gallery_scale", scale)
+                            .putInt("flutter.gallery_current_index", 0)
+                            .apply()
+                    }
+
+                    // Trigger widget update to reflect immediately
+                    val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                    val galleryProvider = ComponentName(applicationContext, GalleryWidgetProvider::class.java)
+                    val galleryIds = if (widgetId != -1) {
+                        intArrayOf(widgetId)
+                    } else {
+                        appWidgetManager.getAppWidgetIds(galleryProvider)
+                    }
+                    val galleryIntent = Intent(applicationContext, GalleryWidgetProvider::class.java).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, galleryIds)
+                    }
+                    sendBroadcast(galleryIntent)
+
+                    result.success(true)
+                }
+                "getGalleryImages" -> {
+                    val widgetId = call.argument<Int>("widgetId") ?: -1
+                    
+                    val imagesString = if (widgetId != -1) {
+                        prefs.getString("flutter.gallery_images_$widgetId", "")?.takeIf { it.isNotEmpty() }
+                            ?: prefs.getString("flutter.gallery_images", "") ?: ""
+                    } else {
+                        prefs.getString("flutter.gallery_images", "") ?: ""
+                    }
+                    
+                    val title = if (widgetId != -1) {
+                        prefs.getString("flutter.gallery_title_$widgetId", "")?.takeIf { it.isNotEmpty() }
+                            ?: prefs.getString("flutter.gallery_title", "") ?: ""
+                    } else {
+                        prefs.getString("flutter.gallery_title", "") ?: ""
+                    }
+                    
+                    val scale = if (widgetId != -1) {
+                        val specific = prefs.getInt("flutter.gallery_scale_$widgetId", -1)
+                        if (specific != -1) specific else prefs.getInt("flutter.gallery_scale", 6)
+                    } else {
+                        prefs.getInt("flutter.gallery_scale", 6)
+                    }
+                    
+                    val imagesList = if (imagesString.isEmpty()) {
+                        emptyList<String>()
+                    } else {
+                        imagesString.split(",").filter { it.isNotEmpty() }
+                    }
+                    
+                    val configMap = mapOf(
+                        "images" to imagesList,
+                        "title" to title,
+                        "scale" to scale
+                    )
+                    result.success(configMap)
+                }
+                "getActiveGalleryWidgets" -> {
+                    val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                    val thisWidget = ComponentName(applicationContext, GalleryWidgetProvider::class.java)
+                    val ids = appWidgetManager.getAppWidgetIds(thisWidget)
+                    val list = ids.map { id ->
+                        val title = prefs.getString("flutter.widget_custom_name_$id", "")?.takeIf { it.isNotEmpty() }
+                            ?: prefs.getString("flutter.gallery_title_$id", "")?.takeIf { it.isNotEmpty() }
+                            ?: prefs.getString("flutter.gallery_title", "")?.takeIf { it.isNotEmpty() }
+                            ?: "自定义画廊"
+                        mapOf("id" to id, "title" to title)
+                    }
+                    result.success(list)
+                }
+                "getAllActiveWidgets" -> {
+                    try {
+                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                        val list = mutableListOf<Map<String, Any>>()
+                        
+                        if (appWidgetManager != null) {
+                            // 1. Gallery
+                            val galleryProvider = ComponentName(applicationContext, GalleryWidgetProvider::class.java)
+                            appWidgetManager.getAppWidgetIds(galleryProvider)?.forEach { id ->
+                                val customName = prefs.getString("flutter.widget_custom_name_$id", "")?.takeIf { it.isNotEmpty() }
+                                    ?: prefs.getString("flutter.gallery_title_$id", "")?.takeIf { it.isNotEmpty() }
+                                    ?: prefs.getString("flutter.gallery_title", "")?.takeIf { it.isNotEmpty() }
+                                    ?: "自定义画廊"
+                                list.add(mapOf(
+                                    "id" to id,
+                                    "type" to "gallery",
+                                    "provider" to "GalleryWidgetProvider",
+                                    "customName" to customName
+                                ))
+                            }
+                            
+                            // 2. Pet
+                            val petProvider = ComponentName(applicationContext, PetWidgetProvider::class.java)
+                            appWidgetManager.getAppWidgetIds(petProvider)?.forEach { id ->
+                                val customName = prefs.getString("flutter.widget_custom_name_$id", "")?.takeIf { it.isNotEmpty() }
+                                    ?: "随机探索看板娘"
+                                list.add(mapOf(
+                                    "id" to id,
+                                    "type" to "pet",
+                                    "provider" to "PetWidgetProvider",
+                                    "customName" to customName
+                                ))
+                            }
+                            
+                            // 3. Moely Classic
+                            val moelyProvider = ComponentName(applicationContext, MoelyWidgetProvider::class.java)
+                            appWidgetManager.getAppWidgetIds(moelyProvider)?.forEach { id ->
+                                val customName = prefs.getString("flutter.widget_custom_name_$id", "")?.takeIf { it.isNotEmpty() }
+                                    ?: "萌哩每日一图"
+                                list.add(mapOf(
+                                    "id" to id,
+                                    "type" to "daily_classic",
+                                    "provider" to "MoelyWidgetProvider",
+                                    "customName" to customName
+                                ))
+                            }
+                            
+                            // 4. Portrait Daily Image
+                            val portraitProvider = ComponentName(applicationContext, DailyImagePortraitProvider::class.java)
+                            appWidgetManager.getAppWidgetIds(portraitProvider)?.forEach { id ->
+                                val customName = prefs.getString("flutter.widget_custom_name_$id", "")?.takeIf { it.isNotEmpty() }
+                                    ?: "精美竖屏大卡"
+                                list.add(mapOf(
+                                    "id" to id,
+                                    "type" to "daily_portrait",
+                                    "provider" to "DailyImagePortraitProvider",
+                                    "customName" to customName
+                                ))
+                            }
+                            
+                            // 5. Landscape Daily Image
+                            val landscapeProvider = ComponentName(applicationContext, DailyImageLandscapeProvider::class.java)
+                            appWidgetManager.getAppWidgetIds(landscapeProvider)?.forEach { id ->
+                                val customName = prefs.getString("flutter.widget_custom_name_$id", "")?.takeIf { it.isNotEmpty() }
+                                    ?: "电影感横屏卡"
+                                list.add(mapOf(
+                                    "id" to id,
+                                    "type" to "daily_landscape",
+                                    "provider" to "DailyImageLandscapeProvider",
+                                    "customName" to customName
+                                ))
+                            }
+                        }
+                        
+                        result.success(list)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        result.error("NATIVE_ERROR", e.localizedMessage, null)
+                    }
+                }
+                "saveWidgetCustomName" -> {
+                    val id = call.argument<Int>("widgetId") ?: -1
+                    val customName = call.argument<String>("customName") ?: ""
+                    if (id != -1) {
+                        prefs.edit().putString("flutter.widget_custom_name_$id", customName).apply()
+                        
+                        // If it is gallery widget, also set flutter.gallery_title_$id so widget updates
+                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                        val galleryProvider = ComponentName(applicationContext, GalleryWidgetProvider::class.java)
+                        val galleryIds = appWidgetManager.getAppWidgetIds(galleryProvider)
+                        if (galleryIds.contains(id)) {
+                            prefs.edit().putString("flutter.gallery_title_$id", customName).apply()
+                            val galleryIntent = Intent(applicationContext, GalleryWidgetProvider::class.java).apply {
+                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(id))
+                            }
+                            sendBroadcast(galleryIntent)
+                        }
+                        result.success(true)
+                    } else {
+                        result.success(false)
+                    }
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
 
         // Browser custom channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BROWSER_CHANNEL).setMethodCallHandler { call, result ->
@@ -149,5 +439,10 @@ class MainActivity : FlutterActivity() {
                 result.notImplemented()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 }

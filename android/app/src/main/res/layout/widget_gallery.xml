@@ -10,13 +10,23 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Background Image -->
+        <!-- Background Image (Center Crop) -->
         <ImageView
-            android:id="@+id/gallery_image"
+            android:id="@+id/gallery_image_crop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="centerCrop"
-            android:contentDescription="Custom Gallery Image" />
+            android:visibility="visible"
+            android:contentDescription="Custom Gallery Image Crop" />
+
+        <!-- Background Image (Fit Center) -->
+        <ImageView
+            android:id="@+id/gallery_image_fit"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:contentDescription="Custom Gallery Image Fit" />
 
         <!-- Navigation Buttons -->
         <TextView

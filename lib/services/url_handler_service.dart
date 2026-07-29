@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:app_links/app_links.dart';
@@ -11,8 +12,12 @@ import '../views/search_grid_screen.dart';
 import '../views/denoised_web_screen.dart';
 import '../views/home_screen.dart';
 import '../views/latest_tab.dart';
+import '../views/widget_store_screen.dart';
+import '../views/my_widgets_screen.dart';
+import '../views/widget_image_viewer_screen.dart';
 import 'settings_service.dart';
 import '../utils/toast_helper.dart';
+import '../utils/cache_helper.dart';
 
 class UrlHandlerService {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -215,6 +220,41 @@ class UrlHandlerService {
     final navContext = context ?? navigatorKey.currentContext;
     if (navContext == null) return false;
 
+    // 0. Widget premium routing: /premium
+    if (path.startsWith('/premium')) {
+      Navigator.push(
+        navContext,
+        MaterialPageRoute(
+          builder: (context) => const MyWidgetsScreen(),
+        ),
+      );
+      return true;
+    }
+
+    // 0. Widget configuration deep link: /widget/gallery/config
+    if (path.startsWith('/widget/gallery/config')) {
+      final widgetIdStr = queryParams['widgetId'];
+      final widgetId = int.tryParse(widgetIdStr ?? '');
+      Navigator.push(
+        navContext,
+        MaterialPageRoute(
+          builder: (context) => MyWidgetsScreen(initialConfigureWidgetId: widgetId),
+        ),
+      );
+      return true;
+    }
+
+    // 0. Widget click deep link: /widget/gallery/click
+    if (path.startsWith('/widget/gallery/click')) {
+      final widgetIdStr = queryParams['widgetId'];
+      final widgetId = int.tryParse(widgetIdStr ?? '');
+      final imageUrl = queryParams['image'];
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        _handleGalleryWidgetClick(navContext, widgetId, imageUrl);
+      }
+      return true;
+    }
+
     // 1. Search Query: ?s=query
     if (queryParams.containsKey('s')) {
       final query = queryParams['s'];
@@ -333,5 +373,74 @@ class UrlHandlerService {
     }
 
     return false;
+  }
+
+  static Future<void> _handleGalleryWidgetClick(BuildContext context, int? widgetId, String imageUrl) async {
+    // 1. Try to find the image in favorites.json to show full detail screen if it's from favorites
+    try {
+      final favDir = await CacheHelper.getFavoritesCacheDir();
+      final jsonFile = File('${favDir.path}/favorites.json');
+      if (jsonFile.existsSync()) {
+        final content = await jsonFile.readAsString();
+        final List<dynamic> bookmarks = json.decode(content) as List<dynamic>;
+        
+        dynamic matchedItem;
+        for (final item in bookmarks) {
+          final id = item['id'].toString();
+          final itemImage = item['image'].toString();
+          if (itemImage == imageUrl || imageUrl.contains('/favorites/images/$id.jpg')) {
+            matchedItem = item;
+            break;
+          }
+        }
+        
+        if (matchedItem != null) {
+          final urlStr = matchedItem['url']?.toString() ?? '';
+          final regExp = RegExp(r'/img/(\d+)');
+          final match = regExp.firstMatch(urlStr);
+          String workId = matchedItem['id'].toString();
+          if (match != null) {
+            workId = match.group(1)!;
+          } else {
+            final digitsMatch = RegExp(r'(\d+)').firstMatch(urlStr);
+            if (digitsMatch != null) {
+              workId = digitsMatch.group(1)!;
+            }
+          }
+          
+          final imageItem = MoelyImage(
+            id: workId,
+            user: 'Collection',
+            category: 'Star',
+            urls: matchedItem['image'].toString(),
+          );
+          
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ImageDetailScreen(image: imageItem),
+              ),
+            );
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error looking up bookmark for widget click: $e');
+    }
+
+    // 2. Fallback: If not in favorites (e.g. a local image), show a simple full-screen image viewer
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WidgetImageViewerScreen(
+            imageUrl: imageUrl,
+            widgetId: widgetId,
+          ),
+        ),
+      );
+    }
   }
 }
