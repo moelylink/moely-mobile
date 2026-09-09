@@ -82,6 +82,9 @@ flutter:
     - favicon.png
     - logo.png
     - moely.mp4
+    - assets/pet/
+    - assets/pet/capoo/
+    - assets/manor_house.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

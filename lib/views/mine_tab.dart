@@ -8,6 +8,7 @@ import 'storage_management_screen.dart';
 import 'messages_screen.dart';
 import 'widget_store_screen.dart';
 import 'my_widgets_screen.dart';
+import 'kanban_screen.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
 
@@ -213,7 +214,22 @@ class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16),
 
-                    // (2) 美图收藏
+                    // (2) 私信消息 (移动至云端分组)
+                    ListTile(
+                      leading: const Icon(Icons.forum_rounded, color: Colors.purpleAccent),
+                      title: const Text('私信消息', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('接收系统广播、与其他小伙伴私信对话', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const MessagesScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, indent: 56, endIndent: 16),
+
+                    // (3) 美图收藏
                     ListTile(
                       leading: const Icon(Icons.favorite_rounded, color: Colors.pinkAccent),
                       title: const Text('美图收藏', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -228,7 +244,7 @@ class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16),
 
-                    // (3) 浏览历史
+                    // (4) 浏览历史
                     ListTile(
                       leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
                       title: const Text('浏览历史', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -266,22 +282,7 @@ class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16),
 
-                    // (5) 私信消息
-                    ListTile(
-                      leading: Icon(Icons.forum_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                      title: const Text('私信消息', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('接收系统广播、与其他小伙伴私信对话', style: TextStyle(fontSize: 12)),
-                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const MessagesScreen()),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1, indent: 56, endIndent: 16),
-
-                    // (6) 小部件商城
+                    // (5) 小部件商城
                     ListTile(
                       leading: Icon(Icons.widgets_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('小部件商城', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -296,7 +297,7 @@ class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
                     ),
                     const Divider(height: 1, indent: 56, endIndent: 16),
 
-                    // (7) 我的小组件
+                    // (6) 我的小组件
                     ListTile(
                       leading: Icon(Icons.palette_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('我的小组件', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -306,6 +307,21 @@ class _MineTabState extends State<MineTab> with AutomaticKeepAliveClientMixin {
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const MyWidgetsScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1, indent: 56, endIndent: 16),
+
+                    // (7) 萌哩小屋
+                    ListTile(
+                      leading: Icon(Icons.cabin_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('萌哩小屋', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('开启桌面萌宠，互动体验萌哩小屋', style: TextStyle(fontSize: 12)),
+                      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const KanbanScreen()),
                         );
                       },
                     ),

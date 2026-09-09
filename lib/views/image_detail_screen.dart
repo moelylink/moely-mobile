@@ -29,6 +29,7 @@ import '../utils/toast_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import '../services/kanban_service.dart';
 
 class ImageDetailScreen extends StatefulWidget {
   final MoelyImage image;
@@ -967,6 +968,9 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
       if (mounted) {
         Navigator.pop(context); // Close dialog
+        // Reward feed for saving wallpaper
+        KanbanService.instance.earnFeed(50, '保存壁纸');
+        
         final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
         ToastHelper.show(
           rootContext,
@@ -1343,6 +1347,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       if (mounted) {
         Navigator.pop(context); // Close dialog
         if (success) {
+          // Reward feed for setting wallpaper
+          KanbanService.instance.earnFeed(50, '设置壁纸');
           _showNotification('壁纸设置成功！', type: 'success');
         }
       }

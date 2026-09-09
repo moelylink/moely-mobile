@@ -15,7 +15,8 @@ class AuthService extends ChangeNotifier {
     });
   }
 
-  static final AuthService instance = AuthService._privateConstructor();
+  static final AuthService instance = AuD/CCodecConfig( 4894): c2 config diff is   c2::u32 raw.crop.height = 1280
+  thService._privateConstructor();
   
   final SupabaseClient _client = Supabase.instance.client;
   Session? _currentSession;

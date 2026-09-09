@@ -165,4 +165,28 @@ class WidgetService {
       return false;
     }
   }
+
+  /// Check if launcher shortcut permission is granted
+  static Future<bool> checkShortcutPermission() async {
+    if (!isPlatformAndroid) return true;
+    try {
+      final bool? result = await _channel.invokeMethod<bool>('checkShortcutPermission');
+      return result ?? true;
+    } on PlatformException catch (e) {
+      print('Failed to check shortcut permission: ${e.message}');
+      return true;
+    }
+  }
+
+  /// Open shortcut permission settings
+  static Future<bool> openShortcutPermissionSettings() async {
+    if (!isPlatformAndroid) return false;
+    try {
+      final bool? result = await _channel.invokeMethod<bool>('openShortcutPermissionSettings');
+      return result ?? false;
+    } on PlatformException catch (e) {
+      print('Failed to open shortcut settings: ${e.message}');
+      return false;
+    }
+  }
 }

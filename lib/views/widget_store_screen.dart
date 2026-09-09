@@ -77,10 +77,89 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
       return;
     }
     
+    final hasPermission = await WidgetService.checkShortcutPermission();
+    if (!hasPermission) {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return AlertDialog(
+            title: const Text('需要桌面快捷方式权限'),
+            content: const Text(
+              '由于您的系统限制，快捷添加小组件需要「创建桌面快捷方式」权限。\n\n'
+              '请点击“去开启”前往设置界面手动允许该权限，然后再试。'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  '取消',
+                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('去开启'),
+              ),
+            ],
+          );
+        },
+      );
+      if (result == true) {
+        await WidgetService.openShortcutPermissionSettings();
+      }
+      return;
+    }
+    
     final success = await WidgetService.pinWidget(providerName);
     if (mounted) {
       if (success) {
-        ToastHelper.show(context, '已发送「$widgetName」添加请求，请在系统桌面确认！', type: ToastType.success);
+        showDialog(
+          context: context,
+          builder: (context) {
+            final theme = Theme.of(context);
+            final isDark = theme.brightness == Brightness.dark;
+            return AlertDialog(
+              title: const Text('添加请求已发送'),
+              content: const Text(
+                '已向系统桌面发送小组件添加请求。\n\n'
+                '⚠️ 提示：如果您的桌面没有出现任何添加提示框，可能是由于系统限制了「创建桌面快捷方式」权限。请点击“去开启权限”手动授权后再试。'
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    '好的',
+                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    WidgetService.openShortcutPermissionSettings();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('去开启权限'),
+                ),
+              ],
+            );
+          },
+        );
       } else {
         ToastHelper.show(context, '您的系统桌面暂不支持快捷添加，请长按桌面手动添加小组件！', type: ToastType.warning);
       }

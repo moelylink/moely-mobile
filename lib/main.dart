@@ -5,6 +5,7 @@ import 'views/home_screen.dart';
 import 'views/video_splash_screen.dart';
 import 'services/user_agent_service.dart';
 import 'services/settings_service.dart';
+import 'services/kanban_service.dart';
 import 'services/url_handler_service.dart';
 import 'services/log_service.dart';
 import 'services/auth_service.dart';
@@ -30,6 +31,9 @@ void main() async {
   
   // Load AppSettings persistent configurations
   await AppSettings.instance.init();
+
+  // Load Kanban Mascot persistent configurations
+  await KanbanService.instance.init();
 
   // Redirect debugPrint to capture application logs in Debug Mode
   final originalDebugPrint = debugPrint;

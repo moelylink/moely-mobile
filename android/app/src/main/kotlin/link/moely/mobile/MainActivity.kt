@@ -12,6 +12,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.app.AppOpsManager
 import java.io.File
 
 class MainActivity : FlutterActivity() {
@@ -31,15 +32,37 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGUMENT", "providerName is null", null)
                         return@setMethodCallHandler
                     }
+                    val cls = when (providerName) {
+                        "MoelyWidgetProvider" -> MoelyWidgetProvider::class.java
+                        "DailyImagePortraitProvider" -> DailyImagePortraitProvider::class.java
+                        "DailyImageLandscapeProvider" -> DailyImageLandscapeProvider::class.java
+                        "PetWidgetProvider" -> PetWidgetProvider::class.java
+                        "GalleryWidgetProvider" -> GalleryWidgetProvider::class.java
+                        else -> null
+                    }
+                    if (cls == null) {
+                        result.error("INVALID_PROVIDER", "Unknown provider: $providerName", null)
+                        return@setMethodCallHandler
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
-                        val myProvider = ComponentName(applicationContext, "link.moely.mobile.$providerName")
+                        val myProvider = ComponentName(applicationContext, cls)
                         if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                            val intent = Intent(applicationContext, cls).apply {
+                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                            }
+                            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                            } else {
+                                PendingIntent.FLAG_UPDATE_CURRENT
+                            }
                             val successCallback = PendingIntent.getBroadcast(
                                 applicationContext,
                                 100,
-                                Intent(applicationContext, MainActivity::class.java),
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_UPDATE_CURRENT
+                                intent,
+                                flags
                             )
                             appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
                             result.success(true)
@@ -106,6 +129,25 @@ class MainActivity : FlutterActivity() {
                     } else {
                         result.error("INVALID_PROVIDER", "Unknown provider: $providerName", null)
                     }
+                }
+                "updatePetStatus" -> {
+                    val emoji = call.argument<String>("emoji") ?: "🐱"
+                    val bubbleText = call.argument<String>("bubbleText") ?: ""
+                    prefs.edit()
+                        .putString("flutter.pet_emoji", emoji)
+                        .putString("flutter.pet_bubble_text", bubbleText)
+                        .apply()
+                    
+                    // Trigger widgets update
+                    val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                    val petProvider = ComponentName(applicationContext, PetWidgetProvider::class.java)
+                    val petIds = appWidgetManager.getAppWidgetIds(petProvider)
+                    val petIntent = Intent(applicationContext, PetWidgetProvider::class.java).apply {
+                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, petIds)
+                    }
+                    sendBroadcast(petIntent)
+                    result.success(true)
                 }
                 "setGalleryImages" -> {
                     val images = call.argument<List<String>>("images") ?: emptyList()
@@ -301,6 +343,13 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "checkShortcutPermission" -> {
+                    result.success(checkShortcutPermission(applicationContext))
+                }
+                "openShortcutPermissionSettings" -> {
+                    openShortcutPermissionSettings(this)
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -444,5 +493,114 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+    }
+
+    private fun checkShortcutPermission(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
+            return true
+        }
+        val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        try {
+            val checkOpNoThrow = appOpsManager.javaClass.getMethod(
+                "checkOpNoThrow",
+                java.lang.Integer.TYPE,
+                java.lang.Integer.TYPE,
+                java.lang.String::class.java
+            )
+            // 10017 corresponds to OP_INSTALL_SHORTCUT on Xiaomi / MIUI / HyperOS
+            val mode = checkOpNoThrow.invoke(
+                appOpsManager,
+                10017,
+                android.os.Process.myUid(),
+                context.packageName
+            ) as Int
+            return mode == AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) {
+            // Ignore and fallback
+        }
+        return true
+    }
+
+    private fun openShortcutPermissionSettings(context: Context) {
+        val packageName = context.packageName
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        var success = false
+
+        // 1. Try MIUI specific intent
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
+            try {
+                val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                    setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.AppPermissionsEditorActivity")
+                    putExtra("extra_pkgname", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+            } catch (e: Exception) {
+                // fall through
+            }
+        }
+
+        // 2. Try Huawei specific intent
+        if (!success && (manufacturer.contains("huawei") || manufacturer.contains("honor"))) {
+            try {
+                val intent = Intent().apply {
+                    setClassName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+            } catch (e: Exception) {
+                // fall through
+            }
+        }
+
+        // 3. Try Vivo specific intent
+        if (!success && manufacturer.contains("vivo")) {
+            try {
+                val intent = Intent().apply {
+                    setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+            } catch (e: Exception) {
+                // fall through
+            }
+        }
+
+        // 4. Try Oppo specific intent
+        if (!success && manufacturer.contains("oppo")) {
+            try {
+                val intent = Intent().apply {
+                    setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+            } catch (e: Exception) {
+                // fall through
+            }
+        }
+
+        // 5. General fallback: App Details settings page
+        if (!success) {
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                try {
+                    val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                } catch (e2: Exception) {
+                    // Ignore
+                }
+            }
+        }
     }
 }

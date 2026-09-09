@@ -15,6 +15,7 @@ import '../views/latest_tab.dart';
 import '../views/widget_store_screen.dart';
 import '../views/my_widgets_screen.dart';
 import '../views/widget_image_viewer_screen.dart';
+import '../views/kanban_screen.dart';
 import 'settings_service.dart';
 import '../utils/toast_helper.dart';
 import '../utils/cache_helper.dart';
@@ -219,6 +220,17 @@ class UrlHandlerService {
 
     final navContext = context ?? navigatorKey.currentContext;
     if (navContext == null) return false;
+
+    // 0. Kanban routing: /kanban
+    if (path.startsWith('/kanban')) {
+      Navigator.push(
+        navContext,
+        MaterialPageRoute(
+          builder: (context) => const KanbanScreen(),
+        ),
+      );
+      return true;
+    }
 
     // 0. Widget premium routing: /premium
     if (path.startsWith('/premium')) {

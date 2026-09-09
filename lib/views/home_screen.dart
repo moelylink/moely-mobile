@@ -9,6 +9,7 @@ import 'settings_tab.dart';
 import 'mine_tab.dart';
 import '../services/update_service.dart';
 import '../services/url_handler_service.dart';
+import '../services/widget_service.dart';
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<HomeScreenState> homeKey = GlobalKey<HomeScreenState>();
@@ -111,6 +112,7 @@ class HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       UpdateService.checkUpdate();
       UrlHandlerService.handlePendingUrl(context);
+      _checkAndRequestShortcutPermission();
     });
   }
 
@@ -128,6 +130,52 @@ class HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       debugPrint('Failed to request permissions: $e');
+    }
+  }
+
+  Future<void> _checkAndRequestShortcutPermission() async {
+    if (!Platform.isAndroid) return;
+    
+    final hasPermission = await WidgetService.checkShortcutPermission();
+    if (!hasPermission) {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return AlertDialog(
+            title: const Text('需要桌面快捷方式权限'),
+            content: const Text(
+              '为了能够快捷地将小组件添加至桌面，建议您开启「创建桌面快捷方式」权限。\n\n'
+              '请点击“去开启”前往设置界面手动允许该权限。'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  '暂不需要',
+                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('去开启'),
+              ),
+            ],
+          );
+        },
+      );
+      if (result == true) {
+        await WidgetService.openShortcutPermissionSettings();
+      }
     }
   }
 
