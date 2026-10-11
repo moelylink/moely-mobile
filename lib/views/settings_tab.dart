@@ -567,13 +567,22 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 child: Column(
                   children: [
-                    SwitchListTile(
-                      secondary: Icon(Icons.translate_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    ListTile(
+                      leading: Icon(Icons.translate_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('启用翻译功能', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: const Text('在作品详情页展示翻译按钮', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.enableTranslation,
-                      onChanged: (val) {
-                        AppSettings.instance.setEnableTranslation(val);
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.enableTranslation,
+                          onChanged: (val) {
+                            AppSettings.instance.setEnableTranslation(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setEnableTranslation(!AppSettings.instance.enableTranslation);
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
@@ -595,33 +604,98 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 child: Column(
                   children: [
-                    SwitchListTile(
-                      secondary: Icon(Icons.swipe_up_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    ListTile(
+                      leading: Icon(Icons.all_inclusive_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('启用无尽滚动', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('适用于所有图片列表页，关闭后将使用翻页模式', style: TextStyle(fontSize: 12)),
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.enableInfiniteScroll,
+                          onChanged: (val) {
+                            AppSettings.instance.setEnableInfiniteScroll(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setEnableInfiniteScroll(!AppSettings.instance.enableInfiniteScroll);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ListTile(
+                      leading: Icon(Icons.grid_view_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                      title: const Text('瀑布流显示图片信息', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('关闭后瀑布流不再显示ID和画师等图片信息', style: TextStyle(fontSize: 12)),
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.showGridImageInfo,
+                          onChanged: (val) {
+                            AppSettings.instance.setShowGridImageInfo(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setShowGridImageInfo(!AppSettings.instance.showGridImageInfo);
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ListTile(
+                      leading: Icon(Icons.swipe_up_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('滑动探索随机图片', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: const Text('图片详情页底部上拉可探索随机图片', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.enableOverscrollRandom,
-                      onChanged: (val) {
-                        AppSettings.instance.setEnableOverscrollRandom(val);
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.enableOverscrollRandom,
+                          onChanged: (val) {
+                            AppSettings.instance.setEnableOverscrollRandom(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setEnableOverscrollRandom(!AppSettings.instance.enableOverscrollRandom);
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
-                    SwitchListTile(
-                      secondary: Icon(Icons.security_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    ListTile(
+                      leading: Icon(Icons.security_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('外部链接确认弹窗', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: const Text('关闭后将不再展示安全提示弹窗', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.showJumpConfirmation,
-                      onChanged: (val) {
-                        AppSettings.instance.setShowJumpConfirmation(val);
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.showJumpConfirmation,
+                          onChanged: (val) {
+                            AppSettings.instance.setShowJumpConfirmation(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setShowJumpConfirmation(!AppSettings.instance.showJumpConfirmation);
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
-                    SwitchListTile(
-                      secondary: Icon(Icons.open_in_browser_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    ListTile(
+                      leading: Icon(Icons.open_in_browser_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('在App内浏览外部网页', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: const Text('关闭后将使用系统默认浏览器打开外部链接', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.browseInApp,
-                      onChanged: (val) {
-                        AppSettings.instance.setBrowseInApp(val);
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.browseInApp,
+                          onChanged: (val) {
+                            AppSettings.instance.setBrowseInApp(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setBrowseInApp(!AppSettings.instance.browseInApp);
                       },
                     ),
                   ],
@@ -662,13 +736,22 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
-                    SwitchListTile(
-                      secondary: Icon(Icons.system_update_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    ListTile(
+                      leading: Icon(Icons.system_update_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                       title: const Text('自动检查更新', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: const Text('开启后，每次打开App自动检查并提示新版本', style: TextStyle(fontSize: 12)),
-                      value: AppSettings.instance.autoCheckUpdate,
-                      onChanged: (val) {
-                        AppSettings.instance.setAutoCheckUpdate(val);
+                      trailing: Transform.scale(
+                        scale: 0.8,
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: AppSettings.instance.autoCheckUpdate,
+                          onChanged: (val) {
+                            AppSettings.instance.setAutoCheckUpdate(val);
+                          },
+                        ),
+                      ),
+                      onTap: () {
+                        AppSettings.instance.setAutoCheckUpdate(!AppSettings.instance.autoCheckUpdate);
                       },
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),

@@ -8,14 +8,23 @@ class ImageDetailsParser {
   static final Dio _dio = UserAgentService.createDio();
 
   /// Scrape moely.link detail page HTML for rich native elements
-  static Future<ImageDetails?> fetchDetails(String id) async {
+  static Future<ImageDetails?> fetchDetails(String id, {bool forceRefresh = false}) async {
     // Try to load from local cache first for instant offline-first experience
-    try {
-      final cachedMap = await CacheHelper.loadDetailsFromCache(id);
-      if (cachedMap != null) {
-        return ImageDetails.fromJson(cachedMap);
-      }
-    } catch (_) {}
+    if (!forceRefresh && id.isNotEmpty) {
+      try {
+        final cachedMap = await CacheHelper.loadDetailsFromCache(id);
+        if (cachedMap != null) {
+          final cached = ImageDetails.fromJson(cachedMap);
+          final cleanTitle = cached.title.replaceFirst(RegExp(r'^id[:：]\s*', caseSensitive: false), '').trim();
+          final isValidCache = cached.id.isNotEmpty && 
+                               cached.title.isNotEmpty && 
+                               cleanTitle.isNotEmpty;
+          if (isValidCache) {
+            return cached;
+          }
+        }
+      } catch (_) {}
+    }
 
     try {
       final response = await _dio.get('https://www.moely.link/img/$id/');
@@ -25,13 +34,18 @@ class ImageDetailsParser {
 
       // 1. Extract Title (e.g. <h1>day57 风堇 (ID: 130872940)</h1> or <h1>ID: 2058691399894376532</h1>)
       String title = '';
-      final titleRegex = RegExp(r'<h1>([^<]+)</h1>', caseSensitive: false);
+      final titleRegex = RegExp(r'<h1[^>]*>([\s\S]*?)</h1>', caseSensitive: false);
       final titleMatch = titleRegex.firstMatch(html);
       if (titleMatch != null) {
-        title = titleMatch.group(1)?.trim() ?? '';
+        var rawTitle = titleMatch.group(1)?.trim() ?? '';
+        rawTitle = _decodeHtmlEntities(rawTitle).replaceAll(RegExp(r'<[^>]*>'), '').trim();
+        final withoutIdPrefix = rawTitle.replaceFirst(RegExp(r'^id[:：]\s*', caseSensitive: false), '').trim();
+        if (rawTitle.isNotEmpty && withoutIdPrefix.isNotEmpty) {
+          title = rawTitle;
+        }
       }
       if (title.isEmpty) {
-        title = 'ID: $id';
+        title = id.isNotEmpty ? 'ID: $id' : '';
       }
 
       // 1. Extract resolution (e.g. 原图尺寸：宽<code>1451</code>x高<code>2048</code>)
@@ -41,15 +55,31 @@ class ImageDetailsParser {
       if (resMatch != null) {
         final width = resMatch.group(1) ?? '';
         final height = resMatch.group(2) ?? '';
-        resolution = '${width}x${height}';
+        resolution = '${width}x$height';
       }
 
-      // 2. Extract original source link
+      // 2. Extract original source link (robustly locate via button text and find immediate parent <a>)
       String sourceUrl = '';
-      final sourceRegex = RegExp('href="([^"]+)"[^>]*>查看来源</a>');
-      final sourceMatch = sourceRegex.firstMatch(html);
-      if (sourceMatch != null) {
-        sourceUrl = sourceMatch.group(1) ?? '';
+      for (final keyword in ['查看来源', 'btn-source']) {
+        final kwIdx = html.indexOf(keyword);
+        if (kwIdx != -1) {
+          final aStartIdx = html.lastIndexOf('<a', kwIdx);
+          if (aStartIdx != -1) {
+            final aEndTagIdx = html.indexOf('>', aStartIdx);
+            if (aEndTagIdx != -1 && aEndTagIdx < kwIdx + 40) {
+              final aTagContent = html.substring(aStartIdx, aEndTagIdx + 1);
+              final hrefMatch = RegExp(r'''href=["']?([^"'\s>]+)''', caseSensitive: false).firstMatch(aTagContent);
+              if (hrefMatch != null) {
+                var url = hrefMatch.group(1)?.trim() ?? '';
+                url = url.replaceAll('&amp;', '&');
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                  sourceUrl = url;
+                  break;
+                }
+              }
+            }
+          }
+        }
       }
 
       // 3. Extract ALL original image download links
@@ -263,13 +293,47 @@ class ImageDetailsParser {
         category = categoryMatch.group(1)?.trim() ?? 'Other';
       }
 
-      // 8. Extract user/author (画师)
+      // 8. Extract user/author (画师), artistUid and hasArtistPage
       String user = 'Unknown';
-      final userRegex = RegExp(r'画师：\s*([^<&]+)', caseSensitive: false);
-      final userMatch = userRegex.firstMatch(html);
-      if (userMatch != null) {
-        user = userMatch.group(1)?.trim() ?? 'Unknown';
+      String? artistUid;
+      bool hasArtistPage = false;
+
+      // 8.1 Only when the artist is wrapped in an anchor tag pointing to /artist/, it has an official artist profile page
+      final artistLinkRegex = RegExp(r'''画师：\s*<a\s+[^>]*href=["']?(?:https?://[^/]+)?/artist/([^"'\s>/]+)/?["']?[^>]*>([^<]+)</a>''', caseSensitive: false);
+      final artistLinkMatch = artistLinkRegex.firstMatch(html);
+      if (artistLinkMatch != null) {
+        hasArtistPage = true;
+        artistUid = artistLinkMatch.group(1)?.trim();
+        user = _decodeHtmlEntities(artistLinkMatch.group(2)?.trim() ?? 'Unknown');
+      } else {
+        // 8.2 Plain text fallback: artist works are fewer than minArtistCount threshold, so no artist page exists
+        hasArtistPage = false;
+        final userRegex = RegExp(r'画师：\s*([^<&\n\r]+)', caseSensitive: false);
+        final userMatch = userRegex.firstMatch(html);
+        if (userMatch != null) {
+          user = _decodeHtmlEntities(userMatch.group(1)?.trim() ?? 'Unknown');
+        }
       }
+
+      // 8.3 Extract structured wallpaper metadata if present for exact artist UID (keep hasArtistPage accurate)
+      try {
+        final wpRegex = RegExp(r'''<script\s+id=["']?wallpaper["']?[^>]*>([\s\S]*?)</script>''', caseSensitive: false);
+        final wpMatch = wpRegex.firstMatch(html);
+        if (wpMatch != null) {
+          final jsonStr = wpMatch.group(1)?.trim() ?? '';
+          if (jsonStr.isNotEmpty) {
+            final wpData = json.decode(jsonStr);
+            if (wpData is Map<String, dynamic>) {
+              if (wpData['artist'] != null && wpData['artist'].toString().trim().isNotEmpty) {
+                artistUid ??= wpData['artist'].toString().trim();
+              }
+              if (user == 'Unknown' && wpData['user'] != null && wpData['user'].toString().trim().isNotEmpty) {
+                user = wpData['user'].toString().trim();
+              }
+            }
+          }
+        }
+      } catch (_) {}
 
       final details = ImageDetails(
         id: id,
@@ -284,6 +348,8 @@ class ImageDetailsParser {
         description: description,
         category: category,
         user: user,
+        artistUid: artistUid,
+        hasArtistPage: hasArtistPage,
       );
 
       // Save to offline details cache
@@ -291,21 +357,7 @@ class ImageDetailsParser {
 
       return details;
     } catch (e) {
-      // Return basic model on network error instead of failing
-      return ImageDetails(
-        id: id,
-        title: 'ID: $id',
-        resolution: '未连接网络',
-        tags: [],
-        sourceUrl: '',
-        downloadUrl: '',
-        downloadUrls: [],
-        previewUrls: [],
-        starUrls: [],
-        description: '加载失败，请检查网络连接',
-        category: 'Other',
-        user: 'Unknown',
-      );
+      return null;
     }
   }
 

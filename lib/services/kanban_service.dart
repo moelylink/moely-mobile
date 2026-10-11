@@ -20,18 +20,18 @@ class KanbanService extends ChangeNotifier {
 
   static const MethodChannel _widgetChannel = MethodChannel('link.moely.mobile/widget');
 
-  int _goodwill = 0;
   KanbanState _currentState = KanbanState.idle;
   int _dailyTouches = 0;
+  int _dailyTouchExp = 0;
   String _lastTouchDate = '';
   String _currentBubbleText = '你好呀，今天又是美好的一天！';
 
-  // Moe Manor properties
-  int _feedStock = 200; // Default feed stock in grams
-  double _growthProgress = 0.0; // 0.0 to 1.0
-  int _currentBowlFeed = 0; // Current feed in bowl (0 or 100)
-  int _collectedHearts = 0;
-  double _collectedStars = 0.0;
+  // Moe Manor properties (Test / Debug Mode)
+  int _feedStock = 99999; // Abundant feed for testing
+  int _currentBowlFeed = 0; // Current feed in bowl (0, 100, or 200)
+  int _speedCardCount = 99; // Speed-up cards in bag
+  int _doubleFeedCardCount = 99; // Double-feed cards in bag
+  double _collectedStars = 9999.0;
   int _level = 1;
   int _exp = 0;
   String _lastClaimDate = '';
@@ -44,20 +44,20 @@ class KanbanService extends ChangeNotifier {
   DateTime get nowTime => DateTime.now().add(_serverTimeOffset);
 
   String _currentSkin = 'capoo';
-  List<String> _unlockedSkins = ['capoo', 'classic'];
+  List<String> _unlockedSkins = ['capoo', 'classic', 'kitty', 'siamese', 'salary', 'space'];
 
   String get currentSkin => _currentSkin;
   List<String> get unlockedSkins => _unlockedSkins;
 
-  int get goodwill => _goodwill;
   KanbanState get currentState => _currentState;
   int get dailyTouches => _dailyTouches;
+  int get dailyTouchExp => _dailyTouchExp;
   String get currentBubbleText => _currentBubbleText;
 
   int get feedStock => _feedStock;
-  double get growthProgress => _growthProgress;
   int get currentBowlFeed => _currentBowlFeed;
-  int get collectedHearts => _collectedHearts;
+  int get speedCardCount => _speedCardCount;
+  int get doubleFeedCardCount => _doubleFeedCardCount;
   double get collectedStars => double.parse(_collectedStars.toStringAsFixed(1));
   int get level => _level;
   int get exp => _exp;
@@ -95,14 +95,14 @@ class KanbanService extends ChangeNotifier {
 
       if (file.existsSync()) {
         final data = jsonDecode(file.readAsStringSync());
-        if (data['goodwill'] != null) {
-          _goodwill = data['goodwill'] as int;
-        }
         if (data['currentState'] != null) {
           _currentState = KanbanState.values[data['currentState'] as int];
         }
         if (data['dailyTouches'] != null) {
           _dailyTouches = data['dailyTouches'] as int;
+        }
+        if (data['dailyTouchExp'] != null) {
+          _dailyTouchExp = data['dailyTouchExp'] as int;
         }
         if (data['lastTouchDate'] != null) {
           _lastTouchDate = data['lastTouchDate'] as String;
@@ -110,21 +110,25 @@ class KanbanService extends ChangeNotifier {
         if (data['currentBubbleText'] != null) {
           _currentBubbleText = data['currentBubbleText'] as String;
         }
-        // Moe Manor properties
+        // Moe Manor properties (Test mode boost: preserve or top up to high amounts)
         if (data['feedStock'] != null) {
-          _feedStock = data['feedStock'] as int;
-        }
-        if (data['growthProgress'] != null) {
-          _growthProgress = (data['growthProgress'] as num).toDouble();
+          _feedStock = math.max(data['feedStock'] as int, 99999);
         }
         if (data['currentBowlFeed'] != null) {
           _currentBowlFeed = data['currentBowlFeed'] as int;
         }
-        if (data['collectedHearts'] != null) {
-          _collectedHearts = data['collectedHearts'] as int;
+        if (data['speedCardCount'] != null) {
+          _speedCardCount = math.max(data['speedCardCount'] as int, 99);
+        } else {
+          _speedCardCount = 99;
+        }
+        if (data['doubleFeedCardCount'] != null) {
+          _doubleFeedCardCount = math.max(data['doubleFeedCardCount'] as int, 99);
+        } else {
+          _doubleFeedCardCount = 99;
         }
         if (data['collectedStars'] != null) {
-          _collectedStars = (data['collectedStars'] as num).toDouble();
+          _collectedStars = math.max((data['collectedStars'] as num).toDouble(), 9999.0);
         }
         if (data['level'] != null) {
           _level = data['level'] as int;
@@ -144,9 +148,8 @@ class KanbanService extends ChangeNotifier {
         if (data['currentSkin'] != null) {
           _currentSkin = data['currentSkin'] as String;
         }
-        if (data['unlockedSkins'] != null) {
-          _unlockedSkins = List<String>.from(data['unlockedSkins'] as List);
-        }
+        // Unlock all skins for testing
+        _unlockedSkins = ['capoo', 'classic', 'kitty', 'siamese', 'salary', 'space'];
       }
 
       // Sync cloud UTC time asynchronously
@@ -156,6 +159,7 @@ class KanbanService extends ChangeNotifier {
       final todayStr = nowTime.toIso8601String().substring(0, 10);
       if (_lastTouchDate != todayStr) {
         _dailyTouches = 0;
+        _dailyTouchExp = 0;
         _lastTouchDate = todayStr;
         await save();
       }
@@ -188,16 +192,16 @@ class KanbanService extends ChangeNotifier {
       }
       final file = File('${dir.path}/kanban_settings.json');
       final data = {
-        'goodwill': _goodwill,
         'currentState': _currentState.index,
         'dailyTouches': _dailyTouches,
+        'dailyTouchExp': _dailyTouchExp,
         'lastTouchDate': _lastTouchDate,
         'currentBubbleText': _currentBubbleText,
         // Moe Manor properties
         'feedStock': _feedStock,
-        'growthProgress': _growthProgress,
         'currentBowlFeed': _currentBowlFeed,
-        'collectedHearts': _collectedHearts,
+        'speedCardCount': _speedCardCount,
+        'doubleFeedCardCount': _doubleFeedCardCount,
         'collectedStars': _collectedStars,
         'level': _level,
         'exp': _exp,
@@ -218,18 +222,18 @@ class KanbanService extends ChangeNotifier {
 
   /// Touch the mascot (pet head)
   Future<void> touchMascot() async {
-    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    final todayStr = nowTime.toIso8601String().substring(0, 10);
     if (_lastTouchDate != todayStr) {
       _dailyTouches = 0;
+      _dailyTouchExp = 0;
       _lastTouchDate = todayStr;
     }
 
     // Touch feedback based on state
     List<String> touchQuotes;
-    String emoji;
 
     if (isHungry) {
-      _currentBubbleText = '咕噜噜……萌哩肚子好饿呀，快给我喂点饲料吧 🥺';
+      _currentBubbleText = '咕噜噜……萌哩肚子好饿呀，快给我喂点饲料吧~';
       await save();
       notifyListeners();
       return;
@@ -242,7 +246,6 @@ class KanbanService extends ChangeNotifier {
           '嘿嘿，最喜欢主人了！',
           '喵呜~ 贴贴！'
         ];
-        emoji = '😻';
         break;
       case KanbanState.studying:
         touchQuotes = [
@@ -250,7 +253,6 @@ class KanbanService extends ChangeNotifier {
           '嘘，等我把这页看完再陪你玩哦！',
           '呀，头发都被揉乱啦~'
         ];
-        emoji = '😸';
         break;
       case KanbanState.sleeping:
         touchQuotes = [
@@ -258,7 +260,6 @@ class KanbanService extends ChangeNotifier {
           'zZZ……萌哩要抱抱……',
           '哼咪……梦到吃大餐了嘛……'
         ];
-        emoji = '😴';
         break;
       case KanbanState.eating:
         touchQuotes = [
@@ -266,17 +267,21 @@ class KanbanService extends ChangeNotifier {
           '别挠我呀，萌哩正在认真干饭呢！',
           '唔！嘴里塞满啦，没法说话啦……'
         ];
-        emoji = '😋';
         break;
     }
 
     _currentBubbleText = (touchQuotes..shuffle()).first;
 
-    // Increase goodwill if daily limit not reached (max 5 touches a day for goodwill boost)
-    if (_dailyTouches < 5) {
-      _goodwill += 10;
-      _dailyTouches++;
-      _currentBubbleText += '（好感度 +10）';
+    _dailyTouches++;
+
+    // 测试模式：每次摸头均可获得经验，便于测试升级成长逻辑
+    final randomExp = math.Random().nextInt(2) + 1;
+    _dailyTouchExp += randomExp;
+    _exp += randomExp;
+
+    _checkLevelUp();
+    if (!_currentBubbleText.startsWith('萌哩升级啦')) {
+      _currentBubbleText += '（成长值 +$randomExp，摸头总计经验 $_dailyTouchExp）';
     }
 
     await save();
@@ -471,17 +476,11 @@ class KanbanService extends ChangeNotifier {
 
   // --- Moe Manor Game Actions ---
 
-  bool get canClaimDailyFeed {
-    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-    return _lastClaimDate != todayStr;
-  }
+  bool get canClaimDailyFeed => true;
 
-  /// Claim daily check-in feed
+  /// Claim daily check-in feed (Test mode: always available)
   Future<bool> claimDailyFeed() async {
     final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-    if (_lastClaimDate == todayStr) {
-      return false;
-    }
     _feedStock += 100;
     _lastClaimDate = todayStr;
     _currentBubbleText = '签到成功！领取了 100g 优质饲料。';
@@ -534,22 +533,131 @@ class KanbanService extends ChangeNotifier {
   }
 
   void _completeEating() {
+    final wasDoubleFeed = _currentBowlFeed >= 200;
     _currentState = KanbanState.idle;
     _currentBowlFeed = 0;
     _eatingEndTime = null;
     _stateStartTime = nowTime;
 
-    // Add EXP and growth progress
-    _exp += 10; // 100g feed yields 10 EXP
-    _growthProgress += 0.2;
-    if (_growthProgress >= 1.0) {
-      _growthProgress = 0.0;
-      _collectedHearts += 1;
-    }
+    // Add EXP (100g feed yields 10 EXP, 200g double-feed yields 20 EXP)
+    final expReward = wasDoubleFeed ? 20 : 10;
+    _exp += expReward;
 
     _checkLevelUp();
+    if (_currentState == KanbanState.idle && !_currentBubbleText.contains('升级啦')) {
+      _currentBubbleText = wasDoubleFeed
+          ? '呼，双倍大餐吃得太满足啦！经验值 +20，当前 LV $_level ($_exp/100)'
+          : '呼，吃饱啦！经验值 +10，当前 LV $_level ($_exp/100)';
+    }
     save();
     notifyListeners();
+  }
+
+  /// 使用加速卡，立即完成 1 小时的事情（干饭、学习或睡觉）
+  Future<bool> useSpeedCard() async {
+    checkProgress();
+    if (_speedCardCount <= 0) {
+      _currentBubbleText = '背包里没有加速卡啦，快去商店兑换吧！';
+      notifyListeners();
+      return false;
+    }
+
+    if (_currentState == KanbanState.idle) {
+      _currentBubbleText = '萌哩当前正在闲逛休息，没有进行中的活动，快带它去干饭、学习或睡觉再加速吧~';
+      notifyListeners();
+      return false;
+    }
+
+    _speedCardCount--;
+
+    if (_currentState == KanbanState.eating) {
+      if (_eatingEndTime != null) {
+        final remaining = _eatingEndTime!.difference(nowTime);
+        if (remaining.inSeconds <= 3600) {
+          // 剩余时间不超过1小时，直接干饭完成！
+          _eatingTimer?.cancel();
+          _completeEating();
+          _currentBubbleText = '使用了加速卡！萌哩瞬间吃完了美味大餐，成长值飙升！';
+        } else {
+          // 减少1小时
+          _eatingEndTime = _eatingEndTime!.subtract(const Duration(hours: 1));
+          final newRemaining = _eatingEndTime!.difference(nowTime);
+          _startEatingTimer(newRemaining);
+          final leftMinutes = newRemaining.inMinutes;
+          _currentBubbleText = '使用了加速卡！干饭时间缩短了 1 小时，还剩 $leftMinutes 分钟吃完！';
+        }
+      }
+    } else if (_currentState == KanbanState.studying) {
+      // 学习加速 1 小时
+      _stateStartTime = (_stateStartTime ?? nowTime).subtract(const Duration(hours: 1));
+      checkProgress();
+      _currentBubbleText = '使用了加速卡！刻苦攻读推进了 1 个小时，学业大丰收！';
+    } else if (_currentState == KanbanState.sleeping) {
+      // 睡觉加速 1 小时
+      _stateStartTime = (_stateStartTime ?? nowTime).subtract(const Duration(hours: 1));
+      checkProgress();
+      _currentBubbleText = '使用了加速卡！萌哩在甜美梦乡中睡足了 1 小时，精力充沛！';
+    }
+
+    await save();
+    notifyListeners();
+    return true;
+  }
+
+  /// 使用加饭卡，在饭碗里面放两倍饲料 (200g)
+  Future<bool> useDoubleFeedCard() async {
+    checkProgress();
+    if (_doubleFeedCardCount <= 0) {
+      _currentBubbleText = '背包里没有加饭卡啦，快去商店兑换吧！';
+      notifyListeners();
+      return false;
+    }
+
+    if (_currentState == KanbanState.idle) {
+      if (_feedStock < 200) {
+        _currentBubbleText = '家里的饲料不足 200g，无法倒入双倍饲料哦，快去赚饲料吧！';
+        notifyListeners();
+        return false;
+      }
+      _doubleFeedCardCount--;
+      _feedStock -= 200;
+      _currentBowlFeed = 200;
+      _currentState = KanbanState.eating;
+      final duration = const Duration(hours: 2); // 2 小时干饭
+      _eatingEndTime = nowTime.add(duration);
+      _stateStartTime = nowTime;
+      _currentBubbleText = '使用了加饭卡！饭碗装了 200g 双倍大餐，预计吃 2 小时，吃完经验翻倍！';
+      _startEatingTimer(duration);
+      await save();
+      notifyListeners();
+      return true;
+    } else if (_currentState == KanbanState.eating) {
+      if (_currentBowlFeed >= 200) {
+        _currentBubbleText = '饭碗里已经是 200g 双倍大餐啦，萌哩吃得超级香呢！';
+        notifyListeners();
+        return false;
+      }
+      // 当前是 100g 状态，给饭碗加饭追加至 200g！
+      if (_feedStock < 100) {
+        _currentBubbleText = '饲料库存不足 100g，无法追加双倍饲料哦！';
+        notifyListeners();
+        return false;
+      }
+      _doubleFeedCardCount--;
+      _feedStock -= 100;
+      _currentBowlFeed = 200;
+      _eatingEndTime = (_eatingEndTime ?? nowTime).add(const Duration(hours: 1));
+      final remaining = _eatingEndTime!.difference(nowTime);
+      _startEatingTimer(remaining);
+      _currentBubbleText = '使用了加饭卡！向饭碗追加了 100g 饲料，升级为 200g 双倍大餐！';
+      await save();
+      notifyListeners();
+      return true;
+    } else {
+      _currentBubbleText = '萌哩正在忙别的事情，等回到空闲或干饭时再使用加饭卡吧~';
+      notifyListeners();
+      return false;
+    }
   }
 
   void _checkLevelUp() {
@@ -560,21 +668,21 @@ class KanbanService extends ChangeNotifier {
       leveledUp = true;
     }
     if (leveledUp) {
-      _currentBubbleText = '🎉 萌哩升级啦！升级到 LV $_level！学习/工作速度提升至 ${((speedMultiplier - 1.0) * 100).toInt()}%！';
-    } else {
-      _currentBubbleText = '呼，吃饱啦！经验值 +10，当前 LV $_level ($_exp/100)';
+      _currentBubbleText = '萌哩升级啦！升级到 LV $_level！学习/工作速度提升至 ${((speedMultiplier - 1.0) * 100).toInt()}%！';
+    } else if (_currentState == KanbanState.eating) {
+      _currentBubbleText = '呼，吃饱啦！当前 LV $_level ($_exp/100)';
     }
   }
 
-  /// Reset goodwill & stats (for debugging)
-  Future<void> resetGoodwill() async {
-    _goodwill = 0;
+  /// Reset manor & stats (for debugging)
+  Future<void> resetManor() async {
     _dailyTouches = 0;
-    _feedStock = 200;
-    _growthProgress = 0.0;
+    _dailyTouchExp = 0;
+    _feedStock = 99999;
     _currentBowlFeed = 0;
-    _collectedHearts = 0;
-    _collectedStars = 0.0;
+    _speedCardCount = 99;
+    _doubleFeedCardCount = 99;
+    _collectedStars = 9999.0;
     _level = 1;
     _exp = 0;
     _lastClaimDate = '';
@@ -583,62 +691,71 @@ class KanbanService extends ChangeNotifier {
     _eatingTimer?.cancel();
     _currentState = KanbanState.idle;
     _currentSkin = 'capoo';
-    _unlockedSkins = ['capoo', 'classic'];
+    _unlockedSkins = ['capoo', 'classic', 'kitty', 'siamese', 'salary', 'space'];
     await save();
     notifyListeners();
   }
 
-  /// Buy feed with goodwill points
-  Future<bool> buyFeedWithGoodwill(int cost, int amount) async {
-    if (_goodwill < cost) {
-      _currentBubbleText = '亲密度不足，无法兑换饲料噢~';
+  /// Buy speed card with stars
+  Future<bool> buySpeedCardWithStars(double starsCost, int count) async {
+    if (_collectedStars < starsCost) {
+      _currentBubbleText = '星星不足，无法兑换加速卡噢~';
       notifyListeners();
       return false;
     }
-    _goodwill -= cost;
-    _feedStock += amount;
-    _currentBubbleText = '成功消耗 $cost 亲密度兑换了 ${amount}g 饲料！';
+    _collectedStars -= starsCost;
+    _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
+    _speedCardCount += count;
+    _currentBubbleText = '成功消耗 ${starsCost.toStringAsFixed(1)} 颗星星兑换了 $count 张加速卡！';
     await save();
     notifyListeners();
     return true;
   }
 
-  /// Buy feed with love hearts
-  Future<bool> buyFeedWithHearts(int cost, int amount) async {
-    if (_collectedHearts < cost) {
-      _currentBubbleText = '爱心不足，无法兑换饲料噢~';
+  /// Buy double-feed card with stars
+  Future<bool> buyDoubleFeedCardWithStars(double starsCost, int count) async {
+    if (_collectedStars < starsCost) {
+      _currentBubbleText = '星星不足，无法兑换加饭卡噢~';
       notifyListeners();
       return false;
     }
-    _collectedHearts -= cost;
-    _feedStock += amount;
-    _currentBubbleText = '成功消耗 $cost 颗爱心兑换了 ${amount}g 饲料！';
+    _collectedStars -= starsCost;
+    _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
+    _doubleFeedCardCount += count;
+    _currentBubbleText = '成功消耗 ${starsCost.toStringAsFixed(1)} 颗星星兑换了 $count 张加饭卡！';
     await save();
     notifyListeners();
     return true;
   }
 
-  /// Unlock a new skin with hearts or stars
-  Future<bool> unlockSkin(String skinId, num cost, {bool useStars = false}) async {
+  /// Buy feed with collected stars
+  Future<bool> buyFeedWithStars(double starsCost, int amount) async {
+    if (_collectedStars < starsCost) {
+      _currentBubbleText = '星星不足，无法兑换饲料噢~';
+      notifyListeners();
+      return false;
+    }
+    _collectedStars -= starsCost;
+    _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
+    _feedStock += amount;
+    _currentBubbleText = '成功消耗 ${starsCost.toStringAsFixed(1)} 颗星星兑换了 ${amount}g 饲料！';
+    await save();
+    notifyListeners();
+    return true;
+  }
+
+  /// Unlock a new skin with stars
+  Future<bool> unlockSkin(String skinId, double starsCost) async {
     if (_unlockedSkins.contains(skinId)) {
       return true; // Already unlocked
     }
-    if (useStars) {
-      if (_collectedStars < cost) {
-        _currentBubbleText = '星星不足 $cost 颗，无法解锁新装扮噢~';
-        notifyListeners();
-        return false;
-      }
-      _collectedStars -= cost.toDouble();
-      _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
-    } else {
-      if (_collectedHearts < cost) {
-        _currentBubbleText = '爱心不足 $cost 颗，无法解锁新装扮噢~';
-        notifyListeners();
-        return false;
-      }
-      _collectedHearts -= cost.toInt();
+    if (_collectedStars < starsCost) {
+      _currentBubbleText = '星星不足 ${starsCost.toStringAsFixed(1)} 颗，无法解锁新装扮噢~';
+      notifyListeners();
+      return false;
     }
+    _collectedStars -= starsCost;
+    _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
     _unlockedSkins.add(skinId);
     _currentBubbleText = '解锁成功！快给萌哩换上新装扮吧！';
     await save();
@@ -656,6 +773,89 @@ class KanbanService extends ChangeNotifier {
     await save();
     notifyListeners();
     return true;
+  }
+
+  /// 趣味大转盘 8 种奖品定义
+  static const List<Map<String, dynamic>> wheelPrizes = [
+    {'id': 'thanks', 'name': '谢谢惠顾', 'weight': 10},
+    {'id': 'feed_50', 'name': '50g饲料', 'weight': 20, 'feed': 50},
+    {'id': 'feed_100', 'name': '100g饲料', 'weight': 15, 'feed': 100},
+    {'id': 'feed_150', 'name': '150g饲料', 'weight': 15, 'feed': 150},
+    {'id': 'feed_200', 'name': '200g饲料', 'weight': 10, 'feed': 200},
+    {'id': 'star_1', 'name': '星星*1', 'weight': 10, 'star': 1.0},
+    {'id': 'card_speed', 'name': '加速卡', 'weight': 10, 'speedCard': 1},
+    {'id': 'card_double', 'name': '加饭卡', 'weight': 10, 'doubleCard': 1},
+  ];
+
+  /// 趣味大转盘抽奖：每次消耗 100g 饲料
+  Future<Map<String, dynamic>?> spinLuckyWheel() async {
+    if (_feedStock < 100) {
+      _currentBubbleText = '饲料不足 100g，无法参与转盘抽奖噢~';
+      notifyListeners();
+      return null;
+    }
+
+    _feedStock -= 100;
+
+    // 根据权重随机抽取
+    final totalWeight = wheelPrizes.fold<int>(0, (sum, p) => sum + (p['weight'] as int));
+    final randomVal = math.Random().nextInt(totalWeight);
+    int currentSum = 0;
+    int targetIndex = 0;
+
+    for (int i = 0; i < wheelPrizes.length; i++) {
+      currentSum += wheelPrizes[i]['weight'] as int;
+      if (randomVal < currentSum) {
+        targetIndex = i;
+        break;
+      }
+    }
+
+    final prize = wheelPrizes[targetIndex];
+
+    // 发放对应奖励
+    switch (prize['id']) {
+      case 'thanks':
+        _currentBubbleText = '差一点点就中大奖啦，下次一定会更幸运的~';
+        break;
+      case 'feed_50':
+        _feedStock += 50;
+        _currentBubbleText = '恭喜抽中了 50g 饲料！';
+        break;
+      case 'feed_100':
+        _feedStock += 100;
+        _currentBubbleText = '恭喜抽中了 100g 饲料，本轮免费！';
+        break;
+      case 'feed_150':
+        _feedStock += 150;
+        _currentBubbleText = '太棒啦！抽中了 150g 丰厚饲料！';
+        break;
+      case 'feed_200':
+        _feedStock += 200;
+        _currentBubbleText = '大吉大利！抽中了 200g 超级饲料大礼包！';
+        break;
+      case 'star_1':
+        _collectedStars += 1.0;
+        _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
+        _currentBubbleText = '金光闪闪！抽中了 1 颗珍贵的庄园星星！';
+        break;
+      case 'card_speed':
+        _speedCardCount += 1;
+        _currentBubbleText = '好运连连！抽中了 1 张时光加速卡！';
+        break;
+      case 'card_double':
+        _doubleFeedCardCount += 1;
+        _currentBubbleText = '欧气满满！抽中了 1 张超级加饭卡！';
+        break;
+    }
+
+    await save();
+    notifyListeners();
+
+    return {
+      'index': targetIndex,
+      'prize': prize,
+    };
   }
 
   /// Sync the current state text and emoji to native Android widget

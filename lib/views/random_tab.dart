@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/image_item.dart';
 import '../models/promo_item.dart';
 import '../services/user_agent_service.dart';
 import '../services/promo_service.dart';
-import 'image_detail_screen.dart';
-import '../widgets/smooth_aspect_ratio_image.dart';
 import '../widgets/promo_card.dart';
+import '../widgets/moely_image_card.dart';
+import '../widgets/moely_waterfall_view.dart';
 
 class RandomTab extends StatefulWidget {
   const RandomTab({super.key});
@@ -60,18 +58,22 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
           }
         }
 
-        setState(() {
-          _images = items;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _images = items;
+            _isLoading = false;
+          });
+        }
       } else {
         throw Exception('Invalid data structure');
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -79,15 +81,15 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
   Widget build(BuildContext context) {
     super.build(context);
     final theme = Theme.of(context);
-    
+
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: Text(
           '随机探索',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onBackground,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         centerTitle: true,
@@ -100,232 +102,23 @@ class _RandomTabState extends State<RandomTab> with AutomaticKeepAliveClientMixi
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _fetchRandomImages,
-        color: theme.colorScheme.primary,
-        child: _buildBody(theme),
-      ),
-    );
-  }
-
-  Widget _buildBody(ThemeData theme) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
-    if (_hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.cloud_off_rounded,
-                size: 64,
-                color: theme.colorScheme.error.withOpacity(0.8),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '数据加载失败',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                onPressed: _fetchRandomImages,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('重新尝试'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  foregroundColor: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_images.isEmpty) {
-      return const Center(
-        child: Text('没有找到插画文件'),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: MasonryGridView.count(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+      body: MoelyWaterfallView(
+        isRootTab: true,
         itemCount: _images.length,
-        padding: const EdgeInsets.only(bottom: 96.0), // Padding for the floating bottom bar
         itemBuilder: (context, index) {
           final item = _images[index];
           if (item is PromoItem) {
             return PromoCard(promo: item);
           } else if (item is MoelyImage) {
-            return _buildImageCard(theme, item);
+            return MoelyImageCard(image: item, heroPrefix: 'random');
           }
           return const SizedBox.shrink();
         },
-      ),
-    );
-  }
-
-  Widget _buildImageCard(ThemeData theme, MoelyImage image) {
-    final platformColor = theme.colorScheme.primary;
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
-      elevation: 3,
-      shadowColor: theme.colorScheme.shadow.withOpacity(0.1),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ImageDetailScreen(image: image),
-            ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Image section
-            Hero(
-              tag: 'img_${image.id}',
-              child: SmoothAspectRatioImage(
-                imageUrl: image.urls,
-                httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                builder: (context, isLoading) => CachedNetworkImage(
-                  imageUrl: image.urls,
-                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: Icon(Icons.broken_image_rounded),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            
-            // Metadata section
-            Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Row for Category Badge & Multi-image Badge
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: platformColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: platformColor.withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          image.category,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: platformColor,
-                          ),
-                        ),
-                      ),
-                      if (image.total != null && image.total != '1')
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.collections_rounded,
-                              size: 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              image.total!,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  // Image ID
-                  Text(
-                    'ID: ${image.id}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  
-                  // Author Name
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.alternate_email_rounded,
-                        size: 12,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          image.cleanUser,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        currentPage: 1,
+        totalPages: 1,
+        isLoading: _isLoading,
+        hasError: _hasError,
+        onRefresh: _fetchRandomImages,
       ),
     );
   }

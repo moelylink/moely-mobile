@@ -64,5 +64,12 @@ compose.*
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
 pub_get_error.txt
 pub_get_out.txt
+*.dill
+*.stamp
+*.filecache
+
+# Backup files
+*.backup

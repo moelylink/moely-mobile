@@ -120,7 +120,9 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
       return;
     }
     
+    print('[WidgetStoreScreen] Requesting pinWidget for providerName: $providerName');
     final success = await WidgetService.pinWidget(providerName);
+    print('[WidgetStoreScreen] pinWidget returned: $success');
     if (mounted) {
       if (success) {
         showDialog(
@@ -132,7 +134,12 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
               title: const Text('添加请求已发送'),
               content: const Text(
                 '已向系统桌面发送小组件添加请求。\n\n'
-                '⚠️ 提示：如果您的桌面没有出现任何添加提示框，可能是由于系统限制了「创建桌面快捷方式」权限。请点击“去开启权限”手动授权后再试。'
+                '说明与排查：\n'
+                '1. 如果桌面未出现确认弹窗，请检查是否已授予应用「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」；\n'
+                '2. 国产系统手动添加指引（推荐）：\n'
+                '• ColorOS / Realme：桌面双指捏合或长按 -> 点击「微件」（注意非「卡片」）-> 找到「萌哩」添加；\n'
+                '• OriginOS：长按桌面空白处 -> 进入「原子组件/组件」-> 滑到底部「经典组件/安卓微件」-> 添加；\n'
+                '• MIUI / HyperOS：长按桌面 -> 点击「添加小部件」-> 滑到底部「支持小部件的应用」-> 添加。'
               ),
               actions: [
                 TextButton(
@@ -161,7 +168,7 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
           },
         );
       } else {
-        ToastHelper.show(context, '您的系统桌面暂不支持快捷添加，请长按桌面手动添加小组件！', type: ToastType.warning);
+        ToastHelper.show(context, '桌面暂未响应快捷添加，建议长按桌面从「微件/组件」手动添加！', type: ToastType.warning);
       }
     }
   }

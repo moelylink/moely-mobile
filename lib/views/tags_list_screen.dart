@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/html_parser_service.dart';
 import 'tag_grid_screen.dart';
+import '../widgets/moely_error_widget.dart';
 
 class TagsListScreen extends StatefulWidget {
   const TagsListScreen({super.key});
@@ -96,37 +97,10 @@ class _TagsListScreenState extends State<TagsListScreen> {
     }
 
     if (_hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.cloud_off_rounded,
-                size: 64,
-                color: theme.colorScheme.error,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '标签云加载失败',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: _fetchTags,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('重新加载'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  foregroundColor: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return MoelyErrorWidget(
+        message: '标签云加载失败，请检查网络',
+        icon: Icons.cloud_off_rounded,
+        onRetry: _fetchTags,
       );
     }
 

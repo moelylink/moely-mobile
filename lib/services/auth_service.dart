@@ -6,6 +6,7 @@ import '../views/login_screen.dart';
 
 class AuthService extends ChangeNotifier {
   AuthService._privateConstructor() {
+    _currentSession = _client.auth.currentSession;
     // 监听 Supabase 会话状态变更
     _client.auth.onAuthStateChange.listen((data) {
       _currentSession = data.session;
@@ -15,11 +16,19 @@ class AuthService extends ChangeNotifier {
     });
   }
 
-  static final AuthService instance = AuD/CCodecConfig( 4894): c2 config diff is   c2::u32 raw.crop.height = 1280
-  thService._privateConstructor();
+  static final AuthService instance = AuthService._privateConstructor();
   
   final SupabaseClient _client = Supabase.instance.client;
   Session? _currentSession;
+
+  /// 外部显式更新 Session 并分发状态变更
+  void updateSession(Session? session) {
+    _currentSession = session;
+    _isReadyForTransitions = true;
+    debugPrint("AuthService updateSession: User = ${currentUser?.email}");
+    notifyListeners();
+    _handleAuthTransition();
+  }
 
   bool _isReadyForTransitions = false;
   bool? _wasLoggedIn;
@@ -38,23 +47,27 @@ class AuthService extends ChangeNotifier {
     if (_wasLoggedIn == loggedIn) return;
     _wasLoggedIn = loggedIn;
 
-    final navContext = UrlHandlerService.navigatorKey.currentContext;
-    if (navContext != null) {
+    final navState = UrlHandlerService.navigatorKey.currentState;
+    if (navState != null) {
       final targetScreen = loggedIn ? HomeScreen() : const LoginScreen();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(navContext).pushAndRemoveUntil(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 800),
-          ),
-          (route) => false,
-        );
+        if (loggedIn && navState.canPop()) {
+          navState.popUntil((route) => route.isFirst);
+        } else {
+          navState.pushAndRemoveUntil(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 800),
+            ),
+            (route) => false,
+          );
+        }
       });
     }
   }
@@ -69,6 +82,7 @@ class AuthService extends ChangeNotifier {
   /// 登出
   Future<void> signOut() async {
     await _client.auth.signOut();
+    _currentSession = null;
     notifyListeners();
   }
 }

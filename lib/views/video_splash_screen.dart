@@ -5,6 +5,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import '../services/settings_service.dart';
 import '../services/auth_service.dart';
+import '../widgets/moely_error_widget.dart';
 
 class VideoSplashScreen extends StatefulWidget {
   const VideoSplashScreen({super.key});
@@ -120,8 +121,28 @@ class _VideoSplashScreenState extends State<VideoSplashScreen> with SingleTicker
       return Scaffold(
         backgroundColor: bgColor,
         body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              MoelyErrorWidget(
+                message: '开屏资源加载失败',
+                icon: Icons.videocam_off_rounded,
+                retryText: '重新加载',
+                onRetry: () {
+                  setState(() {
+                    _hasError = false;
+                    _initialized = false;
+                  });
+                  _initializeVideo();
+                },
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: _navigateToHome,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('跳过并直接进入'),
+              ),
+            ],
           ),
         ),
       );

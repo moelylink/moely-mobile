@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dio/dio.dart';
 import '../services/auth_service.dart';
 import '../services/user_agent_service.dart';
 import '../utils/cache_helper.dart';
@@ -13,7 +12,9 @@ import 'image_detail_screen.dart';
 import '../models/image_item.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import '../services/settings_service.dart';
 import '../widgets/smooth_aspect_ratio_image.dart';
+import '../widgets/floating_pagination_pill.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -266,7 +267,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
+    return AnimatedBuilder(
+      animation: AppSettings.instance,
+      builder: (context, _) {
+        return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text('美图收藏', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -321,6 +325,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ],
       ),
     );
+      },
+    );
   }
 
   Widget _buildEmptyState(ThemeData theme) {
@@ -366,16 +372,27 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       return _isAscending ? tA.compareTo(tB) : tB.compareTo(tA);
     });
 
-    // 2. Paginate
+    final enableInfinite = AppSettings.instance.enableInfiniteScroll;
+
+    // 2. Paginate / Slice
     final totalItems = sorted.length;
     final totalPages = (totalItems / _itemsPerPage).ceil();
-    if (_currentPage > totalPages && totalPages > 0) {
-      _currentPage = totalPages;
+
+    final List<dynamic> pageItems;
+    if (enableInfinite) {
+      final maxDisplay = _currentPage * _itemsPerPage;
+      final endIndex = maxDisplay > totalItems ? totalItems : maxDisplay;
+      pageItems = sorted.sublist(0, endIndex);
+    } else {
+      if (_currentPage > totalPages && totalPages > 0) {
+        _currentPage = totalPages;
+      }
+      final startIndex = (_currentPage - 1) * _itemsPerPage;
+      final endIndex = startIndex + _itemsPerPage > totalItems ? totalItems : startIndex + _itemsPerPage;
+      pageItems = sorted.sublist(startIndex, endIndex);
     }
 
-    final startIndex = (_currentPage - 1) * _itemsPerPage;
-    final endIndex = startIndex + _itemsPerPage > totalItems ? totalItems : startIndex + _itemsPerPage;
-    final pageItems = sorted.sublist(startIndex, endIndex);
+    final bool hasMoreInfinite = enableInfinite && pageItems.length < totalItems;
 
     return Stack(
       children: [
@@ -383,7 +400,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         Positioned.fill(
           child: NotificationListener<ScrollNotification>(
             onNotification: (scrollNotification) {
-              if (scrollNotification is ScrollStartNotification) {
+              final metrics = scrollNotification.metrics;
+              final bool isAtBottom = metrics.maxScrollExtent > 0 && metrics.pixels >= metrics.maxScrollExtent - 1.0;
+
+              if (isAtBottom) {
+                _scrollTimer?.cancel();
+                if (!_isPaginationVisible.value) {
+                  _isPaginationVisible.value = true;
+                }
+              } else if (scrollNotification is ScrollStartNotification) {
                 _onScrollStarted();
               } else if (scrollNotification is ScrollUpdateNotification) {
                 if (_isPaginationVisible.value) {
@@ -391,6 +416,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 }
               } else if (scrollNotification is ScrollEndNotification) {
                 _onScrollEnded();
+              }
+
+              if (scrollNotification is ScrollUpdateNotification || scrollNotification is ScrollEndNotification) {
+                if (enableInfinite && metrics.extentAfter < 500) {
+                  if (pageItems.length < totalItems) {
+                    setState(() {
+                      _currentPage++;
+                    });
+                  }
+                }
               }
               return false;
             },
@@ -403,7 +438,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '共 $totalItems 张美图 | 第 $_currentPage/$totalPages 页',
+                        enableInfinite
+                            ? '共 $totalItems 张美图'
+                            : '共 $totalItems 张美图 | 第 $_currentPage/$totalPages 页',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -437,8 +474,23 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     mainAxisSpacing: 10,
                     crossAxisSpacing: 10,
                     padding: const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 90.0),
-                    itemCount: pageItems.length,
+                    itemCount: pageItems.length + (hasMoreInfinite ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (index >= pageItems.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24.0),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
                       final item = pageItems[index];
                       final id = item['id'].toString();
                       final workId = _extractWorkId(item);
@@ -610,229 +662,18 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           ),
         ),
 
-        // B. Floating Self-Hiding Pagination Bar
-        if (totalPages > 1)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _isPaginationVisible,
-              builder: (context, visible, child) {
-                return IgnorePointer(
-                  ignoring: !visible,
-                  child: AnimatedOpacity(
-                    opacity: visible ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    child: AnimatedSlide(
-                      offset: visible ? Offset.zero : const Offset(0.0, 1.5),
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: _buildPaginationBar(theme, totalPages),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+        FloatingPaginationPill(
+          currentPage: _currentPage,
+          totalPages: totalPages,
+          isLoading: _isLoading,
+          isVisibleNotifier: _isPaginationVisible,
+          onPageSelected: (page) {
+            setState(() {
+              _currentPage = page;
+            });
+          },
+        ),
       ],
-    );
-  }
-
-  Widget _buildPaginationBar(ThemeData theme, int totalPages) {
-    return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(24.0),
-        border: Border.all(
-          color: theme.colorScheme.onSurface.withOpacity(0.08),
-          width: 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.shadow.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton.filledTonal(
-            onPressed: _currentPage > 1
-                ? () {
-                    setState(() {
-                      _currentPage--;
-                    });
-                  }
-                : null,
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-            style: IconButton.styleFrom(
-              padding: const EdgeInsets.all(12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: () => _showPageJumpDialog(context, theme, totalPages),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '第 $_currentPage / $totalPages 页',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.edit_rounded,
-                    size: 14,
-                    color: theme.colorScheme.primary.withOpacity(0.8),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          IconButton.filledTonal(
-            onPressed: _currentPage < totalPages
-                ? () {
-                    setState(() {
-                      _currentPage++;
-                    });
-                  }
-                : null,
-            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-            style: IconButton.styleFrom(
-              padding: const EdgeInsets.all(12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPageJumpDialog(BuildContext context, ThemeData theme, int totalPages) {
-    final controller = TextEditingController(text: _currentPage.toString());
-    String? errorMessage;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: theme.colorScheme.surface,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24.0)),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-          title: Text(
-            '跳转到指定页',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '可输入范围：1 ~ $totalPages',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurface.withOpacity(0.04),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: errorMessage != null
-                          ? Colors.redAccent
-                          : theme.colorScheme.primary.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: controller,
-                    autofocus: true,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: errorMessage != null ? Colors.redAccent : theme.colorScheme.primary,
-                    ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                if (errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
-          actionsPadding: const EdgeInsets.only(bottom: 20, left: 16, right: 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                '取消',
-                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6)),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final val = int.tryParse(controller.text);
-                if (val != null && val >= 1 && val <= totalPages) {
-                  Navigator.pop(context);
-                  setState(() {
-                    _currentPage = val;
-                  });
-                } else {
-                  setDialogState(() {
-                    errorMessage = '页码范围错误，请输入 1 ~ $totalPages';
-                  });
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: const Text('确认', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

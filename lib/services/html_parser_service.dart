@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/image_item.dart';
+import '../models/artist_item.dart';
 import 'user_agent_service.dart';
 import '../utils/cache_helper.dart';
 
@@ -61,7 +62,7 @@ class HtmlParserService {
       final block = parts[i];
       
       // 1. Extract ID
-      final idRegex = RegExp('href=/img/([0-9]+)/');
+      final idRegex = RegExp(r'''href=["']?(?:https?://[^/]+)?/img/([0-9]+)/?["']?''');
       final idMatch = idRegex.firstMatch(block);
       if (idMatch == null) continue;
       final id = idMatch.group(1)!;
@@ -81,8 +82,8 @@ class HtmlParserService {
       final totalMatch = totalRegex.firstMatch(block);
       final total = totalMatch?.group(1);
       
-      // 4. Extract Author and Platform
-      final authorRegex = RegExp('By (Pixiv|Twitter) @([^<]+)');
+      // 4. Extract Author and Platform (Supports optional '@' prefix for both new and old formats)
+      final authorRegex = RegExp(r'By\s+(Pixiv|Twitter)\s+@?([^<]+)');
       final authorMatch = authorRegex.firstMatch(block);
       final category = authorMatch?.group(1) ?? 'Other';
       final user = authorMatch?.group(2)?.trim() ?? 'Unknown';
@@ -130,10 +131,12 @@ class HtmlParserService {
         await CacheHelper.saveIndexToCache(cacheKey, _resultToJson(result));
         return result;
       }
-    } catch (_) {
       if (cachedResult != null) return cachedResult;
+      throw Exception('Failed to load category images: ${response.statusCode}');
+    } catch (e) {
+      if (cachedResult != null) return cachedResult;
+      rethrow;
     }
-    return cachedResult ?? HtmlPageResult(images: [], totalPages: 1);
   }
 
   /// Fetch illustrations for a specific tag name
@@ -170,10 +173,12 @@ class HtmlParserService {
         await CacheHelper.saveIndexToCache(cacheKey, _resultToJson(result));
         return result;
       }
-    } catch (_) {
       if (cachedResult != null) return cachedResult;
+      throw Exception('Failed to load tag images: ${response.statusCode}');
+    } catch (e) {
+      if (cachedResult != null) return cachedResult;
+      rethrow;
     }
-    return cachedResult ?? HtmlPageResult(images: [], totalPages: 1);
   }
 
   /// Fetch home page illustrations by parsing HTML
@@ -207,10 +212,12 @@ class HtmlParserService {
         await CacheHelper.saveIndexToCache(cacheKey, _resultToJson(result));
         return result;
       }
-    } catch (_) {
       if (cachedResult != null) return cachedResult;
+      throw Exception('Failed to load home images: ${response.statusCode}');
+    } catch (e) {
+      if (cachedResult != null) return cachedResult;
+      rethrow;
     }
-    return cachedResult ?? HtmlPageResult(images: [], totalPages: 1);
   }
 
   // Global cache variables for Algolia search configurations
@@ -330,11 +337,10 @@ class HtmlParserService {
           final String hitUrl = hit['url'] ?? '';
           if (hitUrl.isEmpty || !hitUrl.contains('/img/')) continue;
 
-          // Get page ID from URL (e.g. /img/1234/ -> 1234)
-          final cleanUrl = hitUrl.endsWith('/') ? hitUrl.substring(0, hitUrl.length - 1) : hitUrl;
-          final pathParts = cleanUrl.split('/');
-          if (pathParts.isEmpty) continue;
-          final pageId = pathParts.last;
+          // Get clean page ID from URL (handles /img/1234/, https://www.moely.link/img/1234/?s=1, etc.)
+          final idMatch = RegExp(r'/img/(\d+)').firstMatch(hitUrl);
+          if (idMatch == null) continue;
+          final pageId = idMatch.group(1)!;
 
           // Parse artist and category from description
           // Example description: "由 @username 创作的插画 - ID: 1234，发布于Twitter"
@@ -370,8 +376,228 @@ class HtmlParserService {
         }
         return list;
       }
+      throw Exception('Search request returned status: ${response.statusCode}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Fetch all artists from /artist/
+  static Future<List<ArtistItem>> fetchArtistsList() async {
+    const String cacheKey = 'artists_list_cache';
+
+    // Try offline load first
+    try {
+      final cachedMap = await CacheHelper.loadIndexFromCache(cacheKey);
+      if (cachedMap != null && cachedMap['artists'] is List) {
+        final list = (cachedMap['artists'] as List)
+            .map((item) => ArtistItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+        if (list.isNotEmpty) {
+          // Trigger silent background update
+          _updateArtistsListBackground(cacheKey);
+          return list;
+        }
+      }
     } catch (_) {}
-    return [];
+
+    return await _fetchAndSaveArtistsList(cacheKey);
+  }
+
+  static Future<List<ArtistItem>> _fetchAndSaveArtistsList(String cacheKey) async {
+    final List<ArtistItem> artists = [];
+    try {
+      final response = await _dio.get('https://www.moely.link/artist/');
+      if (response.statusCode == 200) {
+        final html = response.data.toString();
+        
+        // Match each artist card
+        final cardRegex = RegExp(
+          r'''<a\s+[^>]*class=["']?[^"'>]*artist-card-item[^"'>]*["']?[^>]*>([\s\S]*?)</a>''',
+          caseSensitive: false,
+        );
+        final matches = cardRegex.allMatches(html);
+
+        for (final m in matches) {
+          final fullTag = m.group(0) ?? '';
+          final innerContent = m.group(1) ?? '';
+
+          // 1. Extract UID
+          final uidMatch = RegExp(r'''data-uid=["']?([^"'\s>]+)''').firstMatch(fullTag);
+          final uid = uidMatch?.group(1)?.trim() ?? '';
+          if (uid.isEmpty) continue;
+
+          // 2. Extract Name
+          String name = '';
+          final nameTagMatch = RegExp(r'''class=["']?artist-card-name["']?[^>]*>([^<]+)</div>''').firstMatch(innerContent);
+          if (nameTagMatch != null) {
+            name = nameTagMatch.group(1)?.trim() ?? '';
+          }
+          if (name.isEmpty) {
+            final nameAttrMatch = RegExp(r'''data-name=["']?([^"'>]+)''').firstMatch(fullTag);
+            name = nameAttrMatch?.group(1)?.trim() ?? uid;
+          }
+
+          // 3. Extract Count
+          final countMatch = RegExp(r'''data-count=["']?([0-9]+)''').firstMatch(fullTag);
+          final count = int.tryParse(countMatch?.group(1) ?? '0') ?? 0;
+
+          // 4. Platform info
+          final hasPixivMatch = RegExp(r'''data-has-pixiv=["']?(true|false)''').firstMatch(fullTag);
+          final hasTwitterMatch = RegExp(r'''data-has-twitter=["']?(true|false)''').firstMatch(fullTag);
+          final hasPixiv = hasPixivMatch?.group(1) == 'true';
+          final hasTwitter = hasTwitterMatch?.group(1) == 'true';
+
+          final platformMatch = RegExp(r'''data-platform=["']?([^"'\s>]+)''').firstMatch(fullTag);
+          final platform = platformMatch?.group(1) ?? (hasPixiv && hasTwitter ? 'both' : (hasTwitter ? 'twitter' : 'pixiv'));
+
+          // 5. Artist URL
+          final hrefMatch = RegExp(r'''href=["']?([^"'\s>]+)''').firstMatch(fullTag);
+          var artistUrl = hrefMatch?.group(1) ?? '/artist/$uid/';
+          if (artistUrl.startsWith('/')) {
+            artistUrl = 'https://www.moely.link$artistUrl';
+          }
+
+          // 6. Avatar
+          String avatar = '';
+          final avatarMatch = RegExp(r'''<img\s+[^>]*class=["']?[^"'>]*artist-card-avatar[^"'>]*["']?[^>]*src=["']?([^"'\s>]+)''').firstMatch(innerContent) ??
+                              RegExp(r'''<img\s+[^>]*src=["']?([^"'\s>]+)["']?[^>]*class=["']?[^"'>]*artist-card-avatar''').firstMatch(innerContent);
+          if (avatarMatch != null) {
+            avatar = avatarMatch.group(1) ?? '';
+            if (avatar.startsWith('/')) {
+              avatar = 'https://www.moely.link$avatar';
+            }
+          }
+
+          artists.add(ArtistItem(
+            uid: uid,
+            name: name,
+            avatar: avatar,
+            count: count,
+            hasPixiv: hasPixiv,
+            hasTwitter: hasTwitter,
+            platform: platform,
+            artistUrl: artistUrl,
+          ));
+        }
+
+        if (artists.isNotEmpty) {
+          await CacheHelper.saveIndexToCache(cacheKey, {
+            'artists': artists.map((e) => e.toJson()).toList(),
+          });
+          return artists;
+        }
+      }
+      throw Exception('Failed to load artists: ${response.statusCode}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  static void _updateArtistsListBackground(String cacheKey) {
+    Future.microtask(() async {
+      try {
+        await _fetchAndSaveArtistsList(cacheKey);
+      } catch (_) {}
+    });
+  }
+
+  /// Fetch artist profile and artwork items from /artist/$uid/ or /artist/$uid/page/$page/
+  static Future<ArtistProfile> fetchArtistProfile(String uid, int page, {String fallbackName = ''}) async {
+    final String url = page == 1
+        ? 'https://www.moely.link/artist/$uid/'
+        : 'https://www.moely.link/artist/$uid/page/$page/';
+
+    final String cacheKey = 'artist_profile_${uid}_page_$page';
+
+    // Try offline load first
+    ArtistProfile? cachedProfile;
+    try {
+      final cachedMap = await CacheHelper.loadIndexFromCache(cacheKey);
+      if (cachedMap != null) {
+        cachedProfile = ArtistProfile.fromJson(cachedMap);
+      }
+    } catch (_) {}
+
+    try {
+      final response = await _dio.get(url);
+      if (response.statusCode == 200) {
+        final html = response.data.toString();
+
+        // 1. Extract Artist Avatar
+        String avatar = '';
+        final avatarMatch = RegExp(r'''<img\s+[^>]*class=["']?[^"'>]*artist-avatar[^"'>]*["']?[^>]*src=["']?([^"'\s>]+)''').firstMatch(html) ??
+                            RegExp(r'''<img\s+[^>]*src=["']?([^"'\s>]+)["']?[^>]*class=["']?[^"'>]*artist-avatar''').firstMatch(html);
+        if (avatarMatch != null) {
+          avatar = avatarMatch.group(1) ?? '';
+          if (avatar.startsWith('/')) {
+            avatar = 'https://www.moely.link$avatar';
+          }
+        }
+
+        // 2. Extract Artist Name
+        String name = fallbackName;
+        final nameMatch = RegExp(r'''<h1\s+class=["']?artist-name["']?[^>]*>[\s\S]*?<span>(?:画师：)?([^<]+)</span>''').firstMatch(html);
+        if (nameMatch != null) {
+          final matchedName = nameMatch.group(1)?.trim();
+          if (matchedName != null && matchedName.isNotEmpty) {
+            name = matchedName;
+          }
+        }
+        if (name.isEmpty) {
+          name = uid;
+        }
+
+        // 3. Extract Works Count
+        int count = 0;
+        final countMatch = RegExp(r'''收录作品：\s*([0-9]+)\s*幅''').firstMatch(html);
+        if (countMatch != null) {
+          count = int.tryParse(countMatch.group(1) ?? '0') ?? 0;
+        }
+
+        // 4. Extract external profile links
+        String? pixivUrl;
+        String? twitterUrl;
+
+        final pixivMatch = RegExp(r'''href=["'](https?://(?:www\.)?pixiv\.net/users/[^"']+)["']''').firstMatch(html);
+        if (pixivMatch != null) {
+          pixivUrl = pixivMatch.group(1);
+        }
+
+        final twitterMatch = RegExp(r'''href=["'](https?://(?:twitter\.com|x\.com)/[^"']+)["']''').firstMatch(html);
+        if (twitterMatch != null) {
+          twitterUrl = twitterMatch.group(1);
+        }
+
+        final bool hasPixiv = pixivUrl != null || html.contains('artist-avatar-platform-badge pixiv') || html.contains('dual-platform') || !html.contains('artist-avatar-platform-badge twitter');
+        final bool hasTwitter = twitterUrl != null || html.contains('x-twitter');
+
+        // 5. Extract Images and total pages
+        final images = parseHtmlToImages(html);
+        final parsedPages = parseTotalPages(html);
+
+        final profile = ArtistProfile(
+          uid: uid,
+          name: name,
+          avatar: avatar,
+          count: count > 0 ? count : images.length,
+          hasPixiv: hasPixiv,
+          hasTwitter: hasTwitter,
+          pixivUrl: pixivUrl,
+          twitterUrl: twitterUrl,
+          images: images,
+          totalPages: parsedPages > page ? parsedPages : page,
+        );
+
+        await CacheHelper.saveIndexToCache(cacheKey, profile.toJson());
+        return profile;
+      }
+      if (cachedProfile != null) return cachedProfile;
+      throw Exception('Failed to load artist profile: ${response.statusCode}');
+    } catch (e) {
+      if (cachedProfile != null) return cachedProfile;
+      rethrow;
+    }
   }
 
   /// Fetch tag cloud from /tags/
@@ -396,8 +622,11 @@ class HtmlParserService {
             'count': count,
           });
         }
+        return tags;
       }
-    } catch (_) {}
-    return tags;
+      throw Exception('Failed to load tags: ${response.statusCode}');
+    } catch (e) {
+      rethrow;
+    }
   }
 }

@@ -11,6 +11,8 @@ class ImageDetails {
   final String description; // Description parsed from #detail_info
   final String category; // Category parsed from HTML (e.g. Twitter, Pixiv)
   final String user; // Artist/User parsed from HTML (e.g. @beni_0214)
+  final String? artistUid; // Optional Artist UID for linking to artist profile
+  final bool hasArtistPage; // Whether the artist has an artist page (> minArtistCount)
   String? translatedText;
 
   ImageDetails({
@@ -26,6 +28,8 @@ class ImageDetails {
     required this.description,
     required this.category,
     required this.user,
+    this.artistUid,
+    this.hasArtistPage = false,
     this.translatedText,
   });
 
@@ -43,6 +47,8 @@ class ImageDetails {
       'description': description,
       'category': category,
       'user': user,
+      'artistUid': artistUid,
+      'hasArtistPage': hasArtistPage,
       'translatedText': translatedText,
     };
   }
@@ -61,6 +67,8 @@ class ImageDetails {
       description: json['description'] ?? '',
       category: json['category'] ?? 'Other',
       user: json['user'] ?? 'Unknown',
+      artistUid: json['artistUid'],
+      hasArtistPage: json['hasArtistPage'] ?? false,
       translatedText: json['translatedText'],
     );
   }

@@ -12,11 +12,11 @@ import '../views/search_grid_screen.dart';
 import '../views/denoised_web_screen.dart';
 import '../views/home_screen.dart';
 import '../views/latest_tab.dart';
-import '../views/widget_store_screen.dart';
 import '../views/my_widgets_screen.dart';
 import '../views/widget_image_viewer_screen.dart';
 import '../views/kanban_screen.dart';
 import 'settings_service.dart';
+import 'auth_service.dart';
 import '../utils/toast_helper.dart';
 import '../utils/cache_helper.dart';
 
@@ -65,7 +65,6 @@ class UrlHandlerService {
         MaterialPageRoute(
           builder: (context) => DenoisedWebScreen(
             url: url,
-            title: '外部链接',
           ),
         ),
       );
@@ -81,6 +80,105 @@ class UrlHandlerService {
     }
   }
 
+  static Future<void> _handleAuthCallback(BuildContext? context, String url) async {
+    debugPrint("Intercepted Authentication Callback Deep Link: $url");
+
+    try {
+      final uri = Uri.parse(url);
+      final params = <String, String>{};
+      params.addAll(uri.queryParameters);
+
+      if (uri.fragment.isNotEmpty) {
+        var fragmentStr = uri.fragment;
+        if (fragmentStr.startsWith('/')) {
+          fragmentStr = fragmentStr.substring(1);
+        }
+        params.addAll(Uri.splitQueryString(fragmentStr));
+      }
+
+      final errorDesc = params['error_description'] ?? params['error'];
+      if (errorDesc != null && errorDesc.isNotEmpty) {
+        debugPrint("Auth Callback error: $errorDesc");
+        final toastCtx = navigatorKey.currentContext;
+        if (toastCtx != null && toastCtx.mounted) {
+          ToastHelper.show(toastCtx, '登录授权失败: $errorDesc', type: ToastType.error);
+        }
+        return;
+      }
+
+      final accessToken = params['access_token'];
+      final refreshToken = params['refresh_token'];
+      final code = params['code'];
+
+      Session? session;
+      int retryCount = 0;
+      const int maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          if (accessToken != null && refreshToken != null) {
+            debugPrint("Recovering session (attempt ${retryCount + 1}/$maxRetries)...");
+            final response = await Supabase.instance.client.auth.setSession(
+              refreshToken,
+              accessToken: accessToken,
+            );
+            session = response.session;
+            break;
+          } else if (code != null && code.isNotEmpty) {
+            debugPrint("Exchanging PKCE code (attempt ${retryCount + 1}/$maxRetries)...");
+            final response = await Supabase.instance.client.auth.exchangeCodeForSession(code);
+            session = response.session;
+            break;
+          } else {
+            debugPrint("No auth token or code found in URL params: $params");
+            break;
+          }
+        } catch (e) {
+          retryCount++;
+          debugPrint("Attempt $retryCount failed with error: $e");
+          if (retryCount >= maxRetries) {
+            rethrow;
+          }
+          await Future.delayed(Duration(milliseconds: 500 * retryCount));
+        }
+      }
+
+      if (session != null) {
+        debugPrint("Session successfully recovered: ${session.user.email}");
+        AuthService.instance.updateSession(session);
+
+        final navState = navigatorKey.currentState;
+        if (navState != null) {
+          if (navState.canPop()) {
+            navState.popUntil((route) => route.isFirst);
+          } else {
+            navState.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => HomeScreen()),
+              (route) => false,
+            );
+          }
+        }
+
+        final targetCtx = navigatorKey.currentContext;
+        if (targetCtx != null && targetCtx.mounted) {
+          ToastHelper.show(targetCtx, '🎉 登录成功，欢迎来到萌哩！', type: ToastType.success);
+        }
+      } else {
+        final targetCtx = navigatorKey.currentContext;
+        debugPrint("Session recovery returned null or failed");
+        if (targetCtx != null && targetCtx.mounted) {
+          ToastHelper.show(targetCtx, '登录状态同步失败，请重试', type: ToastType.error);
+        }
+      }
+    } catch (e) {
+      debugPrint("Error recovering session from deep link: $e");
+      final errCtx = navigatorKey.currentContext;
+      if (errCtx != null && errCtx.mounted) {
+        ToastHelper.show(errCtx, '登录会话同步异常: $e', type: ToastType.error);
+      }
+    }
+  }
+
   /// Handle and route Moely URLs inside the app.
   /// Returns `true` if the URL was handled inside the app, `false` otherwise.
   static bool handleUrl(BuildContext? context, String url) {
@@ -88,35 +186,7 @@ class UrlHandlerService {
 
     // 1. Intercept Deep Link Auth Callbacks before any normalization
     if (url.startsWith('moely://auth-callback')) {
-      debugPrint("Intercepted Authentication Callback Deep Link: $url");
-      final navContext = context ?? navigatorKey.currentContext;
-
-      // Extract access_token and refresh_token from the callback hash/fragment
-      try {
-        final normalizedLink = url.replaceFirst('#', '?');
-        final uri = Uri.parse(normalizedLink);
-        final accessToken = uri.queryParameters['access_token'];
-        final refreshToken = uri.queryParameters['refresh_token'];
-        
-        if (accessToken != null && refreshToken != null) {
-          debugPrint("Recovering session with accessToken and refreshToken from Web Login Page");
-          Supabase.instance.client.auth.setSession(
-            refreshToken,
-            accessToken: accessToken,
-          ).then((response) {
-            debugPrint("Session successfully recovered: ${response.session?.user.email}");
-          }).catchError((e) {
-            debugPrint("Error recovering session: $e");
-          });
-        }
-      } catch (e) {
-        debugPrint("Error recovering session from deep link: $e");
-      }
-
-      if (navContext != null) {
-        Navigator.popUntil(navContext, (route) => route.isFirst);
-        ToastHelper.show(navContext, '🎉 登录成功，欢迎来到萌哩！', type: ToastType.success);
-      }
+      _handleAuthCallback(context, url);
       return true;
     }
 

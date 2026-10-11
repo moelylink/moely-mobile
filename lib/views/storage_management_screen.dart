@@ -7,10 +7,12 @@ import 'package:path/path.dart' as p;
 import '../utils/cache_helper.dart';
 import '../utils/download_helper.dart';
 import '../services/settings_service.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import 'latest_tab.dart';
+import 'image_detail_screen.dart';
+import '../widgets/moely_error_widget.dart';
 
 // Helper to interpolate double values smoothly
 double lerpDouble(double start, double end, double t) {
@@ -29,23 +31,27 @@ class CacheManagementScreen extends StatefulWidget {
 
 class _CacheManagementScreenState extends State<CacheManagementScreen> with TickerProviderStateMixin {
   int _imagesSize = 0;
-  int _detailsSize = 0;
-  int _indexSize = 0;
+  int _detailsSize = 0; // Combined details_cache + index_cache
   int _favoritesSize = 0;
   int _webviewSize = 0;
+  int _codeCacheSize = 0;
+  int _tempResourcesSize = 0;
   int _otherSize = 0;
   int _systemTotalSpace = 0;
   int _systemFreeSpace = 0;
   bool _isLoading = true;
+  bool _hasError = false;
+  bool _isOtherExpanded = false;
 
   // Selected categories to clear
   final Map<String, bool> _selected = {
     'images': true,
-    'details': true,
-    'index': true,
-    'favorites': true,
+    'details': true, // 图片信息 (合并详情与列表索引)
+    'favorites': false, // 默认不勾选图片收藏，保护用户资产
     'webview': true,
     'other': true,
+    'code_cache': false, // 着色器与编译缓存，默认不勾选以保护性能
+    'temp_resources': true,
   };
 
   late AnimationController _initialScaleController;
@@ -60,9 +66,6 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
   double _oldDetailsVal = 0.0;
   double _targetDetailsVal = 0.0;
   
-  double _oldIndexVal = 0.0;
-  double _targetIndexVal = 0.0;
-  
   double _oldFavoritesVal = 0.0;
   double _targetFavoritesVal = 0.0;
 
@@ -71,6 +74,12 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
   
   double _oldOtherVal = 0.0;
   double _targetOtherVal = 0.0;
+
+  double _oldCodeCacheVal = 0.0;
+  double _targetCodeCacheVal = 0.0;
+
+  double _oldTempResourcesVal = 0.0;
+  double _targetTempResourcesVal = 0.0;
 
   @override
   void initState() {
@@ -90,7 +99,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
       duration: const Duration(milliseconds: 350),
     );
     
-    _loadSizes();
+    _loadSizes(isInitial: true);
   }
 
   @override
@@ -100,28 +109,46 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     super.dispose();
   }
 
-  Future<void> _loadSizes() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _loadSizes({bool isInitial = false}) async {
+    if (isInitial) {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
+    }
 
-    final imgDir = await CacheHelper.getImagesCacheDir();
-    final detDir = await CacheHelper.getDetailsCacheDir();
-    final idxDir = await CacheHelper.getIndexCacheDir();
-    final favDir = await CacheHelper.getFavoritesCacheDir();
-    final webDir = await CacheHelper.getWebViewCacheDir();
+    try {
 
-    final imgS = await CacheHelper.getDirSize(imgDir);
-    final detS = await CacheHelper.getDirSize(detDir);
-    final idxS = await CacheHelper.getDirSize(idxDir);
-    final favS = await CacheHelper.getDirSize(favDir);
-    final webS = await CacheHelper.getDirSize(webDir);
-
-    // Calculate other files (excluding isolated system and user directories)
     final docDir = await getApplicationDocumentsDirectory();
     final supportDir = await getApplicationSupportDirectory();
     final tempDir = await getTemporaryDirectory();
     final parentDir = tempDir.parent;
+
+    final imgDir = await CacheHelper.getImagesCacheDir();
+    final detDirs = [
+      Directory('${supportDir.path}/details_cache'),
+      Directory('${tempDir.path}/details_cache'),
+      Directory('${docDir.path}/details_cache'),
+    ];
+    final idxDirs = [
+      Directory('${supportDir.path}/index_cache'),
+      Directory('${tempDir.path}/index_cache'),
+      Directory('${docDir.path}/index_cache'),
+    ];
+    final favDir = await CacheHelper.getFavoritesCacheDir();
+    final webDir = await CacheHelper.getWebViewCacheDir();
+
+    final imgS = await CacheHelper.getDirSize(imgDir);
+    int detS = 0;
+    for (final d in detDirs) {
+      detS += await CacheHelper.getDirSize(d);
+    }
+    int idxS = 0;
+    for (final d in idxDirs) {
+      idxS += await CacheHelper.getDirSize(d);
+    }
+    final favS = await CacheHelper.getDirSize(favDir);
+    final webS = await CacheHelper.getDirSize(webDir);
     
     // 1. Scan code_cache (Android V8 compilation shader & bytecode cache)
     int codeCacheS = 0;
@@ -138,7 +165,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
         for (final FileSystemEntity file in files) {
           if (file is File) {
             final path = file.path;
-            if (path.contains('libCachedImageData') || path.contains('WebView')) {
+            if (path.contains('libCachedImageData') || path.contains('WebView') || path.contains('app_webview') || path.contains('details_cache') || path.contains('index_cache')) {
               continue;
             }
             restTempS += file.lengthSync();
@@ -148,8 +175,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     }
     
     final excludedFolders = [
-      detDir.path,
-      idxDir.path,
+      ...detDirs.map((d) => d.path),
+      ...idxDirs.map((d) => d.path),
       favDir.path,
       '${supportDir.path}/settings',
       '${supportDir.path}/MoelyDownloads',
@@ -160,7 +187,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
       excludedFolders.add(customDownloadPath);
     }
     
-    int otherS = codeCacheS + restTempS;
+    int tempResourcesS = restTempS;
     
     void calculateOtherCacheSize(Directory dir) {
       if (!dir.existsSync()) return;
@@ -193,7 +220,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
             }
             
             // Otherwise, it is a miscellaneous cache file
-            otherS += entity.lengthSync();
+            tempResourcesS += entity.lengthSync();
           }
         }
       } catch (_) {}
@@ -202,40 +229,89 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     calculateOtherCacheSize(docDir);
     calculateOtherCacheSize(supportDir);
 
+    int otherS = codeCacheS + tempResourcesS;
+
     final sysSpace = await CacheHelper.getSystemStorageInfo();
     final systemTotal = sysSpace['totalSpace'] ?? (256 * 1024 * 1024 * 1024);
     final systemFree = sysSpace['freeSpace'] ?? (150 * 1024 * 1024 * 1024);
 
     if (mounted) {
       setState(() {
+        // Capture current animated position as the start of the next animation if not initial
+        if (!isInitial) {
+          final progress = _chartValuesController.value;
+          _captureOldAnimatedValues(progress);
+        }
+
         _imagesSize = imgS;
-        _detailsSize = detS;
-        _indexSize = idxS;
+        final combinedDetailsS = detS + idxS;
+        _detailsSize = combinedDetailsS;
         _favoritesSize = favS;
         _webviewSize = webS;
+        _codeCacheSize = codeCacheS;
+        _tempResourcesSize = tempResourcesS;
         _otherSize = otherS;
         _systemTotalSpace = systemTotal;
         _systemFreeSpace = systemFree;
         _isLoading = false;
+        _hasError = false;
 
-        // Initialize target and old values for smooth pie chart animations
-        _targetImagesVal = _selected['images'] == true ? imgS.toDouble() : 0.0;
-        _targetDetailsVal = _selected['details'] == true ? detS.toDouble() : 0.0;
-        _targetIndexVal = _selected['index'] == true ? idxS.toDouble() : 0.0;
-        _targetFavoritesVal = _selected['favorites'] == true ? favS.toDouble() : 0.0;
-        _targetWebviewVal = _selected['webview'] == true ? webS.toDouble() : 0.0;
-        _targetOtherVal = _selected['other'] == true ? otherS.toDouble() : 0.0;
+        _updateTargetValues();
 
-        _oldImagesVal = _targetImagesVal;
-        _oldDetailsVal = _targetDetailsVal;
-        _oldIndexVal = _targetIndexVal;
-        _oldFavoritesVal = _targetFavoritesVal;
-        _oldWebviewVal = _targetWebviewVal;
-        _oldOtherVal = _targetOtherVal;
+        if (isInitial) {
+          _oldImagesVal = _targetImagesVal;
+          _oldDetailsVal = _targetDetailsVal;
+          _oldFavoritesVal = _targetFavoritesVal;
+          _oldWebviewVal = _targetWebviewVal;
+          _oldOtherVal = _targetOtherVal;
+          _oldCodeCacheVal = _targetCodeCacheVal;
+          _oldTempResourcesVal = _targetTempResourcesVal;
+        }
       });
-      _initialScaleController.forward(from: 0.0);
-      _chartValuesController.forward(from: 1.0);
+
+      if (isInitial) {
+        _initialScaleController.forward(from: 0.0);
+        _chartValuesController.forward(from: 1.0);
+      } else {
+        _chartValuesController.forward(from: 0.0);
+      }
     }
+  } catch (e) {
+    debugPrint('Load sizes error: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
+  }
+}
+
+  void _updateTargetValues() {
+    _targetImagesVal = _selected['images'] == true ? _imagesSize.toDouble() : 0.0;
+    _targetDetailsVal = _selected['details'] == true ? _detailsSize.toDouble() : 0.0;
+    _targetFavoritesVal = _selected['favorites'] == true ? _favoritesSize.toDouble() : 0.0;
+    _targetWebviewVal = _selected['webview'] == true ? _webviewSize.toDouble() : 0.0;
+
+    if (_isOtherExpanded) {
+      _targetOtherVal = 0.0;
+      _targetCodeCacheVal = _selected['code_cache'] == true ? _codeCacheSize.toDouble() : 0.0;
+      _targetTempResourcesVal = _selected['temp_resources'] == true ? _tempResourcesSize.toDouble() : 0.0;
+    } else {
+      _targetOtherVal = _selected['other'] == true ? _otherSize.toDouble() : 0.0;
+      _targetCodeCacheVal = 0.0;
+      _targetTempResourcesVal = 0.0;
+    }
+  }
+
+  void _captureOldAnimatedValues(double progress) {
+    _oldImagesVal = lerpDouble(_oldImagesVal, _targetImagesVal, progress);
+    _oldDetailsVal = lerpDouble(_oldDetailsVal, _targetDetailsVal, progress);
+    _oldFavoritesVal = lerpDouble(_oldFavoritesVal, _targetFavoritesVal, progress);
+    _oldWebviewVal = lerpDouble(_oldWebviewVal, _targetWebviewVal, progress);
+    _oldOtherVal = lerpDouble(_oldOtherVal, _targetOtherVal, progress);
+    _oldCodeCacheVal = lerpDouble(_oldCodeCacheVal, _targetCodeCacheVal, progress);
+    _oldTempResourcesVal = lerpDouble(_oldTempResourcesVal, _targetTempResourcesVal, progress);
   }
 
   void _toggleCategory(String key) {
@@ -243,30 +319,145 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
       final isChecked = !(_selected[key] ?? false);
       _selected[key] = isChecked;
 
-      // Capture current animated position as the start of the next animation
+      if (key == 'other') {
+        _selected['code_cache'] = isChecked;
+        _selected['temp_resources'] = isChecked;
+      } else if (key == 'code_cache' || key == 'temp_resources') {
+        _selected['other'] = (_selected['code_cache'] == true || _selected['temp_resources'] == true);
+      }
+
       final progress = _chartValuesController.value;
-      _oldImagesVal = lerpDouble(_oldImagesVal, _targetImagesVal, progress);
-      _oldDetailsVal = lerpDouble(_oldDetailsVal, _targetDetailsVal, progress);
-      _oldIndexVal = lerpDouble(_oldIndexVal, _targetIndexVal, progress);
-      _oldFavoritesVal = lerpDouble(_oldFavoritesVal, _targetFavoritesVal, progress);
-      _oldWebviewVal = lerpDouble(_oldWebviewVal, _targetWebviewVal, progress);
-      _oldOtherVal = lerpDouble(_oldOtherVal, _targetOtherVal, progress);
+      _captureOldAnimatedValues(progress);
+      _updateTargetValues();
 
-      // Define new target positions
-      _targetImagesVal = _selected['images'] == true ? _imagesSize.toDouble() : 0.0;
-      _targetDetailsVal = _selected['details'] == true ? _detailsSize.toDouble() : 0.0;
-      _targetIndexVal = _selected['index'] == true ? _indexSize.toDouble() : 0.0;
-      _targetFavoritesVal = _selected['favorites'] == true ? _favoritesSize.toDouble() : 0.0;
-      _targetWebviewVal = _selected['webview'] == true ? _webviewSize.toDouble() : 0.0;
-      _targetOtherVal = _selected['other'] == true ? _otherSize.toDouble() : 0.0;
-
-      // Run smooth transition
       _chartValuesController.forward(from: 0.0);
     });
   }
 
+  void _toggleOtherExpanded() {
+    setState(() {
+      _isOtherExpanded = !_isOtherExpanded;
+
+      final progress = _chartValuesController.value;
+      _captureOldAnimatedValues(progress);
+      _updateTargetValues();
+
+      _chartValuesController.forward(from: 0.0);
+    });
+  }
+
+  Future<void> _clearCodeCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final codeCacheDir = Directory('${tempDir.parent.path}/code_cache');
+      if (codeCacheDir.existsSync()) {
+        final List<FileSystemEntity> files = codeCacheDir.listSync(recursive: true);
+        for (final file in files) {
+          if (file is File) {
+            try {
+              file.deleteSync();
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _clearTempResourcesCache() async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final supportDir = await getApplicationSupportDirectory();
+      final tempDir = await getTemporaryDirectory();
+      
+      final detDirs = [
+        Directory('${supportDir.path}/details_cache'),
+        Directory('${tempDir.path}/details_cache'),
+        Directory('${docDir.path}/details_cache'),
+      ];
+      final idxDirs = [
+        Directory('${supportDir.path}/index_cache'),
+        Directory('${tempDir.path}/index_cache'),
+        Directory('${docDir.path}/index_cache'),
+      ];
+      final favDir = await CacheHelper.getFavoritesCacheDir();
+
+      final excludedFolders = [
+        ...detDirs.map((d) => d.path),
+        ...idxDirs.map((d) => d.path),
+        favDir.path,
+        '${supportDir.path}/settings',
+        '${supportDir.path}/MoelyDownloads',
+        '${docDir.path}/MoelyDownloads',
+      ];
+      final customDownloadPath = AppSettings.instance.downloadPath;
+      if (customDownloadPath.isNotEmpty) {
+        excludedFolders.add(customDownloadPath);
+      }
+
+      void clearOtherCacheFiles(Directory dir) {
+        if (!dir.existsSync()) return;
+        try {
+          final List<FileSystemEntity> files = dir.listSync(recursive: true);
+          for (final file in files) {
+            if (file is File) {
+              final path = file.path;
+              
+              bool isExcluded = false;
+              for (final folder in excludedFolders) {
+                if (path.startsWith(folder)) {
+                  isExcluded = true;
+                  break;
+                }
+              }
+              if (isExcluded) continue;
+              
+              final name = p.basename(path);
+              if (name == 'app_settings.json') {
+                continue;
+              }
+              
+              final ext = p.extension(path).toLowerCase();
+              if (ext == '.db' || ext == '.db-shm' || ext == '.db-wal') {
+                continue;
+              }
+              
+              try {
+                file.deleteSync();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+
+      clearOtherCacheFiles(docDir);
+      clearOtherCacheFiles(supportDir);
+
+      if (tempDir.existsSync()) {
+        try {
+          final List<FileSystemEntity> files = tempDir.listSync(recursive: true);
+          for (final file in files) {
+            if (file is File) {
+              final path = file.path;
+              if (path.contains('libCachedImageData') || path.contains('WebView') || path.contains('app_webview')) {
+                continue;
+              }
+              try {
+                file.deleteSync();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _clearOtherCaches() async {
+    await _clearCodeCache();
+    await _clearTempResourcesCache();
+  }
+
   Future<void> _clearSelected() async {
-    // Show loading dialog
+    // Show loading dialog with spinner
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -280,133 +471,65 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
             children: [
               CircularProgressIndicator(),
               SizedBox(width: 20),
-              Text('正在清理选中缓存...', style: TextStyle(fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text('正在清理并重新扫描缓存...', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
             ],
           ),
         ),
       ),
     );
 
+    final startTime = DateTime.now().millisecondsSinceEpoch;
+
     if (_selected['images'] == true) {
-      final dir = await CacheHelper.getImagesCacheDir();
-      await CacheHelper.clearDir(dir);
+      await CacheHelper.clearAllImageCaches();
     }
     if (_selected['details'] == true) {
-      final dir = await CacheHelper.getDetailsCacheDir();
-      await CacheHelper.clearDir(dir);
-    }
-    if (_selected['index'] == true) {
-      final dir = await CacheHelper.getIndexCacheDir();
-      await CacheHelper.clearDir(dir);
+      // 1. Reset in-memory cache FIRST to block any background write-back from restoring stale data
+      ImageDetailScreen.clearGlobalIndexList();
+
+      // 2. Clear details_cache and index_cache across all system base directories
+      try {
+        await CacheHelper.clearAllDetailsCache();
+        await CacheHelper.clearAllIndexCache();
+      } catch (_) {}
     }
     if (_selected['favorites'] == true) {
-      final dir = await CacheHelper.getFavoritesCacheDir();
-      await CacheHelper.clearDir(dir);
+      await CacheHelper.clearAllFavoritesCache();
     }
     if (_selected['webview'] == true) {
-      final dir = await CacheHelper.getWebViewCacheDir();
-      await CacheHelper.clearDir(dir);
+      await CacheHelper.clearAllWebViewCaches();
     }
-    if (_selected['other'] == true) {
-      try {
-        final docDir = await getApplicationDocumentsDirectory();
-        final supportDir = await getApplicationSupportDirectory();
-        final tempDir = await getTemporaryDirectory();
-        
-        final detDir = await CacheHelper.getDetailsCacheDir();
-        final idxDir = await CacheHelper.getIndexCacheDir();
-        final favDir = await CacheHelper.getFavoritesCacheDir();
+    if (!_isOtherExpanded && _selected['other'] == true) {
+      await _clearOtherCaches();
+    } else {
+      if (_selected['code_cache'] == true) {
+        await _clearCodeCache();
+      }
+      if (_selected['temp_resources'] == true) {
+        await _clearTempResourcesCache();
+      }
+    }
 
-        final excludedFolders = [
-          detDir.path,
-          idxDir.path,
-          favDir.path,
-          '${supportDir.path}/settings',
-          '${supportDir.path}/MoelyDownloads',
-          '${docDir.path}/MoelyDownloads',
-        ];
-        final customDownloadPath = AppSettings.instance.downloadPath;
-        if (customDownloadPath.isNotEmpty) {
-          excludedFolders.add(customDownloadPath);
-        }
+    // Re-scan disk sizes to reflect actual post-cleared numbers instead of assuming zero!
+    await _loadSizes(isInitial: false);
 
-        // 1. Clear other files in docDir and supportDir
-        void clearOtherCacheFiles(Directory dir) {
-          if (!dir.existsSync()) return;
-          try {
-            final List<FileSystemEntity> files = dir.listSync(recursive: true);
-            for (final file in files) {
-              if (file is File) {
-                final path = file.path;
-                
-                // Check if file is in any excluded folders
-                bool isExcluded = false;
-                for (final folder in excludedFolders) {
-                  if (path.startsWith(folder)) {
-                    isExcluded = true;
-                    break;
-                  }
-                }
-                if (isExcluded) continue;
-                
-                // Also exclude app_settings.json in docDir root (for backward compatible/migrating states)
-                final name = p.basename(path);
-                if (name == 'app_settings.json') {
-                  continue;
-                }
-                
-                // Exclude SQLite databases
-                final ext = p.extension(path).toLowerCase();
-                if (ext == '.db' || ext == '.db-shm' || ext == '.db-wal') {
-                  continue;
-                }
-                
-                // Safe to delete other miscellaneous cache files
-                file.deleteSync();
-              }
-            }
-          } catch (_) {}
-        }
-
-        clearOtherCacheFiles(docDir);
-        clearOtherCacheFiles(supportDir);
-
-        // 2. Clear code_cache (V8 compile and shader bytecode caches)
-        final codeCacheDir = Directory('${tempDir.parent.path}/code_cache');
-        if (codeCacheDir.existsSync()) {
-          try {
-            final List<FileSystemEntity> files = codeCacheDir.listSync(recursive: true);
-            for (final file in files) {
-              if (file is File) {
-                file.deleteSync();
-              }
-            }
-          } catch (_) {}
-        }
-
-        // 3. Clear rest of tempDir (excluding images and WebView caches)
-        if (tempDir.existsSync()) {
-          try {
-            final List<FileSystemEntity> files = tempDir.listSync(recursive: true);
-            for (final file in files) {
-              if (file is File) {
-                final path = file.path;
-                if (path.contains('libCachedImageData') || path.contains('WebView')) {
-                  continue;
-                }
-                file.deleteSync();
-              }
-            }
-          } catch (_) {}
-        }
-      } catch (_) {}
+    // Enforce smooth minimum display duration (at least 600ms) so loading spinner is comfortably visible without flashing
+    final elapsed = DateTime.now().millisecondsSinceEpoch - startTime;
+    if (elapsed < 600) {
+      await Future.delayed(Duration(milliseconds: 600 - elapsed));
     }
 
     if (mounted) {
       Navigator.pop(context); // Close dialog
       final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
-      ToastHelper.show(rootContext, '清理完成！已经释放磁盘空间。', type: ToastType.success);
-      _loadSizes();
+      ToastHelper.show(rootContext, '清理完成！已重新扫描更新剩余空间。', type: ToastType.success);
+
+      // Trigger reload of Home/LatestTab if alive
+      try {
+        LatestTab.latestTabKey.currentState?.jumpToPage(1);
+      } catch (_) {}
     }
   }
 
@@ -415,7 +538,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final totalSize = _imagesSize + _detailsSize + _indexSize + _favoritesSize + _webviewSize + _otherSize;
+    final int totalSize = _imagesSize + _detailsSize + _favoritesSize + _webviewSize + _otherSize;
     
     // Proportional flex calculation for actual system storage
     final double moelyPct = _systemTotalSpace > 0 ? (totalSize / _systemTotalSpace * 100) : 0.0;
@@ -450,10 +573,14 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     int selectedSize = 0;
     if (_selected['images'] == true) selectedSize += _imagesSize;
     if (_selected['details'] == true) selectedSize += _detailsSize;
-    if (_selected['index'] == true) selectedSize += _indexSize;
     if (_selected['favorites'] == true) selectedSize += _favoritesSize;
     if (_selected['webview'] == true) selectedSize += _webviewSize;
-    if (_selected['other'] == true) selectedSize += _otherSize;
+    if (_isOtherExpanded) {
+      if (_selected['code_cache'] == true) selectedSize += _codeCacheSize;
+      if (_selected['temp_resources'] == true) selectedSize += _tempResourcesSize;
+    } else {
+      if (_selected['other'] == true) selectedSize += _otherSize;
+    }
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
@@ -467,13 +594,19 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
         actions: [
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: theme.colorScheme.onSurface),
-            onPressed: _loadSizes,
+            onPressed: () => _loadSizes(isInitial: false),
           )
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+          : _hasError
+              ? MoelyErrorWidget(
+                  message: '存储信息计算失败',
+                  icon: Icons.sd_card_alert_rounded,
+                  onRetry: () => _loadSizes(isInitial: true),
+                )
+              : SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -496,12 +629,13 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                           // Interpolate all sizes in real-time
                           final currentImages = lerpDouble(_oldImagesVal, _targetImagesVal, t);
                           final currentDetails = lerpDouble(_oldDetailsVal, _targetDetailsVal, t);
-                          final currentIndex = lerpDouble(_oldIndexVal, _targetIndexVal, t);
                           final currentFavorites = lerpDouble(_oldFavoritesVal, _targetFavoritesVal, t);
                           final currentWebview = lerpDouble(_oldWebviewVal, _targetWebviewVal, t);
                           final currentOther = lerpDouble(_oldOtherVal, _targetOtherVal, t);
+                          final currentCodeCache = lerpDouble(_oldCodeCacheVal, _targetCodeCacheVal, t);
+                          final currentTempResources = lerpDouble(_oldTempResourcesVal, _targetTempResourcesVal, t);
 
-                          final currentSelectedSize = (currentImages + currentDetails + currentIndex + currentFavorites + currentWebview + currentOther).round();
+                          final currentSelectedSize = (currentImages + currentDetails + currentFavorites + currentWebview + currentOther + currentCodeCache + currentTempResources).round();
 
                           // Format dynamic text inside the pie chart center
                           String sizeValue = "0";
@@ -523,10 +657,11 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                                 painter: DonutChartPainter(
                                   imagesVal: currentImages,
                                   detailsVal: currentDetails,
-                                  indexVal: currentIndex,
                                   favoritesVal: currentFavorites,
                                   webviewVal: currentWebview,
                                   otherVal: currentOther,
+                                  codeCacheVal: currentCodeCache,
+                                  tempResourcesVal: currentTempResources,
                                   centerBgColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                                 ),
                               ),
@@ -668,20 +803,11 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                         ),
                         _buildDivider(isDark),
                         _buildCategoryRow(
-                          key: 'index',
-                          title: '索引数据',
-                          size: _indexSize,
-                          totalSize: totalSize,
-                          color: const Color(0xFF66BB6A), // Green
-                          theme: theme,
-                        ),
-                        _buildDivider(isDark),
-                        _buildCategoryRow(
                           key: 'favorites',
                           title: '图片收藏',
                           size: _favoritesSize,
                           totalSize: totalSize,
-                          color: const Color(0xFFFF7043), // Orange/Pink
+                          color: const Color(0xFFE53935), // Vibrant Red
                           theme: theme,
                         ),
                         _buildDivider(isDark),
@@ -690,17 +816,48 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                           title: '网页缓存', // WebView Cache split out
                           size: _webviewSize,
                           totalSize: totalSize,
-                          color: const Color(0xFFEC407A), // Deep Pink for WebView
+                          color: const Color(0xFF4CAF50), // Vibrant Green
                           theme: theme,
                         ),
                         _buildDivider(isDark),
-                        _buildCategoryRow(
-                          key: 'other',
+                        _buildOtherCategoryHeaderRow(
                           title: '其他数据',
                           size: _otherSize,
                           totalSize: totalSize,
-                          color: const Color(0xFFFFCA28), // Yellow
+                          color: const Color(0xFFFFCA28), // Amber
                           theme: theme,
+                          isDark: isDark,
+                        ),
+                        AnimatedCrossFade(
+                          firstChild: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildSubCategoryRow(
+                                key: 'code_cache',
+                                title: '着色器缓存',
+                                subtitle: 'V8 字节码与 GPU 着色器',
+                                size: _codeCacheSize,
+                                totalSize: totalSize,
+                                color: const Color(0xFFEC407A), // Pink
+                                theme: theme,
+                                isDark: isDark,
+                              ),
+                              _buildSubCategoryRow(
+                                key: 'temp_resources',
+                                title: '临时资源文件',
+                                subtitle: '系统 Temp 目录与文档杂项数据',
+                                size: _tempResourcesSize,
+                                totalSize: totalSize,
+                                color: const Color(0xFFFF9800),
+                                theme: theme,
+                                isDark: isDark,
+                              ),
+                            ],
+                          ),
+                          secondChild: const SizedBox(width: double.infinity, height: 0),
+                          crossFadeState: _isOtherExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                          duration: const Duration(milliseconds: 250),
+                          sizeCurve: Curves.easeInOutCubic,
                         ),
                       ],
                     ),
@@ -727,12 +884,12 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-                  // Bottom explanatory text
+                  // Explanatory text under Capsule Clearing Button
                   Center(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         '所有已缓存的图片文件及网页缓存数据，在您下一次浏览访问时均可从网络重新加载。',
                         textAlign: TextAlign.center,
@@ -744,6 +901,12 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
+
+                  // 统一缓存策略合并卡片 (TG 风格)
+                  _buildUnifiedCachePolicyCard(theme, isDark),
+
+                  const SizedBox(height: 32),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -856,6 +1019,638 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
       ),
     );
   }
+
+  Widget _buildOtherCategoryHeaderRow({
+    required String title,
+    required int size,
+    required int totalSize,
+    required Color color,
+    required ThemeData theme,
+    required bool isDark,
+  }) {
+    final isChecked = _selected['other'] ?? false;
+    final percentage = totalSize > 0 ? (size / totalSize * 100).round() : 0;
+
+    return InkWell(
+      onTap: () => _toggleCategory('other'),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // Circular Colored Checkbox Icon
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: isChecked ? color : Colors.transparent,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isChecked ? color : theme.colorScheme.onSurface.withOpacity(0.2),
+                  width: 2,
+                ),
+              ),
+              child: isChecked
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            
+            // Title & Percentage
+            Expanded(
+              child: Row(
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$percentage%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Size value
+            Text(
+              CacheHelper.formatSize(size),
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 6),
+            
+            // Expand Chevron Button (TG Style)
+            GestureDetector(
+              onTap: _toggleOtherExpanded,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                child: AnimatedRotation(
+                  turns: _isOtherExpanded ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubCategoryRow({
+    required String key,
+    required String title,
+    required String subtitle,
+    required int size,
+    required int totalSize,
+    required Color color,
+    required ThemeData theme,
+    required bool isDark,
+  }) {
+    final isChecked = _selected[key] ?? false;
+    final percentage = totalSize > 0 ? (size / totalSize * 100).round() : 0;
+
+    return InkWell(
+      onTap: () => _toggleCategory(key),
+      child: Container(
+        padding: const EdgeInsets.only(left: 56, right: 16, top: 10, bottom: 10),
+        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.015),
+        child: Row(
+          children: [
+            // Smaller circular checkbox for sub-items
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: isChecked ? color : Colors.transparent,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isChecked ? color : theme.colorScheme.onSurface.withOpacity(0.2),
+                  width: 1.5,
+                ),
+              ),
+              child: isChecked
+                  ? const Icon(Icons.check, size: 11, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$percentage%',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface.withOpacity(0.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.colorScheme.onSurface.withOpacity(0.45),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Text(
+              CacheHelper.formatSize(size),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface.withOpacity(0.85),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnifiedCachePolicyCard(ThemeData theme, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. 缓存大小限制
+              _buildCacheSizeLimitSection(theme, isDark),
+              
+              // 中间分隔线
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                  indent: 8,
+                  endIndent: 8,
+                ),
+              ),
+
+              // 2. 自动清理过期缓存
+              _buildAutoClearDaysSection(theme, isDark),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            '当缓存超过设定限制或在此期间未曾访问时，对应的图片文件和图片信息将自动从此设备中删除，以节省磁盘空间。',
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.4,
+              color: theme.colorScheme.onSurface.withOpacity(0.45),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCacheSizeLimitSection(ThemeData theme, bool isDark) {
+    final settings = AppSettings.instance;
+    final int index = settings.maxCacheSizeIndex;
+
+    final options = ['自动', '2 GB', '5 GB', '10 GB', '无限制'];
+
+    String currentText = options[index];
+    if (index == 0) {
+      final storageInfo = _systemFreeSpace > 0 ? _systemFreeSpace : 150 * 1024 * 1024 * 1024;
+      final freeGB = storageInfo / (1024 * 1024 * 1024);
+      final calcGB = (freeGB * 0.05).floor().clamp(1, 15);
+      currentText = '自动 (约 $calcGB GB)';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '缓存大小限制',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                currentText,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _DiscreteSegmentSlider(
+          options: options,
+          selectedIndex: index,
+          onChanged: (newIdx) {
+            setState(() {
+              settings.setMaxCacheSizeIndex(newIdx);
+            });
+            CacheHelper.performAutoCacheCleanup();
+          },
+          theme: theme,
+          isDark: isDark,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAutoClearDaysSection(ThemeData theme, bool isDark) {
+    final settings = AppSettings.instance;
+    final int index = settings.autoClearDaysIndex;
+
+    final options = ['7 天', '14 天', '30 天', '90 天', '不清理'];
+    final currentText = options[index];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '自动清理过期缓存',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                currentText,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _DiscreteSegmentSlider(
+          options: options,
+          selectedIndex: index,
+          onChanged: (newIdx) {
+            setState(() {
+              settings.setAutoClearDaysIndex(newIdx);
+            });
+            CacheHelper.performAutoCacheCleanup();
+          },
+          theme: theme,
+          isDark: isDark,
+        ),
+      ],
+    );
+  }
+}
+
+class _DiscreteSegmentSlider extends StatefulWidget {
+  final List<String> options;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+  final ThemeData theme;
+  final bool isDark;
+
+  const _DiscreteSegmentSlider({
+    required this.options,
+    required this.selectedIndex,
+    required this.onChanged,
+    required this.theme,
+    required this.isDark,
+  });
+
+  @override
+  State<_DiscreteSegmentSlider> createState() => _DiscreteSegmentSliderState();
+}
+
+class _DiscreteSegmentSliderState extends State<_DiscreteSegmentSlider> {
+  double? _dragValue;
+  int? _lastNotifiedIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = widget.theme.colorScheme.primary;
+    final int maxIndex = widget.options.length - 1;
+    final targetVal = widget.selectedIndex.toDouble().clamp(0.0, maxIndex.toDouble());
+    final displayVal = _dragValue ?? targetVal;
+    final activeIndex = _dragValue != null ? _dragValue!.round() : widget.selectedIndex;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 20,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              const margin = 4.0;
+              final usableWidth = width - margin * 2;
+              final count = widget.options.length;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: List.generate(count, (i) {
+                  final isSelected = i == activeIndex;
+                  final isPassed = i < activeIndex;
+
+                  Color labelColor;
+                  if (isSelected) {
+                    labelColor = primaryColor;
+                  } else if (isPassed) {
+                    labelColor = primaryColor.withValues(alpha: 0.85);
+                  } else {
+                    labelColor = widget.theme.colorScheme.onSurface.withValues(alpha: 0.45);
+                  }
+
+                  Widget textWidget = AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 150),
+                    style: TextStyle(
+                      fontFamily: 'NotoSansSC',
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: labelColor,
+                    ),
+                    child: Text(widget.options[i]),
+                  );
+
+                  Widget interactiveChild = GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      widget.onChanged(i);
+                    },
+                    child: textWidget,
+                  );
+
+                  if (i == 0) {
+                    // 最左侧刻度：左侧对齐，垂直居中
+                    return Positioned(
+                      left: margin,
+                      top: 0,
+                      bottom: 0,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: interactiveChild,
+                      ),
+                    );
+                  } else if (i == count - 1) {
+                    // 最右侧刻度：右侧对齐，垂直居中
+                    return Positioned(
+                      right: margin,
+                      top: 0,
+                      bottom: 0,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: interactiveChild,
+                      ),
+                    );
+                  } else {
+                    // 中间刻度：居中在离散刻度点 centerX 上，垂直居中
+                    final centerX = margin + usableWidth * i / (count - 1);
+                    return Positioned(
+                      left: centerX,
+                      top: 0,
+                      bottom: 0,
+                      child: FractionalTranslation(
+                        translation: const Offset(-0.5, 0),
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: interactiveChild,
+                        ),
+                      ),
+                    );
+                  }
+                }),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderThemeData(
+            trackHeight: 3,
+            activeTrackColor: primaryColor,
+            inactiveTrackColor: widget.isDark
+                ? const Color(0xFF334155)
+                : widget.theme.colorScheme.onSurface.withValues(alpha: 0.12),
+            thumbColor: primaryColor,
+            overlayColor: primaryColor.withValues(alpha: 0.15),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            tickMarkShape: const RoundSliderTickMarkShape(),
+            activeTickMarkColor: Colors.white.withValues(alpha: 0.9),
+            inactiveTickMarkColor: widget.isDark
+                ? const Color(0xFF64748B)
+                : widget.theme.colorScheme.onSurface.withValues(alpha: 0.25),
+            trackShape: CustomMarginTrackShape(
+              margin: 4.0,
+              itemCount: widget.options.length,
+              isDark: widget.isDark,
+              primaryColor: primaryColor,
+            ),
+          ),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: displayVal),
+            duration: _dragValue != null ? Duration.zero : const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            builder: (context, animVal, child) {
+              return Slider(
+                value: animVal.clamp(0.0, maxIndex.toDouble()),
+                min: 0,
+                max: maxIndex.toDouble(),
+                divisions: null,
+                onChangeStart: (val) {
+                  setState(() {
+                    _dragValue = val;
+                    _lastNotifiedIndex = val.round();
+                  });
+                },
+                onChanged: (val) {
+                  setState(() {
+                    _dragValue = val;
+                  });
+                  final int nearest = val.round();
+                  if (nearest != _lastNotifiedIndex) {
+                    _lastNotifiedIndex = nearest;
+                    HapticFeedback.selectionClick();
+                    widget.onChanged(nearest);
+                  }
+                },
+                onChangeEnd: (val) {
+                  final int finalIndex = val.round();
+                  setState(() {
+                    _dragValue = null;
+                  });
+                  if (finalIndex != widget.selectedIndex) {
+                    HapticFeedback.selectionClick();
+                    widget.onChanged(finalIndex);
+                  }
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class CustomMarginTrackShape extends RoundedRectSliderTrackShape {
+  final double margin;
+  final int itemCount;
+  final bool isDark;
+  final Color primaryColor;
+
+  const CustomMarginTrackShape({
+    this.margin = 4.0,
+    this.itemCount = 5,
+    required this.isDark,
+    required this.primaryColor,
+  });
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = sliderTheme.trackHeight ?? 3.0;
+    final double trackWidth = parentBox.size.width;
+    final double trackLeft = offset.dx + margin;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+
+    return Rect.fromLTWH(trackLeft, trackTop, math.max(0.0, trackWidth - (margin * 2)), trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+    double additionalActiveTrackHeight = 0.0,
+  }) {
+    if (sliderTheme.trackHeight == null || sliderTheme.trackHeight! <= 0) {
+      return;
+    }
+
+    final Rect trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+
+    final Canvas canvas = context.canvas;
+    final Radius trackRadius = Radius.circular(trackRect.height / 2);
+
+    // 1. Draw Inactive Track
+    final Paint inactivePaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? Colors.grey;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(trackRect, trackRadius),
+      inactivePaint,
+    );
+
+    // 2. Draw Active Track
+    final Rect activeTrackRect = Rect.fromLTRB(
+      trackRect.left,
+      trackRect.top - (additionalActiveTrackHeight / 2),
+      thumbCenter.dx.clamp(trackRect.left, trackRect.right),
+      trackRect.bottom + (additionalActiveTrackHeight / 2),
+    );
+    final Paint activePaint = Paint()
+      ..color = sliderTheme.activeTrackColor ?? primaryColor;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(activeTrackRect, trackRadius),
+      activePaint,
+    );
+
+    // 3. Draw 5 Discrete Tick Dots (刻度小断点)
+    if (itemCount > 1) {
+      final double usableWidth = trackRect.width;
+      final double dotRadius = 2.5;
+
+      for (int i = 0; i < itemCount; i++) {
+        final double dotX = trackRect.left + usableWidth * i / (itemCount - 1);
+        final double dotY = trackRect.center.dy;
+
+        final bool isActive = dotX <= thumbCenter.dx + 1.0;
+        final Paint dotPaint = Paint()
+          ..color = isActive
+              ? primaryColor
+              : (isDark
+                  ? const Color(0xFF64748B).withValues(alpha: 0.6)
+                  : Colors.black.withValues(alpha: 0.2));
+
+        canvas.drawCircle(Offset(dotX, dotY), dotRadius, dotPaint);
+      }
+    }
+  }
 }
 
 // ==========================================
@@ -864,25 +1659,27 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
 class DonutChartPainter extends CustomPainter {
   final double imagesVal;
   final double detailsVal;
-  final double indexVal;
   final double favoritesVal;
   final double webviewVal;
   final double otherVal;
+  final double codeCacheVal;
+  final double tempResourcesVal;
   final Color centerBgColor;
 
   DonutChartPainter({
     required this.imagesVal,
     required this.detailsVal,
-    required this.indexVal,
     required this.favoritesVal,
     required this.webviewVal,
     required this.otherVal,
+    required this.codeCacheVal,
+    required this.tempResourcesVal,
     required this.centerBgColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double total = imagesVal + detailsVal + indexVal + favoritesVal + webviewVal + otherVal;
+    final double total = imagesVal + detailsVal + favoritesVal + webviewVal + otherVal + codeCacheVal + tempResourcesVal;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width / 2, size.height / 2);
     final rect = Rect.fromCircle(center: center, radius: radius - 15);
@@ -907,10 +1704,11 @@ class DonutChartPainter extends CustomPainter {
     final segments = [
       _Segment('images', imagesVal, const Color(0xFF4CD0E1)),
       _Segment('details', detailsVal, const Color(0xFFAB47BC)),
-      _Segment('index', indexVal, const Color(0xFF66BB6A)),
-      _Segment('favorites', favoritesVal, const Color(0xFFFF7043)),
-      _Segment('webview', webviewVal, const Color(0xFFEC407A)),
-      _Segment('other', otherVal, const Color(0xFFFFCA28)),
+      _Segment('favorites', favoritesVal, const Color(0xFFE53935)), // Vibrant Red
+      _Segment('webview', webviewVal, const Color(0xFF4CAF50)),   // Vibrant Green
+      _Segment('other', otherVal, const Color(0xFFFFCA28)),      // Amber
+      _Segment('code_cache', codeCacheVal, const Color(0xFFEC407A)), // Pink
+      _Segment('temp_resources', tempResourcesVal, const Color(0xFFFF9800)), // Deep Amber / Orange
     ];
 
     double currentAngle = -math.pi / 2;

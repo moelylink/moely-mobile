@@ -8,6 +8,7 @@ import 'image_detail_screen.dart';
 import '../models/image_item.dart';
 import '../services/user_agent_service.dart';
 import '../services/url_handler_service.dart';
+import '../widgets/moely_error_widget.dart';
 
 class BrowsingHistoryScreen extends StatefulWidget {
   const BrowsingHistoryScreen({super.key});
@@ -19,6 +20,7 @@ class BrowsingHistoryScreen extends StatefulWidget {
 class _BrowsingHistoryScreenState extends State<BrowsingHistoryScreen> {
   List<HistoryItem> _historyItems = [];
   bool _isLoading = true;
+  bool _hasError = false;
   String? _historyImagesDirPath;
 
   @override
@@ -28,15 +30,28 @@ class _BrowsingHistoryScreenState extends State<BrowsingHistoryScreen> {
   }
 
   Future<void> _loadHistory() async {
-    setState(() => _isLoading = true);
-    final list = await HistoryHelper.getHistory();
-    final imgDir = await HistoryHelper.getHistoryImagesDir();
-    if (mounted) {
-      setState(() {
-        _historyItems = list;
-        _historyImagesDirPath = imgDir.path;
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+
+    try {
+      final list = await HistoryHelper.getHistory();
+      final imgDir = await HistoryHelper.getHistoryImagesDir();
+      if (mounted) {
+        setState(() {
+          _historyItems = list;
+          _historyImagesDirPath = imgDir.path;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -153,9 +168,15 @@ class _BrowsingHistoryScreenState extends State<BrowsingHistoryScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _historyItems.isEmpty
-              ? _buildEmptyState(theme)
-              : _buildHistoryList(theme),
+          : _hasError
+              ? MoelyErrorWidget(
+                  message: '历史记录加载失败',
+                  icon: Icons.history_toggle_off_rounded,
+                  onRetry: _loadHistory,
+                )
+              : _historyItems.isEmpty
+                  ? _buildEmptyState(theme)
+                  : _buildHistoryList(theme),
     );
   }
 

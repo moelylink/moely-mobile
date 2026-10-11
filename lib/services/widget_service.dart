@@ -9,14 +9,22 @@ class WidgetService {
 
   /// Pin a widget to the home screen
   static Future<bool> pinWidget(String providerName) async {
-    if (!isPlatformAndroid) return false;
+    print('[WidgetService] Attempting pinWidget for provider: $providerName, isAndroid=$isPlatformAndroid');
+    if (!isPlatformAndroid) {
+      print('[WidgetService] pinWidget aborted: Not on Android platform.');
+      return false;
+    }
     try {
       final bool? result = await _channel.invokeMethod<bool>('pinWidget', {
         'providerName': providerName,
       });
+      print('[WidgetService] pinWidget channel returned: $result for provider: $providerName');
       return result ?? false;
     } on PlatformException catch (e) {
-      print('Failed to pin widget: ${e.message}');
+      print('[WidgetService] PlatformException in pinWidget ($providerName): code=${e.code}, message=${e.message}, details=${e.details}');
+      return false;
+    } catch (e, stack) {
+      print('[WidgetService] Unexpected error in pinWidget ($providerName): $e\n$stack');
       return false;
     }
   }

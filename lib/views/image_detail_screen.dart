@@ -16,16 +16,19 @@ import '../services/translation_service.dart';
 import '../utils/download_helper.dart';
 import '../utils/cache_helper.dart';
 import 'denoised_web_screen.dart';
+import '../widgets/auto_scrolling_text.dart';
 import '../services/wallpaper_service.dart';
 import '../services/settings_service.dart';
 import '../services/user_agent_service.dart';
 import '../services/url_handler_service.dart';
 import 'tag_grid_screen.dart';
 import 'category_grid_screen.dart';
+import 'artist_profile_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 import '../utils/history_helper.dart';
 import '../utils/toast_helper.dart';
+import '../widgets/moely_error_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
@@ -33,6 +36,12 @@ import '../services/kanban_service.dart';
 
 class ImageDetailScreen extends StatefulWidget {
   final MoelyImage image;
+  static List<MoelyImage>? _globalIndexList;
+
+  /// Clear the in-memory global index list cache
+  static void clearGlobalIndexList() {
+    _globalIndexList = null;
+  }
 
   const ImageDetailScreen({
     super.key,
@@ -47,6 +56,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   late MoelyImage _currentImage;
   ImageDetails? _details;
   bool _isLoadingDetails = true;
+  bool _hasDetailsError = false;
   Set<String> _favoritedImageUrls = {};
   bool _isThumbnailCached = false;
   
@@ -65,9 +75,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   final ScrollController _scrollController = ScrollController();
   double _overscrollBottom = 0.0;
   double _overscrollTop = 0.0;
+  double _maxOverscrollTop = 0.0;
+  double _maxOverscrollBottom = 0.0;
+  bool _isPointerDown = false;
   bool _hasPrevImage = false;
-
-  static List<MoelyImage>? _globalIndexList;
 
   // Preloading state and cached variables for instant transitions
   MoelyImage? _preloadedNextImage;
@@ -77,6 +88,36 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   // Track all randomly swiped or preloaded images and their URLs for surgical cache eviction on exit
   final Set<String> _randomImageIds = {};
   final Set<String> _randomImageUrlsToEvict = {};
+
+  String get _displayTitle {
+    final id = _currentImage.id.isNotEmpty ? _currentImage.id : (_details?.id ?? '');
+    
+    if (_details != null && _details!.title.isNotEmpty) {
+      var t = _details!.title.trim();
+      // Clean any trailing literal dots ('...' or '…') from scraped titles
+      t = t.replaceAll(RegExp(r'[\.…]+$'), '').trim();
+
+      // If title starts with "ID:" or "ID："
+      if (t.toLowerCase().startsWith('id:') || t.toLowerCase().startsWith('id：')) {
+        // If full id is known and title does not contain the full id (e.g. truncated ID: 20586913998943...), replace with full ID
+        if (id.isNotEmpty) {
+          return 'ID: $id';
+        }
+        return t.isNotEmpty ? t : '作品详情';
+      }
+
+      // For normal titles (e.g. Pixiv artwork titles)
+      if (id.isNotEmpty && !t.contains(id)) {
+        return '$t (ID: $id)';
+      }
+      return t;
+    }
+
+    if (id.isNotEmpty) {
+      return 'ID: $id';
+    }
+    return '作品详情';
+  }
 
   @override
   void initState() {
@@ -111,6 +152,9 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     // Detect overscroll at the bottom
     if (AppSettings.instance.enableOverscrollRandom && offset > maxScroll) {
       final overscroll = offset - maxScroll;
+      if (overscroll > _maxOverscrollBottom) {
+        _maxOverscrollBottom = overscroll;
+      }
       if (overscroll != _overscrollBottom) {
         setState(() {
           _overscrollBottom = overscroll;
@@ -124,9 +168,12 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       }
     }
     
-    // Detect overscroll at the top
-    if (offset < 0) {
+    // Detect overscroll at the top (only allowed when previous history exists)
+    if (_hasPrevImage && offset < 0) {
       final overscroll = -offset;
+      if (overscroll > _maxOverscrollTop) {
+        _maxOverscrollTop = overscroll;
+      }
       if (overscroll != _overscrollTop) {
         setState(() {
           _overscrollTop = overscroll;
@@ -264,21 +311,22 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   }
 
   Future<List<MoelyImage>> _getOrFetchIndexList() async {
-    if (_globalIndexList != null && _globalIndexList!.isNotEmpty) {
-      return _globalIndexList!;
+    if (ImageDetailScreen._globalIndexList != null && ImageDetailScreen._globalIndexList!.isNotEmpty) {
+      return ImageDetailScreen._globalIndexList!;
     }
     
-    final tempDir = await getTemporaryDirectory();
-    final cacheFile = File('${tempDir.path}/global_index_cache.json');
+    final supportDir = await getApplicationSupportDirectory();
+    final cacheFile = File('${supportDir.path}/global_index_cache.json');
     
     if (await cacheFile.exists()) {
       try {
         final content = await cacheFile.readAsString();
         final List<dynamic> listData = json.decode(content);
-        _globalIndexList = listData.map((e) => MoelyImage.fromJson(e)).toList();
-        if (_globalIndexList!.isNotEmpty) {
+        final loaded = listData.map((e) => MoelyImage.fromJson(e)).where((img) => img.id.isNotEmpty).toList();
+        if (loaded.isNotEmpty) {
+          ImageDetailScreen._globalIndexList = loaded;
           _fetchIndexAndSaveBackground(cacheFile);
-          return _globalIndexList!;
+          return ImageDetailScreen._globalIndexList!;
         }
       } catch (_) {}
     }
@@ -288,13 +336,13 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       final response = await dio.get('https://www.moely.link/index.json');
       if (response.statusCode == 200 && response.data is List) {
         final List<dynamic> listData = response.data;
-        _globalIndexList = listData.map((e) => MoelyImage.fromJson(e)).toList();
+        ImageDetailScreen._globalIndexList = listData.map((e) => MoelyImage.fromJson(e)).where((img) => img.id.isNotEmpty).toList();
         await cacheFile.writeAsString(json.encode(response.data));
-        return _globalIndexList!;
+        return ImageDetailScreen._globalIndexList!;
       }
     } catch (_) {}
     
-    return _globalIndexList ?? [];
+    return ImageDetailScreen._globalIndexList ?? [];
   }
 
   void _fetchIndexAndSaveBackground(File cacheFile) {
@@ -303,7 +351,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         final dio = UserAgentService.createDio();
         final response = await dio.get('https://www.moely.link/index.json');
         if (response.statusCode == 200 && response.data is List) {
-          _globalIndexList = (response.data as List).map((e) => MoelyImage.fromJson(e)).toList();
+          final fetched = (response.data as List).map((e) => MoelyImage.fromJson(e)).where((img) => img.id.isNotEmpty).toList();
+          ImageDetailScreen._globalIndexList = fetched;
           await cacheFile.writeAsString(json.encode(response.data));
         }
       } catch (_) {}
@@ -311,8 +360,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   }
 
   Future<File> _getHistoryFile() async {
-    final tempDir = await getTemporaryDirectory();
-    return File('${tempDir.path}/detail_history.json');
+    final supportDir = await getApplicationSupportDirectory();
+    return File('${supportDir.path}/detail_history.json');
   }
 
   Future<void> _pushToHistory(MoelyImage image) async {
@@ -452,6 +501,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
           _actualTranslationEngine = '';
           _overscrollBottom = 0.0;
           _overscrollTop = 0.0;
+          _maxOverscrollBottom = 0.0;
+          _maxOverscrollTop = 0.0;
           _isThumbnailCached = false;
           
           _preloadedNextImage = null;
@@ -568,19 +619,30 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
   Future<void> _handleScrollRelease() async {
     const double threshold = 100.0;
-    
-    if (_overscrollBottom >= threshold) {
-      _loadRandomImage();
-    } else if (_overscrollTop >= threshold && _hasPrevImage) {
-      _loadPreviousImage();
-    }
-  }
+    final topOverscroll = math.max(_overscrollTop, _maxOverscrollTop);
+    final bottomOverscroll = math.max(_overscrollBottom, _maxOverscrollBottom);
 
-  String _getDisplayTitle() {
-    if (_details != null && _details!.title.isNotEmpty) {
-      return _details!.title;
+    _maxOverscrollTop = 0.0;
+    _maxOverscrollBottom = 0.0;
+
+    if (topOverscroll >= threshold && _hasPrevImage) {
+      setState(() {
+        _overscrollTop = 0.0;
+      });
+      _loadPreviousImage();
+    } else if (bottomOverscroll >= threshold && AppSettings.instance.enableOverscrollRandom) {
+      setState(() {
+        _overscrollBottom = 0.0;
+      });
+      _loadRandomImage();
+    } else {
+      if (_overscrollTop != 0.0 || _overscrollBottom != 0.0) {
+        setState(() {
+          _overscrollTop = 0.0;
+          _overscrollBottom = 0.0;
+        });
+      }
     }
-    return 'ID: ${_currentImage.id}';
   }
 
   @override
@@ -605,27 +667,43 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     super.dispose();
   }
 
-  Future<void> _loadDetails() async {
-    final details = await ImageDetailsParser.fetchDetails(_currentImage.id);
-    if (mounted) {
-      setState(() {
-        _details = details;
-        if (details != null) {
-          _currentImage = MoelyImage(
-            id: _currentImage.id,
-            user: (details.user.isNotEmpty && details.user != 'Unknown') ? details.user : _currentImage.user,
-            category: (details.category.isNotEmpty && details.category != 'Other') ? details.category : _currentImage.category,
-            urls: _currentImage.urls.isNotEmpty
-                ? _currentImage.urls
-                : (details.previewUrls.isNotEmpty ? details.previewUrls.first : ''),
-            total: _currentImage.total,
-          );
+  Future<void> _loadDetails({bool forceRefresh = false}) async {
+    setState(() {
+      _isLoadingDetails = true;
+      _hasDetailsError = false;
+    });
+
+    try {
+      final details = await ImageDetailsParser.fetchDetails(_currentImage.id, forceRefresh: forceRefresh);
+      if (mounted) {
+        final bool isFailed = (details == null || (details.previewUrls.isEmpty && details.downloadUrls.isEmpty));
+        setState(() {
+          _details = details;
+          _hasDetailsError = isFailed;
+          if (details != null && !isFailed) {
+            _currentImage = MoelyImage(
+              id: _currentImage.id.isNotEmpty ? _currentImage.id : details.id,
+              user: (details.user.isNotEmpty && details.user != 'Unknown') ? details.user : _currentImage.user,
+              category: (details.category.isNotEmpty && details.category != 'Other') ? details.category : _currentImage.category,
+              urls: _currentImage.urls.isNotEmpty
+                  ? _currentImage.urls
+                  : (details.previewUrls.isNotEmpty ? details.previewUrls.first : ''),
+              total: _currentImage.total,
+            );
+          }
+          _isLoadingDetails = false;
+        });
+        _checkFavoriteStatus();
+        if (details != null && !isFailed && widget.image.urls.isEmpty) {
+          HistoryHelper.addToHistory(_currentImage.id, _currentImage.urls);
         }
-        _isLoadingDetails = false;
-      });
-      _checkFavoriteStatus();
-      if (details != null && widget.image.urls.isEmpty) {
-        HistoryHelper.addToHistory(_currentImage.id, _currentImage.urls);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingDetails = false;
+          _hasDetailsError = true;
+        });
       }
     }
   }
@@ -1384,7 +1462,6 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isPixiv = _currentImage.category.toLowerCase() == 'pixiv';
     final platformColor = theme.colorScheme.primary;
 
     // List of previews to display
@@ -1398,7 +1475,17 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       body: Listener(
+        onPointerDown: (event) {
+          _isPointerDown = true;
+          _maxOverscrollTop = 0.0;
+          _maxOverscrollBottom = 0.0;
+        },
         onPointerUp: (event) {
+          _isPointerDown = false;
+          _handleScrollRelease();
+        },
+        onPointerCancel: (event) {
+          _isPointerDown = false;
           _handleScrollRelease();
         },
         child: Stack(
@@ -1418,6 +1505,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                   // 1. List of illustrations stacked vertically (前面展示图片)
                   ...List.generate(previewsToDisplay.length, (index) {
                     final imgUrl = previewsToDisplay[index];
+                    final isFavorited = _favoritedImageUrls.contains(_getThumbnailUrl(imgUrl, index));
 
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -1443,7 +1531,45 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                 child: Hero(
                                   tag: index == 0 ? 'img_${_currentImage.id}' : 'img_${_currentImage.id}_p$index',
                                   child: imgUrl.isEmpty
-                                      ? _buildPlaceholder(context, '', index, theme, platformColor)
+                                      ? Container(
+                                          height: 250,
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          alignment: Alignment.center,
+                                          padding: const EdgeInsets.all(16),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.wifi_off_rounded, size: 44, color: theme.colorScheme.error),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                '未能获取图片信息',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 12),
+                                              ElevatedButton.icon(
+                                                onPressed: () => _loadDetails(forceRefresh: true),
+                                                icon: const Icon(Icons.refresh_rounded, size: 16),
+                                                label: const Text('重新加载', style: TextStyle(fontSize: 13)),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: theme.colorScheme.primaryContainer,
+                                                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                                  elevation: 0,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
                                       : CachedNetworkImage(
                                           imageUrl: imgUrl,
                                           httpHeaders: {'User-Agent': UserAgentService.userAgent},
@@ -1451,9 +1577,47 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                           placeholder: (context, url) => _buildPlaceholder(context, url, index, theme, platformColor),
                                           errorWidget: (context, url, error) => Container(
                                             height: 250,
-                                            color: theme.colorScheme.surfaceVariant,
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
                                             alignment: Alignment.center,
-                                            child: const Icon(Icons.broken_image_rounded, size: 48),
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(Icons.broken_image_rounded, size: 44, color: theme.colorScheme.error.withOpacity(0.8)),
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  '图片加载失败，请检查网络',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                ElevatedButton.icon(
+                                                  onPressed: () {
+                                                    CachedNetworkImage.evictFromCache(imgUrl);
+                                                    setState(() {
+                                                      _loadDetails(forceRefresh: true);
+                                                    });
+                                                  },
+                                                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                                                  label: const Text('重新加载', style: TextStyle(fontSize: 13)),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: theme.colorScheme.primaryContainer,
+                                                    foregroundColor: theme.colorScheme.onPrimaryContainer,
+                                                    elevation: 0,
+                                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                 ),
@@ -1468,10 +1632,24 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(20),
                               child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  color: Colors.black.withOpacity(0.45),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: Colors.black.withOpacity(0.45),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.15),
+                                      width: 0.6,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.08),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      )
+                                    ],
+                                  ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -1480,9 +1658,9 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                         onTap: () => _toggleFavorite(imgUrl, index),
                                         child: ScaleTransition(
                                           scale: _heartScaleAnimation,
-                                          child: const Icon(
-                                            Icons.favorite_border_rounded,
-                                            color: Colors.white,
+                                          child: Icon(
+                                            isFavorited ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                            color: isFavorited ? Colors.redAccent : Colors.white,
                                             size: 20,
                                           ),
                                         ),
@@ -1524,7 +1702,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                     color: Colors.black.withOpacity(0.45),
@@ -1598,44 +1776,148 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Back Button
-                ClipOval(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      color: theme.colorScheme.surface.withOpacity(0.6),
-                      child: IconButton(
-                        icon: Icon(Icons.arrow_back_ios_new_rounded, color: theme.colorScheme.onSurface, size: 20),
-                        onPressed: () => Navigator.pop(context),
+                // Back Button with Liquid Glass Top-Left & Bottom-Right Specular Light Arcs
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ClipOval(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Container(color: Colors.transparent),
+                          ),
+                        ),
                       ),
-                    ),
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _LiquidGlassCirclePainter(
+                            isDark: theme.brightness == Brightness.dark,
+                            surfaceColor: theme.colorScheme.surface,
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_back_ios_new_rounded, color: theme.colorScheme.onSurface, size: 20),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(24),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                      child: Container(
-                        height: 48,
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        color: theme.colorScheme.surface.withOpacity(0.6),
-                        child: Text(
-                          _getDisplayTitle(),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: _displayTitle));
+                            ToastHelper.show(context, '已复制标题: $_displayTitle');
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: theme.brightness == Brightness.dark
+                                    ? [
+                                        theme.colorScheme.surface.withOpacity(0.55),
+                                        theme.colorScheme.surface.withOpacity(0.40),
+                                      ]
+                                    : [
+                                        theme.colorScheme.surface.withOpacity(0.70),
+                                        theme.colorScheme.surface.withOpacity(0.50),
+                                      ],
+                              ),
+                              border: Border.all(
+                                color: theme.brightness == Brightness.dark
+                                    ? Colors.white.withOpacity(0.25)
+                                    : Colors.white.withOpacity(0.55),
+                                width: 0.8,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                )
+                              ],
+                            ),
+                            child: RepaintBoundary(
+                              child: AutoScrollingText(
+                                text: _displayTitle,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                                centerWhenNoScroll: false,
+                              ),
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Open Original Source Button with Liquid Glass Top-Left & Bottom-Right Specular Light Arcs
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ClipOval(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                            child: Container(color: Colors.transparent),
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _LiquidGlassCirclePainter(
+                            isDark: theme.brightness == Brightness.dark,
+                            surfaceColor: theme.colorScheme.surface,
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.open_in_new_rounded,
+                            color: theme.colorScheme.onSurface,
+                            size: 20,
+                          ),
+                          tooltip: '查看原帖',
+                          onPressed: () {
+                            if (_details != null && _details!.sourceUrl.isNotEmpty) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DenoisedWebScreen(
+                                    url: _details!.sourceUrl,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              ToastHelper.show(context, '暂无原帖链接');
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1663,38 +1945,40 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               left: 0,
               right: 0,
               child: Center(
-                child: Opacity(
-                  opacity: (math.min(_overscrollTop, 100.0) / 100.0),
-                  child: Transform.scale(
-                    scale: 0.8 + 0.2 * (math.min(_overscrollTop, 100.0) / 100.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: platformColor,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
-                          )
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            _overscrollTop >= 100 ? '释放以返回上一张' : '继续下拉返回上一张 (${_overscrollTop.toInt()}/100)',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                child: RepaintBoundary(
+                  child: Opacity(
+                    opacity: (math.min(_overscrollTop, 100.0) / 100.0).clamp(0.0, 1.0),
+                    child: Transform.scale(
+                      scale: 0.8 + 0.2 * (math.min(_overscrollTop, 100.0) / 100.0).clamp(0.0, 1.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: platformColor,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            )
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              _overscrollTop >= 100 ? '释放以返回上一张' : '继续下拉返回上一张 (${_overscrollTop.toInt()}/100)',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1709,38 +1993,40 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
               left: 0,
               right: 0,
               child: Center(
-                child: Opacity(
-                  opacity: (math.min(_overscrollBottom, 100.0) / 100.0),
-                  child: Transform.scale(
-                    scale: 0.8 + 0.2 * (math.min(_overscrollBottom, 100.0) / 100.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: platformColor,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
-                          )
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white),
-                          const SizedBox(width: 8),
-                          Text(
-                            _overscrollBottom >= 100 ? '释放以探索随机图片' : '继续上拉探索随机图片 (${_overscrollBottom.toInt()}/100)',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                child: RepaintBoundary(
+                  child: Opacity(
+                    opacity: (math.min(_overscrollBottom, 100.0) / 100.0).clamp(0.0, 1.0),
+                    child: Transform.scale(
+                      scale: 0.8 + 0.2 * (math.min(_overscrollBottom, 100.0) / 100.0).clamp(0.0, 1.0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: platformColor,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            )
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.arrow_upward_rounded, size: 16, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              _overscrollBottom >= 100 ? '释放以探索随机图片' : '继续上拉探索随机图片 (${_overscrollBottom.toInt()}/100)',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1795,59 +2081,129 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ID Title & Source Launch Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  _getDisplayTitle(),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+          if (_hasDetailsError)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.colorScheme.error.withOpacity(0.3)),
               ),
-              if (!_isLoadingDetails && _details != null && _details!.sourceUrl.isNotEmpty)
-                IconButton.filledTonal(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DenoisedWebScreen(
-                          url: _details!.sourceUrl,
-                          title: '原始出处',
-                        ),
+              child: Row(
+                children: [
+                  Icon(Icons.wifi_off_rounded, size: 20, color: theme.colorScheme.error),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '网络连接受限，详情与高清图未完全加载',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onErrorContainer,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.launch_rounded),
-                  style: IconButton.styleFrom(
-                    foregroundColor: platformColor,
-                    backgroundColor: platformColor.withOpacity(0.1),
+                    ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => _loadDetails(forceRefresh: true),
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('重试', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Creator & Platform badges row
           Row(
             children: [
-              Icon(
-                Icons.alternate_email_rounded,
-                size: 14,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 4),
               Expanded(
-                child: Text(
-                  _currentImage.cleanUser,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface.withOpacity(0.8),
-                  ),
-                ),
+                child: (_details?.hasArtistPage == true && _details?.artistUid?.isNotEmpty == true)
+                    ? Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            final targetUid = _details!.artistUid!;
+                            final targetName = (_details != null && _details!.user != 'Unknown' && _details!.user.isNotEmpty)
+                                ? _details!.user
+                                : _currentImage.cleanUser;
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ArtistProfileScreen(
+                                  artistUid: targetUid,
+                                  artistName: targetName,
+                                ),
+                              ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.palette_outlined,
+                                  size: 15,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    _details?.user.isNotEmpty == true && _details!.user != 'Unknown'
+                                        ? _details!.user
+                                        : _currentImage.cleanUser,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 16,
+                                  color: theme.colorScheme.primary.withOpacity(0.7),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.palette_outlined,
+                            size: 15,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              _details?.user.isNotEmpty == true && _details!.user != 'Unknown'
+                                  ? _details!.user
+                                  : _currentImage.cleanUser,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface.withOpacity(0.8),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
+              const SizedBox(width: 8),
               InkWell(
                 onTap: () {
                   Navigator.push(
@@ -1903,12 +2259,42 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                     color: theme.colorScheme.onSurface.withOpacity(0.85),
                   ),
                 )
-              : _buildClickableDescription(
-                  (_isTranslated && _translatedDescription.isNotEmpty)
-                      ? _translatedDescription
-                      : _details?.description ?? '暂无描述',
-                  theme,
-                ),
+              : _hasDetailsError
+                  ? Row(
+                      children: [
+                        Icon(Icons.wifi_off_rounded, size: 16, color: theme.colorScheme.error),
+                        const SizedBox(width: 8),
+                        Text(
+                          '详情加载失败',
+                          style: TextStyle(fontSize: 13, color: theme.colorScheme.error),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => _loadDetails(forceRefresh: true),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.refresh_rounded, size: 14, color: theme.colorScheme.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '重新加载',
+                                  style: TextStyle(fontSize: 12, color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : _buildClickableDescription(
+                      (_isTranslated && _translatedDescription.isNotEmpty)
+                          ? _translatedDescription
+                          : _details?.description ?? '暂无描述',
+                      theme,
+                    ),
 
           // Twitter-Style Minimalist Translation Trigger
           if (!_isLoadingDetails && 
@@ -2397,6 +2783,138 @@ class _FullscreenImageItemState extends State<FullscreenImageItem> with SingleTi
     );
   }
 }
+
+class _LiquidGlassCirclePainter extends CustomPainter {
+  final bool isDark;
+  final Color surfaceColor;
+
+  _LiquidGlassCirclePainter({required this.isDark, required this.surfaceColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // 1. Soft Ambient Rim Glow (柔和微量外发光)
+    final outerGlowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0)
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [
+                Colors.white.withValues(alpha: 0.20),
+                Colors.white.withValues(alpha: 0.05),
+                Colors.white.withValues(alpha: 0.12),
+              ]
+            : [
+                Colors.white.withValues(alpha: 0.40),
+                Colors.white.withValues(alpha: 0.12),
+                Colors.white.withValues(alpha: 0.25),
+              ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(rect);
+    canvas.drawCircle(center, radius - 1.2, outerGlowPaint);
+
+    // 2. Liquid Glass Circular Fill (通透液态背景色 - 无大斜角偏色)
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [
+                surfaceColor.withValues(alpha: 0.55),
+                surfaceColor.withValues(alpha: 0.40),
+              ]
+            : [
+                surfaceColor.withValues(alpha: 0.70),
+                surfaceColor.withValues(alpha: 0.50),
+              ],
+      ).createShader(rect);
+    canvas.drawCircle(center, radius - 0.6, fillPaint);
+
+    // 3. Crisp Rim Border Line (柔和水滴自然描边)
+    final rimPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: isDark
+            ? [
+                Colors.white.withValues(alpha: 0.35),
+                Colors.white.withValues(alpha: 0.12),
+                Colors.white.withValues(alpha: 0.25),
+              ]
+            : [
+                Colors.white.withValues(alpha: 0.60),
+                Colors.white.withValues(alpha: 0.22),
+                Colors.white.withValues(alpha: 0.45),
+              ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(rect);
+    canvas.drawCircle(center, radius - 0.6, rimPaint);
+
+    // 4. Top-Left Compact Specular Arc (左上角精致紧凑高亮微弧光)
+    final tlArcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.8)
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        startAngle: math.pi * 1.14,
+        endAngle: math.pi * 1.34,
+        colors: [
+          Colors.white.withValues(alpha: 0.0),
+          Colors.white.withValues(alpha: isDark ? 0.35 : 0.50),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(rect);
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 0.8),
+      math.pi * 1.14,
+      math.pi * 0.20,
+      false,
+      tlArcPaint,
+    );
+
+    // 5. Bottom-Right Subtle Specular Arc (右下角极柔和次级环境微反光)
+    final brArcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2)
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        startAngle: -math.pi * 0.05,
+        endAngle: math.pi * 0.55,
+        colors: [
+          Colors.white.withValues(alpha: 0.0),
+          Colors.white.withValues(alpha: isDark ? 0.18 : 0.35),
+          Colors.white.withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(rect);
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 0.8),
+      -math.pi * 0.05,
+      math.pi * 0.50,
+      false,
+      brArcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LiquidGlassCirclePainter oldDelegate) {
+    return oldDelegate.isDark != isDark || oldDelegate.surfaceColor != surfaceColor;
+  }
+}
+
 
 
 

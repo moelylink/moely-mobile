@@ -10,6 +10,7 @@ import 'services/url_handler_service.dart';
 import 'services/log_service.dart';
 import 'services/auth_service.dart';
 import 'utils/notification_helper.dart';
+import 'utils/cache_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +32,11 @@ void main() async {
   
   // Load AppSettings persistent configurations
   await AppSettings.instance.init();
+
+  // Trigger low-priority background auto cache cleanup (delay 3 seconds so startup UI is not affected)
+  Future.delayed(const Duration(seconds: 3), () {
+    CacheHelper.performAutoCacheCleanup();
+  });
 
   // Load Kanban Mascot persistent configurations
   await KanbanService.instance.init();

@@ -6,6 +6,8 @@ import '../services/kanban_service.dart';
 import '../services/widget_service.dart';
 import '../utils/toast_helper.dart';
 
+const EdgeInsets _dialogInsetPadding = EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0);
+
 class KanbanScreen extends StatefulWidget {
   const KanbanScreen({super.key});
 
@@ -107,12 +109,107 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
   }
 
   Future<void> _pinWidget() async {
+    if (!WidgetService.isPlatformAndroid) {
+      ToastHelper.show(context, '当前平台不支持添加桌面小组件', type: ToastType.warning);
+      return;
+    }
+
+    final hasPermission = await WidgetService.checkShortcutPermission();
+    if (!hasPermission) {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          final theme = Theme.of(context);
+          final isDark = theme.brightness == Brightness.dark;
+          return AlertDialog(
+            insetPadding: _dialogInsetPadding,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: const Text('需要桌面快捷方式权限'),
+            content: const Text(
+              '由于您的系统限制，快捷添加小组件需要「创建桌面快捷方式」权限。\n\n'
+              '请点击“去开启”前往设置界面手动允许该权限，然后再试。'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  '取消',
+                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('去开启'),
+              ),
+            ],
+          );
+        },
+      );
+      if (result == true) {
+        await WidgetService.openShortcutPermissionSettings();
+      }
+      return;
+    }
+
+    print('[KanbanScreen] Requesting pinWidget for PetWidgetProvider');
     final success = await WidgetService.pinWidget('PetWidgetProvider');
+    print('[KanbanScreen] pinWidget returned: $success');
     if (mounted) {
       if (success) {
-        ToastHelper.show(context, '已向系统发起添加小组件申请！', type: ToastType.success);
+        showDialog(
+          context: context,
+          builder: (context) {
+            final theme = Theme.of(context);
+            final isDark = theme.brightness == Brightness.dark;
+            return AlertDialog(
+              insetPadding: _dialogInsetPadding,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Text('添加请求已发送'),
+              content: const Text(
+                '已向系统桌面发送小组件添加请求。\n\n'
+                '说明与排查：\n'
+                '1. 如果桌面未出现确认弹窗，请检查是否已授予应用「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」；\n'
+                '2. 国产系统手动添加指引（推荐）：\n'
+                '• ColorOS / Realme：桌面双指捏合或长按 -> 点击「微件」（注意非「卡片」）-> 找到「萌哩」添加；\n'
+                '• OriginOS：长按桌面空白处 -> 进入「原子组件/组件」-> 滑到底部「经典组件/安卓微件」-> 添加；\n'
+                '• MIUI / HyperOS：长按桌面 -> 点击「添加小部件」-> 滑到底部「支持小部件的应用」-> 添加。'
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    '好的',
+                    style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    WidgetService.openShortcutPermissionSettings();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('去开启权限'),
+                ),
+              ],
+            );
+          },
+        );
       } else {
-        ToastHelper.show(context, '添加小组件失败，可能当前系统不支持或未授权', type: ToastType.error);
+        ToastHelper.show(context, '桌面暂未响应快捷添加，建议长按桌面从「微件/组件」手动添加！', type: ToastType.warning);
       }
     }
   }
@@ -131,6 +228,11 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.casino_rounded, color: Colors.amberAccent),
+            tooltip: '趣味大转盘',
+            onPressed: () => _showLuckyWheelDialog(context, KanbanService.instance),
+          ),
           IconButton(
             icon: const Icon(Icons.help_outline_rounded),
             onPressed: () => _showHelpDialog(context, theme),
@@ -382,27 +484,29 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
 
               // 6. Left-Bottom Floating Store Buttons (Vertical/Horizontal list of circular game actions)
               Positioned(
-                left: 20,
+                left: 16,
                 bottom: 20,
                 child: Row(
                   children: [
                     _ManorButton(
-                      icon: Icons.favorite_rounded,
-                      label: '亲密度',
-                      gradientColors: const [Color(0xFFF472B6), Color(0xFFE11D48)], // Warm pink
-                      shadowColor: Colors.pinkAccent,
-                      onPressed: () => _showGoodwillDialog(context, service),
-                      badge: 'LV ${(service.goodwill ~/ 100) + 1}',
+                      icon: Icons.backpack_rounded,
+                      label: '道具包',
+                      gradientColors: const [Color(0xFF10B981), Color(0xFF047857)], // Emerald teal
+                      shadowColor: Colors.tealAccent,
+                      onPressed: () => _showInventoryDialog(context, service),
+                      badge: (service.speedCardCount + service.doubleFeedCardCount) > 0
+                          ? '${service.speedCardCount + service.doubleFeedCardCount}'
+                          : null,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     _ManorButton(
                       icon: Icons.store_rounded,
-                      label: '美食商店',
+                      label: '庄园商店',
                       gradientColors: const [Color(0xFFFBBF24), Color(0xFFD97706)], // Warm orange
                       shadowColor: Colors.orangeAccent,
                       onPressed: () => _showFoodShopDialog(context, service),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     _ManorButton(
                       icon: Icons.checkroom_rounded,
                       label: '衣帽间',
@@ -422,6 +526,14 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                   service: service,
                   isDark: showNightScene,
                   onTap: () async {
+                    if (service.currentState == KanbanState.eating) {
+                      _showBowlActionDialog(context, service);
+                      return;
+                    }
+                    if (service.doubleFeedCardCount > 0 && service.feedStock >= 200) {
+                      _showFeedChoiceDialog(context, service);
+                      return;
+                    }
                     final success = await service.feedMascot();
                     if (success) {
                       if (mounted) {
@@ -451,6 +563,13 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                 top: 150,
                 right: 20,
                 child: _buildStateBoard(theme, service, showNightScene),
+              ),
+
+              // Floating lucky wheel on the right side
+              Positioned(
+                right: 12,
+                bottom: 295,
+                child: _buildFloatingLuckyWheel(theme, service),
               ),
 
               // Floating task board on the right side
@@ -962,6 +1081,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
   Widget _buildFoodBowl(ThemeData theme, int amount, bool isDark) {
     final service = KanbanService.instance;
     final isEating = service.currentState == KanbanState.eating;
+    final isDouble = amount >= 200;
     String labelText = '';
 
     if (isEating && service.eatingEndTime != null) {
@@ -970,76 +1090,95 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         final minutes = diff.inMinutes.remainder(60).toString().padLeft(2, '0');
         final seconds = diff.inSeconds.remainder(60).toString().padLeft(2, '0');
         final hours = diff.inHours;
-        labelText = hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+        final timeStr = hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+        labelText = isDouble ? '双倍 $timeStr' : timeStr;
       }
     } else if (amount > 0) {
-      labelText = '${amount}g';
+      labelText = isDouble ? '双倍 200g' : '${amount}g';
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 52,
-              height: 26,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark 
-                      ? [const Color(0xFFD946EF), const Color(0xFF8B5CF6)] 
-                      : [const Color(0xFFFBBF24), const Color(0xFFF59E0B)],
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                  topLeft: Radius.circular(6),
-                  topRight: Radius.circular(6),
-                ),
-                border: Border.all(color: Colors.white, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: (isDark ? const Color(0xFFD946EF) : const Color(0xFFFBBF24)).withOpacity(0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  )
-                ]
-              ),
-            ),
-            Positioned(
-              top: 2,
-              child: Container(
-                width: 40,
-                height: 10,
+    return GestureDetector(
+      onTap: () {
+        if (isEating) {
+          _showBowlActionDialog(context, service);
+        } else if (service.currentState == KanbanState.idle) {
+          _showFeedChoiceDialog(context, service);
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: isDouble ? 56 : 52,
+                height: 26,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF78350F),
-                  borderRadius: BorderRadius.circular(5),
+                  gradient: LinearGradient(
+                    colors: isDark 
+                        ? [const Color(0xFFD946EF), const Color(0xFF8B5CF6)] 
+                        : isDouble
+                            ? [const Color(0xFFF59E0B), const Color(0xFFEA580C)]
+                            : [const Color(0xFFFBBF24), const Color(0xFFF59E0B)],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                    topLeft: Radius.circular(6),
+                    topRight: Radius.circular(6),
+                  ),
+                  border: Border.all(
+                    color: isDouble ? const Color(0xFFFEF08A) : Colors.white,
+                    width: isDouble ? 2.0 : 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isDark ? const Color(0xFFD946EF) : (isDouble ? const Color(0xFFEA580C) : const Color(0xFFFBBF24))).withOpacity(0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    )
+                  ]
+                ),
+              ),
+              Positioned(
+                top: isDouble ? 0 : 2,
+                child: Container(
+                  width: isDouble ? 44 : 40,
+                  height: isDouble ? 13 : 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF78350F),
+                    borderRadius: BorderRadius.circular(isDouble ? 6 : 5),
+                    border: isDouble ? Border.all(color: const Color(0xFFFBBF24), width: 1.0) : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (labelText.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDouble ? const Color(0xFF9A3412).withOpacity(0.85) : Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDouble ? const Color(0xFFFDE68A) : Colors.white24,
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                labelText,
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
           ],
-        ),
-        if (labelText.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24, width: 0.8),
-            ),
-            child: Text(
-              labelText,
-              style: const TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
         ],
-      ],
+      ),
     );
   }
 
@@ -1119,11 +1258,11 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
               const SizedBox(height: 2),
               Row(
                 children: [
-                  const Icon(Icons.favorite_rounded, color: Colors.redAccent, size: 13),
+                  const Icon(Icons.bolt_rounded, color: Colors.amber, size: 13),
                   const SizedBox(width: 3),
                   Text(
-                    '爱心: ${service.collectedHearts} ❤️ (速度+$speedPercent%)',
-                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                    '速度加成: +$speedPercent%',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isDark ? Colors.cyanAccent : Colors.blue.shade800),
                   ),
                 ],
               ),
@@ -1241,6 +1380,47 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
     );
   }
 
+  Widget _buildFloatingLuckyWheel(ThemeData theme, KanbanService service) {
+    final isDark = theme.brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: () => _showLuckyWheelDialog(context, service),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFFC026D3).withOpacity(0.9) : const Color(0xFFD946EF),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 6,
+              offset: const Offset(-2, 2),
+            )
+          ]
+        ),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.casino_rounded, color: Colors.white, size: 18),
+            SizedBox(height: 4),
+            Text(
+              '趣味\n转盘',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFloatingTaskBoard(ThemeData theme, KanbanService service) {
     final isDark = theme.brightness == Brightness.dark;
     return GestureDetector(
@@ -1284,6 +1464,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
 
   Widget _buildPetImage(KanbanState state, String emoji, String? temporaryAction, String currentSkin) {
     String assetPath;
+    final skinFolder = (currentSkin == 'classic') ? 'capoo' : currentSkin;
     
     if (currentSkin == 'classic' && temporaryAction == null) {
       switch (state) {
@@ -1302,22 +1483,22 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
       }
     } else {
       if (temporaryAction != null) {
-        assetPath = 'assets/pet/capoo/$temporaryAction.webp';
-      } else if (service.isHungry && state == KanbanState.idle) {
-        assetPath = 'assets/pet/capoo/hungry.webp';
+        assetPath = 'assets/pet/$skinFolder/$temporaryAction.webp';
+      } else if (KanbanService.instance.isHungry && state == KanbanState.idle) {
+        assetPath = 'assets/pet/$skinFolder/hungry.webp';
       } else {
         switch (state) {
           case KanbanState.idle:
-            assetPath = 'assets/pet/capoo/play.webp';
+            assetPath = 'assets/pet/$skinFolder/play.webp';
             break;
           case KanbanState.studying:
-            assetPath = 'assets/pet/capoo/work.webp';
+            assetPath = 'assets/pet/$skinFolder/work.webp';
             break;
           case KanbanState.sleeping:
-            assetPath = 'assets/pet/capoo/sleep.webp';
+            assetPath = 'assets/pet/$skinFolder/sleep.webp';
             break;
           case KanbanState.eating:
-            assetPath = 'assets/pet/capoo/eating.webp';
+            assetPath = 'assets/pet/$skinFolder/eating.webp';
             break;
         }
       }
@@ -1371,13 +1552,14 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: _dialogInsetPadding,
         title: const Text('如何玩转萌哩小屋？', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text(
           '1. 🥣 **干饭升级**：倒入 100g 饲料需要吃 1 小时。吃完增加经验升级！等级越高，学习与工作速度越快！\n'
           '2. 📝 **学习模式**：每 2 小时消耗 50g 饲料，收获 1 颗星星 ⭐（受等级加速！）。\n'
           '3. 💤 **睡觉模式**：无需消耗饲料，每 6 小时自动产出 1 颗星星 ⭐。\n'
           '4. ⭐ **星星兑换**：收获的星星类似庄园金蛋，可在衣帽间兑换限定专属皮肤装扮！\n'
-          '5. ❤️ **亲密互动**：点击萌哩摸摸头增进好感，成长满进度获得神秘爱心。\n'
+          '5. ❤️ **抚摸互动**：点击萌哩摸摸头增进感情，每天摸头最多可获得 10 点经验值！\n'
           '6. 📱 **桌面小组件**：可将萌哩添加到手机桌面，随时互动看护！',
           style: TextStyle(height: 1.6),
         ),
@@ -1391,104 +1573,661 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
     );
   }
 
-  void _showGoodwillDialog(BuildContext context, KanbanService service) {
+
+  void _showFoodShopDialog(BuildContext context, KanbanService service) {
     final theme = Theme.of(context);
+
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final level = (service.goodwill ~/ 100) + 1;
-            final progress = (service.goodwill % 100) / 100.0;
             return AlertDialog(
               backgroundColor: theme.colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: _dialogInsetPadding,
               title: const Row(
                 children: [
-                  Icon(Icons.favorite_rounded, color: Colors.pinkAccent),
+                  Icon(Icons.store_rounded, color: Colors.orange),
                   SizedBox(width: 8),
-                  Text('萌哩亲密度', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('庄园良品铺', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.rice_bowl_rounded, color: Colors.orange, size: 16),
+                                const SizedBox(width: 4),
+                                Text('饲料: ${service.feedStock}g', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                                const SizedBox(width: 4),
+                                Text('星星: ${service.collectedStars.toStringAsFixed(1)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+
+                      // Section 1: Magic Items
+                      const Row(
+                        children: [
+                          Icon(Icons.auto_awesome_rounded, color: Color(0xFF0284C7), size: 16),
+                          SizedBox(width: 6),
+                          Text('神奇道具', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0284C7))),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Speed Card
+                      _buildShopItemTile(
+                        icon: Icons.speed_rounded,
+                        iconColor: const Color(0xFF06B6D4),
+                        title: '时光加速卡 (1张)',
+                        subtitle: '立即完成 1 小时的事情（干饭/学习/美梦）\n持有: ${service.speedCardCount}张',
+                        actions: [
+                          _buildPurchaseButton(
+                            label: '0.5星星',
+                            enabled: service.collectedStars >= 0.5,
+                            color: Colors.amber.shade700,
+                            onPressed: () async {
+                              final success = await service.buySpeedCardWithStars(0.5, 1);
+                              if (success) {
+                                setDialogState(() {});
+                                if (context.mounted) {
+                                  ToastHelper.show(context, '兑换成功，获得 1 张时光加速卡！', type: ToastType.success);
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 14),
+
+                      // Double Feed Card
+                      _buildShopItemTile(
+                        icon: Icons.restaurant_rounded,
+                        iconColor: const Color(0xFFEA580C),
+                        title: '超级加饭卡 (1张)',
+                        subtitle: '可在饭碗放两倍饲料 (200g)，享双倍经验\n持有: ${service.doubleFeedCardCount}张',
+                        actions: [
+                          _buildPurchaseButton(
+                            label: '0.3星星',
+                            enabled: service.collectedStars >= 0.3,
+                            color: Colors.amber.shade700,
+                            onPressed: () async {
+                              final success = await service.buyDoubleFeedCardWithStars(0.3, 1);
+                              if (success) {
+                                setDialogState(() {});
+                                if (context.mounted) {
+                                  ToastHelper.show(context, '兑换成功，获得 1 张超级加饭卡！', type: ToastType.success);
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Section 2: Delicious Feed
+                      const Row(
+                        children: [
+                          Icon(Icons.fastfood_rounded, color: Colors.orange, size: 16),
+                          SizedBox(width: 6),
+                          Text('口粮美味', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Selected Grain
+                      _buildShopItemTile(
+                        icon: Icons.bakery_dining_rounded,
+                        iconColor: Colors.orange.shade400,
+                        title: '精选杂粮 (100g)',
+                        subtitle: '价格: 1.0 颗星星',
+                        actions: [
+                          _buildPurchaseButton(
+                            label: '1.0星星',
+                            enabled: service.collectedStars >= 1.0,
+                            color: Colors.amber.shade700,
+                            onPressed: () async {
+                              final success = await service.buyFeedWithStars(1.0, 100);
+                              if (success) {
+                                setDialogState(() {});
+                                if (context.mounted) {
+                                  ToastHelper.show(context, '购买成功，获得 100g 饲料！', type: ToastType.success);
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 14),
+
+                      // Tuna Feast
+                      _buildShopItemTile(
+                        icon: Icons.savings_rounded,
+                        iconColor: Colors.amber.shade600,
+                        title: '金枪鱼豪华大餐 (250g)',
+                        subtitle: '价格: 2.0 颗星星',
+                        actions: [
+                          _buildPurchaseButton(
+                            label: '2.0星星',
+                            enabled: service.collectedStars >= 2.0,
+                            color: Colors.amber.shade700,
+                            onPressed: () async {
+                              final success = await service.buyFeedWithStars(2.0, 250);
+                              if (success) {
+                                setDialogState(() {});
+                                if (context.mounted) {
+                                  ToastHelper.show(context, '购买成功，获得 250g 饲料！', type: ToastType.success);
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('离开商店'),
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildShopItemTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required List<Widget> actions,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: actions,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPurchaseButton({
+    required String label,
+    required bool enabled,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: enabled ? onPressed : null,
+      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  void _showInventoryDialog(BuildContext context, KanbanService service) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final isEating = service.currentState == KanbanState.eating;
+            final isStudying = service.currentState == KanbanState.studying;
+            final isSleeping = service.currentState == KanbanState.sleeping;
+            final isIdle = service.currentState == KanbanState.idle;
+
+            // Speed Card Status Hint
+            String speedHint;
+            if (isEating) {
+              speedHint = '干饭中：立即缩短 1 小时干饭时间';
+            } else if (isStudying) {
+              speedHint = '学习中：立即推进 1 小时学业产出';
+            } else if (isSleeping) {
+              speedHint = '美梦中：立即推进 1 小时睡眠产出';
+            } else {
+              speedHint = '闲逛中：请先让萌哩干饭、学习或睡觉';
+            }
+            final canUseSpeed = service.speedCardCount > 0 && !isIdle;
+
+            // Double Feed Card Status Hint
+            String doubleFeedHint;
+            bool canUseDoubleFeed = false;
+            if (isEating) {
+              if (service.currentBowlFeed >= 200) {
+                doubleFeedHint = '饭碗中已装满 200g 双倍大餐';
+                canUseDoubleFeed = false;
+              } else if (service.feedStock < 100) {
+                doubleFeedHint = '饲料库存不足 100g，无法追加';
+                canUseDoubleFeed = false;
+              } else {
+                doubleFeedHint = '干饭中：可追加 100g 升级为双倍大餐';
+                canUseDoubleFeed = service.doubleFeedCardCount > 0;
+              }
+            } else if (isIdle) {
+              if (service.feedStock < 200) {
+                doubleFeedHint = '饲料库存不足 200g，无法倒双倍饲料';
+                canUseDoubleFeed = false;
+              } else {
+                doubleFeedHint = '空闲中：倒入 200g 双倍大餐（吃 2 小时）';
+                canUseDoubleFeed = service.doubleFeedCardCount > 0;
+              }
+            } else {
+              doubleFeedHint = '请等萌哩回到空闲或干饭时使用';
+              canUseDoubleFeed = false;
+            }
+
+            return AlertDialog(
+              backgroundColor: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: _dialogInsetPadding,
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.backpack_rounded, color: Color(0xFF10B981), size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('庄园道具包', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Resource Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.rice_bowl_rounded, color: Colors.orange, size: 16),
+                                const SizedBox(width: 4),
+                                Text('${service.feedStock}g', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 12),
+                                const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                                const SizedBox(width: 4),
+                                Text(service.collectedStars.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () {
+                                Navigator.pop(context);
+                                _showFoodShopDialog(context, service);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Text('商店补充', style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold)),
+                                    Icon(Icons.chevron_right_rounded, size: 16, color: Colors.blue),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Card 1: Speed Card
+                      _buildInventoryItemCard(
+                        theme: theme,
+                        isDark: isDark,
+                        icon: Icons.speed_rounded,
+                        iconBgColors: const [Color(0xFF06B6D4), Color(0xFF0284C7)],
+                        title: '时光加速卡',
+                        count: service.speedCardCount,
+                        desc: '立即完成 1 小时的事情（干饭、学习或美梦）。',
+                        hint: speedHint,
+                        buttonLabel: '立即加速',
+                        canUse: canUseSpeed,
+                        onUse: () async {
+                          final success = await service.useSpeedCard();
+                          if (success) {
+                            setDialogState(() {});
+                            if (context.mounted) {
+                              ToastHelper.show(context, '加速卡生效，时间快进 1 小时！', type: ToastType.success);
+                              final size = MediaQuery.of(context).size;
+                              _triggerConfetti(Offset(size.width / 2, size.height / 2), isHearts: false);
+                            }
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Card 2: Double Feed Card
+                      _buildInventoryItemCard(
+                        theme: theme,
+                        isDark: isDark,
+                        icon: Icons.restaurant_rounded,
+                        iconBgColors: const [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                        title: '超级加饭卡',
+                        count: service.doubleFeedCardCount,
+                        desc: '在饭碗放两倍饲料 (200g)，吃 2 小时并收获双倍经验 (+20 EXP)。',
+                        hint: doubleFeedHint,
+                        buttonLabel: isEating ? '追加饲料' : '双倍开饭',
+                        canUse: canUseDoubleFeed,
+                        onUse: () async {
+                          final success = await service.useDoubleFeedCard();
+                          if (success) {
+                            setDialogState(() {});
+                            if (context.mounted) {
+                              ToastHelper.show(context, '加饭卡生效，双倍大餐就绪！', type: ToastType.success);
+                              final size = MediaQuery.of(context).size;
+                              _triggerConfetti(Offset(size.width / 2, size.height / 2), isHearts: false);
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('关闭'),
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInventoryItemCard({
+    required ThemeData theme,
+    required bool isDark,
+    required IconData icon,
+    required List<Color> iconBgColors,
+    required String title,
+    required int count,
+    required String desc,
+    required String hint,
+    required String buttonLabel,
+    required bool canUse,
+    required VoidCallback onUse,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: iconBgColors),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(desc, style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black54)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: count > 0 
+                      ? const Color(0xFF10B981).withOpacity(0.15) 
+                      : (isDark ? Colors.white10 : Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'x$count',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: count > 0 
+                        ? const Color(0xFF10B981) 
+                        : (isDark ? Colors.white38 : Colors.grey.shade500),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  hint,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: canUse 
+                        ? (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7))
+                        : (isDark ? Colors.white38 : Colors.black38),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: iconBgColors.first,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: canUse ? onUse : null,
+                child: Text(buttonLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBowlActionDialog(BuildContext context, KanbanService service) {
+    final theme = Theme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            String leftTime = '';
+            if (service.eatingEndTime != null) {
+              final diff = service.eatingEndTime!.difference(service.nowTime);
+              if (!diff.isNegative) {
+                final m = diff.inMinutes.remainder(60).toString().padLeft(2, '0');
+                final s = diff.inSeconds.remainder(60).toString().padLeft(2, '0');
+                final h = diff.inHours;
+                leftTime = h > 0 ? '$h小时$m分$s秒' : '$m分$s秒';
+              }
+            }
+            final isDouble = service.currentBowlFeed >= 200;
+
+            return AlertDialog(
+              backgroundColor: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: _dialogInsetPadding,
+              title: const Row(
+                children: [
+                  Icon(Icons.rice_bowl_rounded, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('干饭进行中', style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '当前等级: LV $level',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                  Text('饭碗状态：${service.currentBowlFeed}g ${isDouble ? "双倍大餐" : "精选饲料"}'),
+                  const SizedBox(height: 4),
+                  Text('预计剩余：$leftTime', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
                   const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 12,
-                      backgroundColor: theme.colorScheme.onSurface.withOpacity(0.06),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.pinkAccent),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${service.goodwill % 100} / 100 Pts (总好感点: ${service.goodwill})',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
                   const Divider(),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('今日好感度提升 (摸头):'),
-                      Text(
-                        '${service.dailyTouches} / 5',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: service.dailyTouches >= 5 ? Colors.green : Colors.pinkAccent,
-                        ),
+                  // Option 1: Use Speed Card
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF06B6D4).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    service.dailyTouches >= 5
-                        ? '今日好感已达上限，明天再来摸摸我吧！'
-                        : '每次摸摸头可以提升 10 点好感度噢~',
-                    style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton.icon(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('重置庄园？'),
-                          content: const Text('此操作将清空所有好感度、饲料及爱心！确认要重新开始吗？'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('取消'),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                await service.resetGoodwill();
-                                if (ctx.mounted) {
-                                  Navigator.pop(ctx);
-                                }
-                                setDialogState(() {});
+                      child: const Icon(Icons.speed_rounded, color: Color(0xFF06B6D4)),
+                    ),
+                    title: const Text('时光加速卡', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    subtitle: Text('立即减少 1 小时 (持有: ${service.speedCardCount}张)', style: const TextStyle(fontSize: 11)),
+                    trailing: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF06B6D4),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      onPressed: service.speedCardCount > 0
+                          ? () async {
+                              final success = await service.useSpeedCard();
+                              if (success) {
                                 if (context.mounted) {
                                   Navigator.pop(context);
-                                  ToastHelper.show(context, '庄园已恢复初始状态！', type: ToastType.info);
+                                  ToastHelper.show(context, '加速卡生效！', type: ToastType.success);
+                                  final size = MediaQuery.of(context).size;
+                                  _triggerConfetti(Offset(size.width / 2, size.height / 2), isHearts: false);
                                 }
-                              },
-                              child: const Text('确认重置', style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
+                              }
+                            }
+                          : null,
+                      child: const Text('加速1h'),
+                    ),
+                  ),
+                  if (!isDouble) ...[
+                    const Divider(),
+                    // Option 2: Use Double Feed Card
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEA580C).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.refresh_rounded, color: Colors.redAccent, size: 16),
-                    label: const Text('重新开始庄园生活', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                  )
+                        child: const Icon(Icons.restaurant_rounded, color: Color(0xFFEA580C)),
+                      ),
+                      title: const Text('超级加饭卡', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      subtitle: Text('追加 100g 升级双倍大餐 (持有: ${service.doubleFeedCardCount}张)', style: const TextStyle(fontSize: 11)),
+                      trailing: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEA580C),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        onPressed: (service.doubleFeedCardCount > 0 && service.feedStock >= 100)
+                            ? () async {
+                                final success = await service.useDoubleFeedCard();
+                                if (success) {
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                    ToastHelper.show(context, '已升级为双倍大餐！', type: ToastType.success);
+                                    final size = MediaQuery.of(context).size;
+                                    _triggerConfetti(Offset(size.width / 2, size.height / 2), isHearts: false);
+                                  }
+                                }
+                              }
+                            : null,
+                        child: const Text('加饭'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               actions: [
@@ -1504,116 +2243,101 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
     );
   }
 
-  void _showFoodShopDialog(BuildContext context, KanbanService service) {
+  void _showFeedChoiceDialog(BuildContext context, KanbanService service) {
     final theme = Theme.of(context);
+
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: theme.colorScheme.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              title: const Row(
-                children: [
-                  Icon(Icons.store_rounded, color: Colors.orange),
-                  SizedBox(width: 8),
-                  Text('庄园美食铺', style: TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.favorite_rounded, color: Colors.pinkAccent, size: 16),
-                              const SizedBox(width: 4),
-                              Text('亲密度: ${service.goodwill}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              const Icon(Icons.favorite_sharp, color: Colors.red, size: 16),
-                              const SizedBox(width: 4),
-                              Text('爱心: ${service.collectedHearts}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          )
-                        ],
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.bakery_dining_rounded, color: Colors.orange.shade400, size: 36),
-                      title: const Text('精选杂粮 (100g)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('价格: 50 亲密度', style: TextStyle(fontSize: 12)),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade400,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        onPressed: service.goodwill >= 50
-                            ? () async {
-                                final success = await service.buyFeedWithGoodwill(50, 100);
-                                if (success) {
-                                  setDialogState(() {});
-                                  if (context.mounted) {
-                                    ToastHelper.show(context, '购买成功，获得 100g 饲料！', type: ToastType.success);
-                                  }
-                                }
-                              }
-                            : null,
-                        child: const Text('购买'),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.savings_rounded, color: Colors.red.shade400, size: 36),
-                      title: const Text('金枪鱼豪华大餐 (250g)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: const Text('价格: 1 颗爱心 ❤️', style: TextStyle(fontSize: 12)),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade400,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        onPressed: service.collectedHearts >= 1
-                            ? () async {
-                                final success = await service.buyFeedWithHearts(1, 250);
-                                if (success) {
-                                  setDialogState(() {});
-                                  if (context.mounted) {
-                                    ToastHelper.show(context, '购买成功，获得 250g 饲料！', type: ToastType.success);
-                                  }
-                                }
-                              }
-                            : null,
-                        child: const Text('兑换'),
-                      ),
-                    ),
-                  ],
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          insetPadding: _dialogInsetPadding,
+          title: const Row(
+            children: [
+              Icon(Icons.rice_bowl_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('准备喂食萌哩', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.bakery_dining_rounded, color: Colors.orange),
+                ),
+                title: const Text('普通喂食 (100g)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('耗时 1 小时，获得 10 EXP\n消耗 100g 饲料', style: TextStyle(fontSize: 11)),
+                trailing: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: service.feedStock >= 100
+                      ? () async {
+                          Navigator.pop(context);
+                          final success = await service.feedMascot();
+                          if (success && context.mounted) {
+                            ToastHelper.show(context, '倒入饲料，萌哩开始干饭啦！', type: ToastType.success);
+                            final size = MediaQuery.of(context).size;
+                            _triggerConfetti(Offset(size.width / 2 + 50, size.height / 2 + 90), isHearts: false);
+                          }
+                        }
+                      : null,
+                  child: const Text('开饭'),
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('离开商店'),
-                )
-              ],
-            );
-          },
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEA580C).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.restaurant_rounded, color: Color(0xFFEA580C)),
+                ),
+                title: const Text('超级加饭卡 (200g)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text('放两倍饲料，耗时 2 小时，获 20 EXP\n需消耗 200g 饲料 (持有: ${service.doubleFeedCardCount}张)', style: const TextStyle(fontSize: 11)),
+                trailing: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEA580C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: (service.doubleFeedCardCount > 0 && service.feedStock >= 200)
+                      ? () async {
+                          Navigator.pop(context);
+                          final success = await service.useDoubleFeedCard();
+                          if (success && context.mounted) {
+                            ToastHelper.show(context, '使用了加饭卡，200g 双倍大餐就绪！', type: ToastType.success);
+                            final size = MediaQuery.of(context).size;
+                            _triggerConfetti(Offset(size.width / 2 + 50, size.height / 2 + 90), isHearts: false);
+                          }
+                        }
+                      : null,
+                  child: const Text('双倍喂'),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            )
+          ],
         );
       },
     );
@@ -1646,6 +2370,20 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         'icon': '🐈',
       },
       {
+        'id': 'siamese',
+        'name': '优雅暹罗猫',
+        'cost': 4,
+        'desc': '高贵优雅的糊脸小暹罗，粘人好动！',
+        'icon': '😺',
+      },
+      {
+        'id': 'salary',
+        'name': '月薪喵',
+        'cost': 5,
+        'desc': '打工人的月薪喵，疯狂赚喵粮！',
+        'icon': '💰',
+      },
+      {
         'id': 'space',
         'name': '太空探险猫',
         'cost': 6,
@@ -1662,6 +2400,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
             return AlertDialog(
               backgroundColor: theme.colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: _dialogInsetPadding,
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1677,10 +2416,6 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                       const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
                       const SizedBox(width: 2),
                       Text(service.collectedStars.toStringAsFixed(1), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber)),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.favorite_sharp, color: Colors.red, size: 14),
-                      const SizedBox(width: 2),
-                      Text('${service.collectedHearts}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red)),
                     ],
                   )
                 ],
@@ -1737,7 +2472,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                         ),
                         onPressed: service.collectedStars >= cost
                             ? () async {
-                                final success = await service.unlockSkin(id, cost, useStars: true);
+                                final success = await service.unlockSkin(id, cost.toDouble());
                                 if (success) {
                                   setDialogState(() {});
                                   if (context.mounted) {
@@ -1793,6 +2528,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
             return AlertDialog(
               backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: _dialogInsetPadding,
               title: const Row(
                 children: [
                   Icon(Icons.task_alt_rounded, color: Colors.blueAccent),
@@ -1850,6 +2586,597 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         );
       },
     );
+  }
+
+  void _showLuckyWheelDialog(BuildContext context, KanbanService service) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return _LuckyWheelDialogContent(
+          service: service,
+          onConfetti: () {
+            if (mounted) {
+              final size = MediaQuery.of(context).size;
+              _triggerConfetti(Offset(size.width / 2, size.height / 2), isHearts: false);
+            }
+          },
+        );
+      },
+    );
+  }
+}
+
+class _LuckyWheelDialogContent extends StatefulWidget {
+  final KanbanService service;
+  final VoidCallback onConfetti;
+
+  const _LuckyWheelDialogContent({
+    required this.service,
+    required this.onConfetti,
+  });
+
+  @override
+  State<_LuckyWheelDialogContent> createState() => _LuckyWheelDialogContentState();
+}
+
+class _LuckyWheelDialogContentState extends State<_LuckyWheelDialogContent>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _spinController;
+  late Animation<double> _spinAnimation;
+  double _currentRotation = 0.0;
+  bool _isSpinning = false;
+  String _resultMessage = '消耗 100g 饲料抽奖，好运连连！';
+  Map<String, dynamic>? _lastPrize;
+
+  static const List<Map<String, dynamic>> _prizeConfigs = [
+    {
+      'name': '谢谢惠顾',
+      'icon': Icons.sentiment_neutral_rounded,
+      'bgColor': Color(0xFFF1F5F9), // 浅雾灰
+      'textColor': Color(0xFF475569),
+      'iconColor': Color(0xFF64748B),
+    },
+    {
+      'name': '50g饲料',
+      'icon': Icons.bakery_dining_rounded,
+      'bgColor': Color(0xFFFEF3C7), // 奶黄
+      'textColor': Color(0xFF92400E),
+      'iconColor': Color(0xFFD97706),
+    },
+    {
+      'name': '100g饲料',
+      'icon': Icons.fastfood_rounded,
+      'bgColor': Color(0xFFFED7AA), // 杏橙
+      'textColor': Color(0xFF9A3412),
+      'iconColor': Color(0xFFEA580C),
+    },
+    {
+      'name': '150g饲料',
+      'icon': Icons.rice_bowl_rounded,
+      'bgColor': Color(0xFFFDE68A), // 暖黄
+      'textColor': Color(0xFF854D0E),
+      'iconColor': Color(0xFFCA8A04),
+    },
+    {
+      'name': '200g饲料',
+      'icon': Icons.restaurant_rounded,
+      'bgColor': Color(0xFFFDBA74), // 活力橙
+      'textColor': Color(0xFF9A3412),
+      'iconColor': Color(0xFFEA580C),
+    },
+    {
+      'name': '星星*1',
+      'icon': Icons.star_rounded,
+      'bgColor': Color(0xFFDDD6FE), // 浅紫
+      'textColor': Color(0xFF5B21B6),
+      'iconColor': Color(0xFF7C3AED),
+    },
+    {
+      'name': '加速卡',
+      'icon': Icons.speed_rounded,
+      'bgColor': Color(0xFFBAE6FD), // 青蓝
+      'textColor': Color(0xFF0369A1),
+      'iconColor': Color(0xFF0284C7),
+    },
+    {
+      'name': '加饭卡',
+      'icon': Icons.dinner_dining_rounded,
+      'bgColor': Color(0xFFFECDD3), // 蜜桃粉
+      'textColor': Color(0xFF9F1239),
+      'iconColor': Color(0xFFE11D48),
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _spinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3800),
+    );
+    _spinAnimation = AlwaysStoppedAnimation(_currentRotation);
+  }
+
+  @override
+  void dispose() {
+    _spinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _startSpin() async {
+    if (_isSpinning) return;
+
+    if (widget.service.feedStock < 100) {
+      ToastHelper.show(context, '饲料不足 100g 无法抽奖，快去完成任务领饲料吧！', type: ToastType.warning);
+      return;
+    }
+
+    final result = await widget.service.spinLuckyWheel();
+    if (result == null) return;
+
+    final targetIndex = result['index'] as int;
+    final prize = result['prize'] as Map<String, dynamic>;
+
+    setState(() {
+      _isSpinning = true;
+      _lastPrize = null;
+      _resultMessage = '大转盘飞速旋转中，好运降临中……';
+    });
+
+    // 计算旋转停止的角度
+    const double sectorAngle = 2 * math.pi / 8;
+    final double currentMod = _currentRotation % (2 * math.pi);
+    final double targetAngleMod = (2 * math.pi - (targetIndex * sectorAngle)) % (2 * math.pi);
+    double diff = targetAngleMod - currentMod;
+    if (diff < 0) diff += 2 * math.pi;
+
+    // 至少转动 5 整圈保证物理惯性体验
+    final double spinRounds = 5 * 2 * math.pi;
+    final double endAngle = _currentRotation + spinRounds + diff;
+
+    _spinAnimation = Tween<double>(begin: _currentRotation, end: endAngle).animate(
+      CurvedAnimation(
+        parent: _spinController,
+        curve: Curves.fastLinearToSlowEaseIn,
+      ),
+    );
+
+    _spinController.reset();
+    _spinController.forward().then((_) {
+      if (!mounted) return;
+      _currentRotation = endAngle % (2 * math.pi);
+      setState(() {
+        _isSpinning = false;
+        _lastPrize = prize;
+        if (prize['id'] == 'thanks') {
+          _resultMessage = '抽奖结果：谢谢惠顾！下次一定会更好运~';
+        } else {
+          _resultMessage = '恭喜抽中：${prize['name']}！已放入背包与庄园';
+        }
+      });
+
+      if (prize['id'] != 'thanks') {
+        widget.onConfetti();
+        ToastHelper.show(context, '恭喜获得 ${prize['name']}！', type: ToastType.success);
+      } else {
+        ToastHelper.show(context, '谢谢惠顾，下次好运！', type: ToastType.info);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final service = widget.service;
+
+    return AlertDialog(
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: _dialogInsetPadding,
+      contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD946EF).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.casino_rounded, color: Color(0xFFD946EF), size: 22),
+              ),
+              const SizedBox(width: 8),
+              const Text('趣味大转盘', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: _isSpinning ? null : () => Navigator.pop(context),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 资源状态栏
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.rice_bowl_rounded, color: Colors.orange, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '饲料: ${service.feedStock}g',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: service.feedStock >= 100 ? Colors.orange.shade700 : Colors.redAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '星星: ${service.collectedStars.toStringAsFixed(1)}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.backpack_rounded, color: Color(0xFF10B981), size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '卡片: ${service.speedCardCount + service.doubleFeedCardCount}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 大转盘区域（直径 264px）
+              SizedBox(
+                width: 264,
+                height: 264,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 转盘本体
+                    AnimatedBuilder(
+                      animation: _spinController,
+                      builder: (context, child) {
+                        return CustomPaint(
+                          size: const Size(264, 264),
+                          painter: _LuckyWheelPainter(
+                            rotationAngle: _spinAnimation.value,
+                            prizes: _prizeConfigs,
+                          ),
+                        );
+                      },
+                    ),
+
+                    // 正上方固定指针
+                    Positioned(
+                      top: 0,
+                      child: _WheelArrowPointer(),
+                    ),
+
+                    // 中心 GO / 抽奖按钮
+                    GestureDetector(
+                      onTap: _isSpinning ? null : _startSpin,
+                      child: Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEA580C).withOpacity(0.4),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _isSpinning ? '...' : 'GO',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const Text(
+                                '100g/次',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 抽奖结果 / 提示横幅
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _lastPrize != null && _lastPrize!['id'] != 'thanks'
+                      ? const Color(0xFF10B981).withOpacity(0.12)
+                      : (isDark ? Colors.white.withOpacity(0.05) : Colors.amber.shade50),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _lastPrize != null && _lastPrize!['id'] != 'thanks'
+                        ? const Color(0xFF10B981).withOpacity(0.4)
+                        : (isDark ? Colors.white12 : Colors.amber.shade200),
+                  ),
+                ),
+                child: Text(
+                  _resultMessage,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _lastPrize != null && _lastPrize!['id'] != 'thanks'
+                        ? const Color(0xFF047857)
+                        : (isDark ? Colors.amber.shade200 : Colors.amber.shade900),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // 奖品速览胶囊
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                alignment: WrapAlignment.center,
+                children: _prizeConfigs.map((p) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (p['bgColor'] as Color),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      p['name'] as String,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: p['textColor'] as Color,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSpinning ? null : () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFEA580C),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
+          ),
+          onPressed: _isSpinning ? null : _startSpin,
+          child: Text(_isSpinning ? '抽奖中...' : '抽奖 (消耗100g)'),
+        ),
+      ],
+    );
+  }
+}
+
+class _WheelArrowPointer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(24, 28),
+      painter: _PointerPainter(),
+    );
+  }
+}
+
+class _PointerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    // 倒三角形指针指向转盘正上方
+    path.moveTo(0, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width / 2, size.height);
+    path.close();
+
+    // 阴影
+    canvas.drawShadow(path, Colors.black, 4, true);
+
+    // 渐变填充
+    final paint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFFE11D48), Color(0xFFBE123C)],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
+
+    // 白色描边
+    final strokePaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _LuckyWheelPainter extends CustomPainter {
+  final double rotationAngle;
+  final List<Map<String, dynamic>> prizes;
+
+  _LuckyWheelPainter({
+    required this.rotationAngle,
+    required this.prizes,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    const double sectorAngle = 2 * math.pi / 8;
+
+    // 1. 绘制外底盘与金边
+    final borderPaint = Paint()
+      ..color = const Color(0xFFF59E0B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.0;
+
+    final outerBgPaint = Paint()
+      ..color = const Color(0xFFB45309)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, radius, outerBgPaint);
+
+    // 2. 旋转绘制 8 个扇区
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotationAngle);
+    canvas.translate(-center.dx, -center.dy);
+
+    final sectorRadius = radius - 4.0;
+    final linePaint = Paint()
+      ..color = Colors.white.withOpacity(0.9)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    for (int i = 0; i < 8; i++) {
+      final double startAngle = i * sectorAngle - math.pi / 2 - sectorAngle / 2;
+      final fillPaint = Paint()
+        ..color = prizes[i]['bgColor'] as Color
+        ..style = PaintingStyle.fill;
+
+      // 绘制扇形填充
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: sectorRadius),
+        startAngle,
+        sectorAngle,
+        true,
+        fillPaint,
+      );
+
+      // 绘制白色分界线
+      final endX = center.dx + sectorRadius * math.cos(startAngle);
+      final endY = center.dy + sectorRadius * math.sin(startAngle);
+      canvas.drawLine(center, Offset(endX, endY), linePaint);
+
+      // 绘制扇区内的矢量图标与文本
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      final double midAngle = startAngle + sectorAngle / 2;
+      canvas.rotate(midAngle + math.pi / 2);
+
+      // 绘制矢量图标
+      final icon = prizes[i]['icon'] as IconData;
+      final iconPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(icon.codePoint),
+          style: TextStyle(
+            fontSize: 20,
+            fontFamily: icon.fontFamily,
+            package: icon.fontPackage,
+            color: prizes[i]['iconColor'] as Color,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      iconPainter.paint(canvas, Offset(-iconPainter.width / 2, -sectorRadius * 0.74));
+
+      // 绘制奖品文字
+      final name = prizes[i]['name'] as String;
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: name,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: prizes[i]['textColor'] as Color,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      textPainter.paint(canvas, Offset(-textPainter.width / 2, -sectorRadius * 0.48));
+
+      canvas.restore();
+    }
+
+    // 绘制外圈金色边框
+    canvas.drawCircle(center, sectorRadius, borderPaint);
+
+    // 绘制外圈 16 颗小圆点灯
+    final dotPaintWhite = Paint()..color = Colors.white;
+    final dotPaintAmber = Paint()..color = const Color(0xFFFEF08A);
+    const int dotCount = 16;
+    for (int i = 0; i < dotCount; i++) {
+      final double angle = i * (2 * math.pi / dotCount);
+      final dotX = center.dx + (radius - 2.0) * math.cos(angle);
+      final dotY = center.dy + (radius - 2.0) * math.sin(angle);
+      canvas.drawCircle(Offset(dotX, dotY), 2.0, i.isEven ? dotPaintAmber : dotPaintWhite);
+    }
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _LuckyWheelPainter oldDelegate) {
+    return oldDelegate.rotationAngle != rotationAngle;
   }
 }
 

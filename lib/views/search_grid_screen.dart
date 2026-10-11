@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/image_item.dart';
 import '../services/html_parser_service.dart';
-import '../services/user_agent_service.dart';
-import 'image_detail_screen.dart';
-import '../widgets/smooth_aspect_ratio_image.dart';
+import '../widgets/auto_scrolling_text.dart';
+import '../widgets/moely_waterfall_view.dart';
 
 class SearchGridScreen extends StatefulWidget {
   final String query;
@@ -20,7 +17,6 @@ class SearchGridScreen extends StatefulWidget {
 }
 
 class _SearchGridScreenState extends State<SearchGridScreen> {
-  final ScrollController _scrollController = ScrollController();
   final List<MoelyImage> _images = [];
   final List<MoelyImage> _allFetchedImages = [];
   
@@ -32,19 +28,28 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
   bool _hasMore = true;
   bool _hasError = false;
 
+  String get _displaySearchTitle {
+    final q = _currentQuery.trim();
+    if (q.isEmpty) {
+      return '搜索美图';
+    }
+    if (q.startsWith('搜索：') || q.startsWith('搜索:')) {
+      return q;
+    }
+    return '搜索：$q';
+  }
+
   @override
   void initState() {
     super.initState();
     _currentQuery = widget.query;
     _searchController = TextEditingController(text: _currentQuery);
     _fetchInitialImages();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -59,20 +64,24 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
 
     try {
       final items = await HtmlParserService.fetchSearchImages(_currentQuery, 1, limit: 100);
-      setState(() {
-        _allFetchedImages.addAll(items);
-        final initialBatch = _allFetchedImages.take(20).toList();
-        _images.addAll(initialBatch);
-        _isLoadingInitial = false;
-        if (_allFetchedImages.length <= _images.length) {
-          _hasMore = false;
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _allFetchedImages.addAll(items);
+          final initialBatch = _allFetchedImages.take(20).toList();
+          _images.addAll(initialBatch);
+          _isLoadingInitial = false;
+          if (_allFetchedImages.length <= _images.length) {
+            _hasMore = false;
+          }
+        });
+      }
     } catch (_) {
-      setState(() {
-        _isLoadingInitial = false;
-        _hasError = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingInitial = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -85,38 +94,46 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
 
     Future.delayed(const Duration(milliseconds: 250), () {
       if (!mounted) return;
+      final currentLen = _images.length;
+      final nextBatch = _allFetchedImages.skip(currentLen).take(20).toList();
+
       setState(() {
-        final currentLen = _images.length;
-        final nextBatch = _allFetchedImages.skip(currentLen).take(20).toList();
         _images.addAll(nextBatch);
         _isLoadingMore = false;
-        if (_allFetchedImages.length <= _images.length) {
+        if (_images.length >= _allFetchedImages.length) {
           _hasMore = false;
         }
       });
     });
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final threshold = MediaQuery.of(context).size.height * 0.4;
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - threshold) {
-      _fetchMoreImages();
-    }
+  void _performNewSearch(String query) {
+    final cleanQ = query.trim();
+    if (cleanQ.isEmpty) return;
+
+    setState(() {
+      _currentQuery = cleanQ;
+    });
+    _fetchInitialImages();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text(
-          '搜索美图',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+        title: SizedBox(
+          height: 28,
+          child: AutoScrollingText(
+            text: _displaySearchTitle,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: theme.colorScheme.onSurface,
+            ),
+            centerWhenNoScroll: true,
           ),
         ),
         centerTitle: true,
@@ -135,36 +152,27 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
       ),
       body: Column(
         children: [
-          // Sticky top search bar
+          // Top Search Bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 12.0),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: Container(
+              height: 48,
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(20.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.shadow.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: theme.colorScheme.onSurface.withOpacity(0.08),
+                ),
               ),
               child: TextField(
                 controller: _searchController,
-                onSubmitted: (val) {
-                  if (val.trim().isNotEmpty) {
-                    setState(() {
-                      _currentQuery = val.trim();
-                    });
-                    _fetchInitialImages();
-                  }
-                },
                 textInputAction: TextInputAction.search,
+                onSubmitted: _performNewSearch,
                 decoration: InputDecoration(
-                  hintText: '搜索插画、画师、标签...',
+                  hintText: '输入关键词搜索插画...',
                   hintStyle: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                    fontSize: 14,
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
                   ),
                   prefixIcon: Icon(
                     Icons.search_rounded,
@@ -172,309 +180,38 @@ class _SearchGridScreenState extends State<SearchGridScreen> {
                   ),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear_rounded),
+                          icon: const Icon(Icons.clear_rounded, size: 20),
                           onPressed: () {
-                            setState(() {
-                              _searchController.clear();
-                            });
+                            _searchController.clear();
+                            setState(() {});
                           },
                         )
                       : null,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20.0,
-                    vertical: 14.0,
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                onChanged: (val) {
-                  setState(() {});
-                },
               ),
             ),
           ),
-          // Scrollable grid
+
+          // Main Waterfall Result View
           Expanded(
-            child: RefreshIndicator(
+            child: MoelyWaterfallView(
+              images: _images,
+              currentPage: 1,
+              totalPages: 1,
+              isLoading: _isLoadingInitial,
+              isLoadingMore: _isLoadingMore,
+              hasError: _hasError,
               onRefresh: _fetchInitialImages,
-              color: primaryColor,
-              child: _buildBody(theme, primaryColor),
+              onLoadMore: _fetchMoreImages,
+              heroPrefix: 'search',
+              emptyWidget: const Center(
+                child: Text('没有找到相关搜索结果'),
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBody(ThemeData theme, Color primaryColor) {
-    if (_isLoadingInitial) {
-      return Center(
-        child: CircularProgressIndicator(color: primaryColor),
-      );
-    }
-
-    if (_hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.cloud_off_rounded,
-                size: 64,
-                color: theme.colorScheme.error,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '搜索出错，请检查网络',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: _fetchInitialImages,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('重新尝试'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  foregroundColor: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_images.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.search_off_rounded,
-                size: 64,
-                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '未找到与 "$_currentQuery" 相关的插画',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: MasonryGridView.count(
-        controller: _scrollController,
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        itemCount: _images.length + 1,
-        padding: const EdgeInsets.only(bottom: 40.0),
-        itemBuilder: (context, index) {
-          if (index == _images.length) {
-            return _buildLoaderTile(primaryColor);
-          }
-          final image = _images[index];
-          return _buildImageCard(theme, image);
-        },
-      ),
-    );
-  }
-
-  Widget _buildLoaderTile(Color primaryColor) {
-    if (!_hasMore) {
-      final isLimitReached = _allFetchedImages.length >= 100;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24.0),
-          child: Text(
-            isLimitReached ? '只展示前100条结果' : '已加载全部搜索结果 ~',
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ),
-      );
-    }
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: primaryColor,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageCard(ThemeData theme, MoelyImage image) {
-    final platformColor = theme.colorScheme.primary;
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
-      elevation: 3,
-      shadowColor: theme.colorScheme.shadow.withOpacity(0.1),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ImageDetailScreen(image: image),
-            ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Image Section
-            Hero(
-              tag: 'img_${image.id}',
-              child: SmoothAspectRatioImage(
-                imageUrl: image.urls,
-                httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                builder: (context, isLoading) => CachedNetworkImage(
-                  imageUrl: image.urls,
-                  httpHeaders: {'User-Agent': UserAgentService.userAgent},
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: theme.colorScheme.surfaceVariant,
-                    child: const Center(
-                      child: Icon(Icons.broken_image_rounded),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            
-            // Metadata Section
-            Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Row for Category Badge & Multi-image Badge
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: platformColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: platformColor.withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          image.category,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: platformColor,
-                          ),
-                        ),
-                      ),
-                      if (image.total != null && image.total != '1')
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.collections_rounded,
-                              size: 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              image.total!,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  // Image ID
-                  Text(
-                    'ID: ${image.id}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  
-                  // Author Name
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.alternate_email_rounded,
-                        size: 12,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          image.cleanUser,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

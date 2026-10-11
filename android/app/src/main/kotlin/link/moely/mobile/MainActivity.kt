@@ -13,9 +13,11 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.app.AppOpsManager
+import android.util.Log
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    private val TAG = "MoelyWidget"
     private val CHANNEL = "link.moely.mobile/wallpaper"
     private val BROWSER_CHANNEL = "link.moely.mobile/browser"
 
@@ -28,7 +30,11 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "pinWidget" -> {
                     val providerName = call.argument<String>("providerName")
+                    Log.i(TAG, "[pinWidget] Request received. providerName=$providerName")
+                    Log.i(TAG, "[pinWidget] Device Info: Manufacturer=${Build.MANUFACTURER}, Brand=${Build.BRAND}, Model=${Build.MODEL}, SDK_INT=${Build.VERSION.SDK_INT}, Release=${Build.VERSION.RELEASE}")
+                    
                     if (providerName == null) {
+                        Log.e(TAG, "[pinWidget] Failed: providerName is null")
                         result.error("INVALID_ARGUMENT", "providerName is null", null)
                         return@setMethodCallHandler
                     }
@@ -41,35 +47,40 @@ class MainActivity : FlutterActivity() {
                         else -> null
                     }
                     if (cls == null) {
+                        Log.e(TAG, "[pinWidget] Failed: Unknown providerName=$providerName")
                         result.error("INVALID_PROVIDER", "Unknown provider: $providerName", null)
                         return@setMethodCallHandler
                     }
+                    
+                    val shortcutPermissionGranted = checkShortcutPermission(applicationContext)
+                    val launcherPkg = getDefaultLauncherPackage()
+                    Log.i(TAG, "[pinWidget] Default Launcher: $launcherPkg, AppOps Shortcut Permission Granted: $shortcutPermissionGranted")
+
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
                         val myProvider = ComponentName(applicationContext, cls)
-                        if (appWidgetManager.isRequestPinAppWidgetSupported) {
-                            val intent = Intent(applicationContext, cls).apply {
-                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                        val isSupported = appWidgetManager.isRequestPinAppWidgetSupported
+                        Log.i(TAG, "[pinWidget] AppWidgetManager.isRequestPinAppWidgetSupported: $isSupported for component ${myProvider.flattenToShortString()}")
+                        
+                        if (isSupported) {
+                            try {
+                                Log.i(TAG, "[pinWidget] Executing requestPinAppWidget(provider=${myProvider.shortClassName}, null, null)...")
+                                // 传 null 作为 successCallback：
+                                // 在 Android 14、ColorOS 14、MIUI、OriginOS 等定制系统中，跨进程传递 FLAG_MUTABLE PendingIntent
+                                // 极易触发系统桌面安全沙箱拦截导致请求静默抛弃。传 null 时由系统桌面接管添加流程，组件放置后系统会自动回调 onUpdate。
+                                val pinned = appWidgetManager.requestPinAppWidget(myProvider, null, null)
+                                Log.i(TAG, "[pinWidget] requestPinAppWidget call returned: $pinned")
+                                result.success(pinned)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "[pinWidget] Exception during requestPinAppWidget: ${e.javaClass.name} - ${e.message}", e)
+                                result.success(false)
                             }
-                            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                            } else {
-                                PendingIntent.FLAG_UPDATE_CURRENT
-                            }
-                            val successCallback = PendingIntent.getBroadcast(
-                                applicationContext,
-                                100,
-                                intent,
-                                flags
-                            )
-                            appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
-                            result.success(true)
                         } else {
+                            Log.w(TAG, "[pinWidget] isRequestPinAppWidgetSupported is false for launcher: $launcherPkg")
                             result.success(false)
                         }
                     } else {
+                        Log.w(TAG, "[pinWidget] SDK_INT ${Build.VERSION.SDK_INT} < API 26 (Android O), requestPinAppWidget not supported")
                         result.error("NOT_SUPPORTED", "Requires Android O (API 26) or higher", null)
                     }
                 }
@@ -495,29 +506,77 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
     }
 
+    private fun getDefaultLauncherPackage(): String {
+        return try {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            resolveInfo?.activityInfo?.packageName ?: "unknown"
+        } catch (e: Exception) {
+            Log.w(TAG, "[getDefaultLauncherPackage] Failed to resolve default launcher: ${e.message}")
+            "error: ${e.message}"
+        }
+    }
+
     private fun checkShortcutPermission(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
+            Log.d(TAG, "[checkShortcutPermission] SDK < KITKAT, return true")
             return true
         }
+        val manufacturer = Build.MANUFACTURER.lowercase()
         val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-        try {
-            val checkOpNoThrow = appOpsManager.javaClass.getMethod(
-                "checkOpNoThrow",
-                java.lang.Integer.TYPE,
-                java.lang.Integer.TYPE,
-                java.lang.String::class.java
-            )
-            // 10017 corresponds to OP_INSTALL_SHORTCUT on Xiaomi / MIUI / HyperOS
-            val mode = checkOpNoThrow.invoke(
-                appOpsManager,
-                10017,
-                android.os.Process.myUid(),
-                context.packageName
-            ) as Int
-            return mode == AppOpsManager.MODE_ALLOWED
-        } catch (e: Exception) {
-            // Ignore and fallback
+        
+        // 1. 小米 / 红米 (MIUI / HyperOS)：10017 为其私有 OP_INSTALL_SHORTCUT
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
+            try {
+                val checkOpNoThrow = appOpsManager.javaClass.getMethod(
+                    "checkOpNoThrow",
+                    java.lang.Integer.TYPE,
+                    java.lang.Integer.TYPE,
+                    java.lang.String::class.java
+                )
+                val mode = checkOpNoThrow.invoke(
+                    appOpsManager,
+                    10017,
+                    android.os.Process.myUid(),
+                    context.packageName
+                ) as Int
+                val allowed = mode == AppOpsManager.MODE_ALLOWED
+                Log.i(TAG, "[checkShortcutPermission] Xiaomi/Redmi OP 10017 check mode=$mode (allowed=$allowed)")
+                return allowed
+            } catch (e: Exception) {
+                Log.w(TAG, "[checkShortcutPermission] Xiaomi/Redmi OP 10017 reflection failed: ${e.message}")
+            }
         }
+
+        // 2. Vivo / iQOO (OriginOS)：部分版本使用 OP 10017 作为桌面快捷方式管控
+        if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
+            try {
+                val checkOpNoThrow = appOpsManager.javaClass.getMethod(
+                    "checkOpNoThrow",
+                    java.lang.Integer.TYPE,
+                    java.lang.Integer.TYPE,
+                    java.lang.String::class.java
+                )
+                val mode = checkOpNoThrow.invoke(
+                    appOpsManager,
+                    10017,
+                    android.os.Process.myUid(),
+                    context.packageName
+                ) as Int
+                val allowed = mode == AppOpsManager.MODE_ALLOWED
+                Log.i(TAG, "[checkShortcutPermission] Vivo/iQOO OP 10017 check mode=$mode (allowed=$allowed)")
+                if (!allowed) {
+                    return false
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "[checkShortcutPermission] Vivo/iQOO OP 10017 reflection failed: ${e.message}")
+            }
+        }
+
+        // 其他定制系统或未能反射获取时，默认返回 true，由底层 API requestPinAppWidget 真实状态处理
+        Log.d(TAG, "[checkShortcutPermission] Default fallback return true for manufacturer=$manufacturer")
         return true
     }
 
@@ -525,8 +584,9 @@ class MainActivity : FlutterActivity() {
         val packageName = context.packageName
         val manufacturer = Build.MANUFACTURER.lowercase()
         var success = false
+        Log.i(TAG, "[openShortcutPermissionSettings] Opening settings for manufacturer: $manufacturer, pkg: $packageName")
 
-        // 1. Try MIUI specific intent
+        // 1. 小米 / 红米 (MIUI / HyperOS)
         if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
             try {
                 val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
@@ -536,54 +596,103 @@ class MainActivity : FlutterActivity() {
                 }
                 context.startActivity(intent)
                 success = true
+                Log.i(TAG, "[openShortcutPermissionSettings] Started MIUI AppPermissionsEditorActivity")
             } catch (e: Exception) {
-                // fall through
+                try {
+                    val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                        putExtra("extra_pkgname", packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    success = true
+                    Log.i(TAG, "[openShortcutPermissionSettings] Started miui.intent.action.APP_PERM_EDITOR")
+                } catch (e2: Exception) {
+                    Log.w(TAG, "[openShortcutPermissionSettings] Failed to launch MIUI perm editor: ${e2.message}")
+                }
             }
         }
 
-        // 2. Try Huawei specific intent
+        // 2. Vivo / iQOO (OriginOS)
+        if (!success && (manufacturer.contains("vivo") || manufacturer.contains("iqoo"))) {
+            // 尝试拉起 OriginOS 权限详情页
+            try {
+                val intent = Intent("permission.intent.action.softPermissionDetail").apply {
+                    putExtra("packagename", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+                Log.i(TAG, "[openShortcutPermissionSettings] Started Vivo softPermissionDetail")
+            } catch (e: Exception) {
+                try {
+                    val intent = Intent().apply {
+                        component = ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity")
+                        putExtra("packagename", packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    success = true
+                    Log.i(TAG, "[openShortcutPermissionSettings] Started Vivo SoftPermissionDetailActivity")
+                } catch (e2: Exception) {
+                    try {
+                        val intent = Intent().apply {
+                            component = ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.PurviewTabActivity")
+                            putExtra("packagename", packageName)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                        success = true
+                        Log.i(TAG, "[openShortcutPermissionSettings] Started Vivo PurviewTabActivity")
+                    } catch (e3: Exception) {
+                        Log.w(TAG, "[openShortcutPermissionSettings] Failed to launch Vivo perm manager: ${e3.message}")
+                    }
+                }
+            }
+        }
+
+        // 3. OPPO / OnePlus / Realme (ColorOS / Realme UI)
+        if (!success && (manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme"))) {
+            try {
+                val intent = Intent().apply {
+                    component = ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionTopActivity")
+                    putExtra("package_name", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+                Log.i(TAG, "[openShortcutPermissionSettings] Started ColorOS PermissionTopActivity")
+            } catch (e: Exception) {
+                try {
+                    val intent = Intent().apply {
+                        component = ComponentName("com.oplus.securitypermission", "com.oplus.securitypermission.permission.PermissionTopActivity")
+                        putExtra("package_name", packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    success = true
+                    Log.i(TAG, "[openShortcutPermissionSettings] Started OPlus PermissionTopActivity")
+                } catch (e2: Exception) {
+                    Log.w(TAG, "[openShortcutPermissionSettings] Failed to launch ColorOS/OPlus perm manager: ${e2.message}")
+                }
+            }
+        }
+
+        // 4. 华为 / 荣耀 (HarmonyOS / EMUI / MagicOS)
         if (!success && (manufacturer.contains("huawei") || manufacturer.contains("honor"))) {
             try {
                 val intent = Intent().apply {
-                    setClassName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity")
+                    component = ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
                 success = true
+                Log.i(TAG, "[openShortcutPermissionSettings] Started Huawei permissionmanager MainActivity")
             } catch (e: Exception) {
-                // fall through
+                Log.w(TAG, "[openShortcutPermissionSettings] Failed to launch Huawei systemmanager: ${e.message}")
             }
         }
 
-        // 3. Try Vivo specific intent
-        if (!success && manufacturer.contains("vivo")) {
-            try {
-                val intent = Intent().apply {
-                    setClassName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-                success = true
-            } catch (e: Exception) {
-                // fall through
-            }
-        }
-
-        // 4. Try Oppo specific intent
-        if (!success && manufacturer.contains("oppo")) {
-            try {
-                val intent = Intent().apply {
-                    setClassName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-                success = true
-            } catch (e: Exception) {
-                // fall through
-            }
-        }
-
-        // 5. General fallback: App Details settings page
+        // 5. 通用兜底：打开系统标准应用详情页（可直达权限设置）
         if (!success) {
             try {
                 val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
@@ -591,14 +700,16 @@ class MainActivity : FlutterActivity() {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(intent)
+                Log.i(TAG, "[openShortcutPermissionSettings] Fallback to ACTION_APPLICATION_DETAILS_SETTINGS")
             } catch (e: Exception) {
                 try {
                     val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     context.startActivity(intent)
+                    Log.i(TAG, "[openShortcutPermissionSettings] Fallback to ACTION_SETTINGS")
                 } catch (e2: Exception) {
-                    // Ignore
+                    Log.e(TAG, "[openShortcutPermissionSettings] Failed to launch settings: ${e2.message}")
                 }
             }
         }

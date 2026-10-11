@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'category_grid_screen.dart';
 import 'tags_list_screen.dart';
 import 'search_grid_screen.dart';
+import 'artists_list_screen.dart';
 
 class ExploreTab extends StatefulWidget {
   const ExploreTab({super.key});
@@ -122,13 +124,17 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
                   color: theme.colorScheme.onBackground,
                 ),
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 12.0),
 
               // Pixiv Categories Card
               _buildCategoryCard(
                 title: 'Pixiv 分类',
                 subtitle: '浏览精心编排的 Pixiv 优质插画集',
-                icon: Icons.art_track_rounded,
+                icon: const FaIcon(
+                  FontAwesomeIcons.pixiv,
+                  size: 24,
+                  color: Colors.white,
+                ),
                 startColor: const Color(0xFF0052D4),
                 endColor: const Color(0xFF4364F7),
                 onTap: () {
@@ -144,13 +150,17 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
                   );
                 },
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 10.0),
 
               // Twitter Categories Card
               _buildCategoryCard(
                 title: 'Twitter 分类',
                 subtitle: '跟随推特画师足迹，品味先锋画风',
-                icon: Icons.flutter_dash_rounded,
+                icon: const FaIcon(
+                  FontAwesomeIcons.squareTwitter,
+                  size: 24,
+                  color: Colors.white,
+                ),
                 startColor: const Color(0xFF1c92d2),
                 endColor: const Color(0xFF06B6D4),
                 onTap: () {
@@ -166,13 +176,17 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
                   );
                 },
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 10.0),
 
               // Tag Cloud Card
               _buildCategoryCard(
                 title: '热门标签云',
                 subtitle: '从错综复杂的二次元属性云端发现美好',
-                icon: Icons.cloud_circle_rounded,
+                icon: const Icon(
+                  Icons.cloud_circle_rounded,
+                  size: 26,
+                  color: Colors.white,
+                ),
                 startColor: const Color(0xFF10B981),
                 endColor: const Color(0xFF12FFF7),
                 onTap: () {
@@ -181,6 +195,29 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
                     context,
                     MaterialPageRoute(
                       builder: (context) => const TagsListScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10.0),
+
+              // Artist Library Card
+              _buildCategoryCard(
+                title: '画师库',
+                subtitle: '汇聚 Pixiv 与 Twitter 知名画师及其收录作品',
+                icon: const Icon(
+                  Icons.palette_rounded,
+                  size: 26,
+                  color: Colors.white,
+                ),
+                startColor: const Color(0xFF8A2387),
+                endColor: const Color(0xFFE94057),
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ArtistsListScreen(),
                     ),
                   );
                 },
@@ -196,7 +233,7 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
   Widget _buildCategoryCard({
     required String title,
     required String subtitle,
-    required IconData icon,
+    required Widget icon,
     required Color startColor,
     required Color endColor,
     required VoidCallback onTap,
@@ -204,9 +241,9 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      height: 120,
+      height: 92,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24.0),
+        borderRadius: BorderRadius.circular(18.0),
         gradient: LinearGradient(
           colors: [
             startColor.withOpacity(isDark ? 0.35 : 0.85),
@@ -218,8 +255,8 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
         boxShadow: [
           BoxShadow(
             color: startColor.withOpacity(0.25),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
         border: Border.all(
@@ -231,26 +268,22 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(24.0),
+          borderRadius: BorderRadius.circular(18.0),
           splashColor: Colors.white.withOpacity(0.15),
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               children: [
                 // Icon Section
                 Container(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.all(9.0),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    icon,
-                    size: 32,
-                    color: Colors.white,
-                  ),
+                  child: icon,
                 ),
-                const SizedBox(width: 18.0),
+                const SizedBox(width: 14.0),
                 
                 // Text Section
                 Expanded(
@@ -261,19 +294,19 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
                       Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 4.0),
+                      const SizedBox(height: 2.0),
                       Text(
                         subtitle,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withOpacity(0.85),
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -284,7 +317,7 @@ class _ExploreTabState extends State<ExploreTab> with AutomaticKeepAliveClientMi
                 const Icon(
                   Icons.arrow_forward_ios_rounded,
                   color: Colors.white,
-                  size: 20,
+                  size: 16,
                 ),
               ],
             ),

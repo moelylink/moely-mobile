@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../utils/toast_helper.dart';
 import '../services/url_handler_service.dart';
+import '../widgets/moely_error_widget.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -15,6 +16,7 @@ class MessagesScreen extends StatefulWidget {
 class _MessagesScreenState extends State<MessagesScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _hasError = false;
   List<Map<String, dynamic>> _chats = [];
   Timer? _refreshTimer;
 
@@ -152,12 +154,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
         setState(() {
           _chats = assembledChats;
           _isLoading = false;
+          _hasError = false;
         });
       }
 
     } catch (e) {
       debugPrint('Load chats error: $e');
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -278,8 +286,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ? _buildNotLoggedInState(theme)
           : _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : _chats.isEmpty
-                  ? _buildEmptyState(theme)
+              : _hasError
+                  ? MoelyErrorWidget(
+                      message: '消息加载失败，请检查网络',
+                      onRetry: _loadChats,
+                    )
+                  : _chats.isEmpty
+                      ? _buildEmptyState(theme)
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: _chats.length,
