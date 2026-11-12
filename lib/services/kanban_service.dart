@@ -16,6 +16,22 @@ enum KanbanState {
   eating,
 }
 
+class GourmetItem {
+  final String id;
+  final String name;
+  final String description;
+  final IconData icon;
+  final Color color;
+
+  const GourmetItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+}
+
 class KanbanService extends ChangeNotifier {
   static final KanbanService instance = KanbanService._();
   KanbanService._();
@@ -37,6 +53,58 @@ class KanbanService extends ChangeNotifier {
   double _collectedStars = 0.0;
   int _level = 1;
   int _exp = 0;
+
+  // Gourmet inventory: map of gourmet ID to count
+  static const List<GourmetItem> allGourmets = [
+    GourmetItem(
+      id: 'fish',
+      name: '香酥小鱼干',
+      description: '萌哩最爱的小鱼干，香脆爽口',
+      icon: Icons.set_meal_rounded,
+      color: Color(0xFF38BDF8),
+    ),
+    GourmetItem(
+      id: 'pudding',
+      name: '焦糖布丁',
+      description: 'Q弹嫩滑，奶香浓郁的小甜点',
+      icon: Icons.bakery_dining_rounded,
+      color: Color(0xFFFBBF24),
+    ),
+    GourmetItem(
+      id: 'cake',
+      name: '草莓小蛋糕',
+      description: '松软香甜的草莓夹心蛋糕',
+      icon: Icons.cake_rounded,
+      color: Color(0xFFF43F5E),
+    ),
+    GourmetItem(
+      id: 'burger',
+      name: '萌哩小汉堡',
+      description: '肉饼厚实多汁的美味汉堡',
+      icon: Icons.lunch_dining_rounded,
+      color: Color(0xFFF97316),
+    ),
+    GourmetItem(
+      id: 'sushi',
+      name: '三文鱼手握',
+      description: '鲜美肥嫩的日料手握寿司',
+      icon: Icons.dinner_dining_rounded,
+      color: Color(0xFFFB7185),
+    ),
+    GourmetItem(
+      id: 'cookie',
+      name: '奶油曲奇饼',
+      description: '酥香可口的手工黄油曲奇',
+      icon: Icons.cookie_rounded,
+      color: Color(0xFFA16207),
+    ),
+  ];
+
+  Map<String, int> _gourmetInventory = {
+    'fish': 2,
+    'pudding': 1,
+    'cake': 1,
+  };
   String _lastClaimDate = '';
   DateTime? _eatingEndTime;
   DateTime? _stateStartTime;
@@ -63,6 +131,9 @@ class KanbanService extends ChangeNotifier {
   int get speedCardCount => _speedCardCount;
   int get doubleFeedCardCount => _doubleFeedCardCount;
   double get collectedStars => double.parse(_collectedStars.toStringAsFixed(1));
+  Map<String, int> get gourmetInventory => Map.unmodifiable(_gourmetInventory);
+  int get totalGourmetCount => _gourmetInventory.values.fold(0, (sum, count) => sum + count);
+  List<GourmetItem> get ownedGourmets => allGourmets.where((g) => (_gourmetInventory[g.id] ?? 0) > 0).toList();
   int get level => _level;
   int get exp => _exp;
   int get expToNextLevel => 100; // Fixed 100 EXP needed per level
@@ -163,6 +234,11 @@ class KanbanService extends ChangeNotifier {
           final loadedSkins = (data['unlockedSkins'] as List<dynamic>).map((e) => e.toString()).toList();
           _unlockedSkins = loadedSkins.isNotEmpty ? loadedSkins : ['capoo'];
         }
+        if (data['gourmetInventory'] != null && data['gourmetInventory'] is Map) {
+          _gourmetInventory = (data['gourmetInventory'] as Map).map(
+            (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+          );
+        }
       }
 
       // Sync cloud UTC time asynchronously
@@ -230,6 +306,7 @@ class KanbanService extends ChangeNotifier {
         'stateStartTime': _stateStartTime?.toIso8601String(),
         'currentSkin': _currentSkin,
         'unlockedSkins': _unlockedSkins,
+        'gourmetInventory': _gourmetInventory,
       };
       file.writeAsStringSync(jsonEncode(data));
 
@@ -545,6 +622,45 @@ class KanbanService extends ChangeNotifier {
     // Instant sync to cloud
     _syncClaimToCloud(todayStr);
     return true;
+  }
+
+  /// Feed gourmet to mascot (投喂美食，扣除1份指定美食，立即获得 0.1 颗庄园星星)
+  Future<bool> feedGourmet(String gourmetId) async {
+    final currentCount = _gourmetInventory[gourmetId] ?? 0;
+    if (currentCount <= 0) {
+      _currentBubbleText = '该美食已经吃完了，快去获取更多吧~';
+      notifyListeners();
+      return false;
+    }
+
+    _gourmetInventory[gourmetId] = currentCount - 1;
+    // 立即增加 0.1 颗星星，并通过 toStringAsFixed 规避 IEEE 754 浮点累加误差
+    _collectedStars = double.parse((_collectedStars + 0.1).toStringAsFixed(1));
+
+    // 增加 5 点成长经验
+    _exp += 5;
+    if (_exp >= expToNextLevel) {
+      _level += 1;
+      _exp -= expToNextLevel;
+    }
+
+    final gourmet = allGourmets.firstWhere(
+      (g) => g.id == gourmetId,
+      orElse: () => allGourmets.first,
+    );
+    _currentBubbleText = '嗷呜！萌哩超喜欢吃【${gourmet.name}】！立即收获了 0.1 颗星星 ⭐';
+
+    await save();
+    notifyListeners();
+    return true;
+  }
+
+  /// Add gourmet items to inventory
+  Future<void> addGourmet(String gourmetId, int amount) async {
+    final current = _gourmetInventory[gourmetId] ?? 0;
+    _gourmetInventory[gourmetId] = current + amount;
+    await save();
+    notifyListeners();
   }
 
   /// Feed the mascot (100g feed takes 1 hour to eat)

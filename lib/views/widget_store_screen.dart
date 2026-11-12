@@ -132,13 +132,19 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
       case 'coloros':
         return const _RomGuidance(
           title: 'OPPO ColorOS / OnePlus / Realme',
-          permissionDesc: 'ColorOS / Realme UI 系统默认对桌面微件设置了严格的权限管控。请进入系统设置允许「桌面快捷方式」权限，并确保桌面设置中未开启「锁定桌面布局」。',
-          manualSteps: '在桌面双指捏合或长按空白处 -> 点击「微件」（注意选择「微件」而非系统卡片）-> 找到「萌哩」即可拖动添加至桌面。',
+          permissionDesc: 'ColorOS 系统会在两种情况下静默拦截添加小组件的请求：\n'
+              '① 未开启「桌面快捷方式」权限（请前往设置开启）\n'
+              '② 桌面布局已锁定（最常见原因）\n\n'
+              '解除桌面锁定：长按桌面空白处 → 点击右上角🔒图标（或进入「桌面设置」→ 关闭「锁定布局」），解锁后再添加即可。',
+          manualSteps: '在桌面双指捏合或长按空白处 → 点击「微件」（注意选择「微件」而非系统卡片）→ 找到「萌哩」即可拖动添加至桌面。',
         );
       case 'originos':
         return const _RomGuidance(
           title: 'vivo OriginOS / iQOO',
-          permissionDesc: 'OriginOS 系统默认拦截第三方应用的小部件自动添加广播。请前往系统应用权限管理开启「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」。',
+          permissionDesc: 'OriginOS 系统会在两种情况下静默拦截添加小组件的请求：\n'
+              '① 未开启「桌面快捷方式」权限（请前往设置开启）\n'
+              '② 桌面布局已锁定（最常见原因）\n\n'
+              '解除桌面锁定：长按桌面空白处 → 进入「桌面设置」→ 关闭「锁定布局」，解锁后再添加即可。',
           manualSteps: '长按桌面空白处 -> 进入「原子组件」-> 滑到底部点击「经典组件 / 安卓微件」-> 找到「萌哩」添加。',
         );
       case 'hyperos':
@@ -318,8 +324,105 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
     final success = await WidgetService.pinWidget(providerName);
     print('[WidgetStoreScreen] pinWidget returned: $success');
     if (mounted) {
+      final romType = _romInfo?['romType'] ?? 'other';
+      final isLayoutLockRisk = romType == 'coloros' || romType == 'originos';
+
       if (success) {
-        ToastHelper.show(context, '请在系统底部弹窗中点击「添加」即可固定到桌面', type: ToastType.success);
+        if (isLayoutLockRisk) {
+          // ColorOS/OriginOS 上 requestPinAppWidget 即使返回 true，
+          // 若用户开启了「锁定桌面布局」AddItemActivity 也会立即 finish() 且静默无响应。
+          // 在此主动引导用户排查锁定布局，同时告知正常情况下应出现的弹窗位置。
+          final guidance = _getRomGuidance();
+          showDialog(
+            context: context,
+            builder: (context) {
+              final theme = Theme.of(context);
+              final isDark = theme.brightness == Brightness.dark;
+              return AlertDialog(
+                backgroundColor: theme.colorScheme.surface,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+                title: Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 22),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('已发送添加请求', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17))),
+                  ],
+                ),
+                content: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.85,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '已向系统发送小组件添加请求。若屏幕上出现了「添加到桌面」确认弹窗，请点击添加即可。\n',
+                          style: TextStyle(fontSize: 13, height: 1.5, color: theme.colorScheme.onSurface),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+                                  SizedBox(width: 6),
+                                  Text('没有弹出确认窗口？', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                guidance.permissionDesc,
+                                style: TextStyle(fontSize: 12, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '或者直接手动添加：',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          guidance.manualSteps,
+                          style: TextStyle(fontSize: 12, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('知道了', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      WidgetService.openShortcutPermissionSettings();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('检查权限与锁定'),
+                  ),
+                ],
+              );
+            },
+          );
+        } else {
+          ToastHelper.show(context, '请在系统底部弹窗中点击「添加」即可固定到桌面', type: ToastType.success);
+        }
       } else {
         final guidance = _getRomGuidance();
         final isSpecificRom = _romInfo != null && _romInfo!['romType'] != 'other';

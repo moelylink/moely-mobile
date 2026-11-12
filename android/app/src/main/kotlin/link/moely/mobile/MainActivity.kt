@@ -14,7 +14,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.app.AppOpsManager
 import android.os.Bundle
-import android.widget.RemoteViews
 import android.util.Log
 import java.io.File
 import com.airbnb.lottie.LottieAnimationView
@@ -255,34 +254,23 @@ class MainActivity : FlutterActivity() {
                                     flags
                                 )
 
-                                // 构造微件预览 RemoteViews，解决 ColorOS / OneUI 等系统 Launcher 缺少预览导致的弹窗放弃
-                                val layoutId = when (providerName) {
-                                    "MoelyWidgetProvider" -> R.layout.moely_widget_layout
-                                    "DailyImagePortraitProvider" -> R.layout.widget_daily_image_portrait
-                                    "DailyImageLandscapeProvider" -> R.layout.widget_daily_image_landscape
-                                    "PetWidgetProvider" -> R.layout.widget_pet
-                                    "GalleryWidgetProvider" -> R.layout.widget_gallery
-                                    else -> null
-                                }
-                                val extras: Bundle? = if (layoutId != null) {
-                                    Bundle().apply {
-                                        putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, RemoteViews(packageName, layoutId))
-                                    }
-                                } else {
-                                    null
-                                }
-
-                                Log.i(TAG, "[pinWidget] Executing requestPinAppWidget with extras (layoutId=$layoutId) and successCallback PendingIntent...")
+                                Log.i(TAG, "[pinWidget] Executing requestPinAppWidget WITHOUT preview extras, with successCallback PendingIntent...")
                                 var pinned = false
                                 try {
-                                    pinned = appWidgetManager.requestPinAppWidget(myProvider, extras, successCallback)
+                                    // 不传 EXTRA_APPWIDGET_PREVIEW：ColorOS / OriginOS 等国产系统在处理
+                                    // 含 RemoteViews 的 extras Bundle 时存在 Parcel 兼容问题，会导致
+                                    // Launcher 侧 getPinItemRequest() 返回 null 进而静默 finish()。
+                                    // 预览 extras 属于可选装饰，去掉不影响弹窗核心功能。
+                                    pinned = appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
+                                } catch (se: SecurityException) {
+                                    Log.w(TAG, "[pinWidget] requestPinAppWidget with callback failed with SecurityException: ${se.message}")
+                                    pinned = appWidgetManager.requestPinAppWidget(myProvider, null, null)
                                 } catch (e: Exception) {
-                                    Log.w(TAG, "[pinWidget] requestPinAppWidget with preview extras failed: ${e.message}, retrying fallback...")
+                                    Log.w(TAG, "[pinWidget] requestPinAppWidget failed: ${e.message}")
                                     try {
-                                        pinned = appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
-                                    } catch (se: SecurityException) {
-                                        Log.w(TAG, "[pinWidget] requestPinAppWidget callback failed with SecurityException: ${se.message}")
                                         pinned = appWidgetManager.requestPinAppWidget(myProvider, null, null)
+                                    } catch (e2: Exception) {
+                                        Log.e(TAG, "[pinWidget] All requestPinAppWidget attempts failed: ${e2.message}")
                                     }
                                 }
 

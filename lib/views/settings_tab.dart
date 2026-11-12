@@ -1777,33 +1777,27 @@ class _DirectoryBrowserDialogState extends State<_DirectoryBrowserDialog> {
       ),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       actions: [
-        Row(
-          children: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () {
-                AppSettings.instance.setDownloadPath('');
-                Navigator.pop(context);
-                final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
-                ToastHelper.show(rootContext, '已恢复为默认公共下载目录', type: ToastType.success);
-              },
-              child: const Text('恢复默认'),
-            ),
-            const Spacer(),
-            FilledButton(
-              onPressed: () {
-                AppSettings.instance.setDownloadPath(_currentDir.path);
-                Navigator.pop(context);
-                final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
-                ToastHelper.show(rootContext, '下载目录已设定为: ${_currentDir.path}', type: ToastType.success);
-              },
-              child: const Text('选择'),
-            ),
-          ],
+        TextButton(
+          onPressed: () {
+            AppSettings.instance.setDownloadPath('');
+            Navigator.pop(context);
+            final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+            ToastHelper.show(rootContext, '已恢复为默认公共下载目录', type: ToastType.success);
+          },
+          child: const Text('恢复默认'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            AppSettings.instance.setDownloadPath(_currentDir.path);
+            Navigator.pop(context);
+            final rootContext = UrlHandlerService.navigatorKey.currentContext ?? context;
+            ToastHelper.show(rootContext, '下载目录已设定为: ${_currentDir.path}', type: ToastType.success);
+          },
+          child: const Text('选择'),
         ),
       ],
     );

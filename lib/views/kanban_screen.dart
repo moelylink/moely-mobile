@@ -25,6 +25,8 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
   bool _showAllActionBubbles = false;
   Timer? _actionBubblesDismissTimer;
 
+  bool _showGourmetBar = false;
+
   final List<_EffectParticle> _confettiParticles = [];
   Timer? _confettiTimer;
 
@@ -471,36 +473,36 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                             ),
                           ),
 
-                        // Hotspot 1: Bed (二楼卧室床铺 X:[224..334], Y:[98..171]，点击触发去睡觉)
+                        // Hotspot 1: Bed (二楼卧室床铺 X:[180..330], Y:[110..195]，点击触发去睡觉)
                         Positioned(
-                          left: 215,
-                          top: 85,
-                          width: 125,
-                          height: 95,
+                          left: 180,
+                          top: 110,
+                          width: 150,
+                          height: 85,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () => _onBedTapped(context, service),
                           ),
                         ),
 
-                        // Hotspot 2: Desk (一楼书房书桌 X:[204..317], Y:[220..305]，点击触发去学习)
+                        // Hotspot 2: Desk (一楼书房书架与阅读椅 X:[200..330], Y:[225..330]，点击触发去学习)
                         Positioned(
                           left: 200,
-                          top: 215,
-                          width: 125,
-                          height: 100,
+                          top: 225,
+                          width: 130,
+                          height: 105,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () => _onDeskTapped(context, service),
                           ),
                         ),
 
-                        // Hotspot 3: Living Room (一楼客厅/地毯 X:[81..154], Y:[244..325]，点击触发去玩耍/去休息)
+                        // Hotspot 3: Living Room Carpet (一楼中间米黄色地毯 X:[120..220], Y:[285..345]，点击触发去玩耍/去休息)
                         Positioned(
-                          left: 75,
-                          top: 235,
-                          width: 90,
-                          height: 100,
+                          left: 120,
+                          top: 285,
+                          width: 100,
+                          height: 60,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () => _onLivingRoomTapped(context, service),
@@ -526,13 +528,14 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                               alignment: Alignment.topCenter,
                               clipBehavior: Clip.none,
                               children: [
-                                // Speech bubble directly above pet head
-                                Positioned(
-                                  bottom: 102,
-                                  child: _buildDialogueBubble(theme, service.currentBubbleText, showNightScene),
-                                ),
-                                // Zzz bubble animation if sleeping
-                                if (state == KanbanState.sleeping)
+                                // Speech bubble directly above pet head (在显示“去xx”操作提示时自动隐藏，避免气泡重叠)
+                                if (!_showAllActionBubbles)
+                                  Positioned(
+                                    bottom: 102,
+                                    child: _buildDialogueBubble(theme, service.currentBubbleText, showNightScene),
+                                  ),
+                                // Zzz bubble animation if sleeping (在显示“去xx”操作提示时自动隐藏，避免气泡重叠)
+                                if (state == KanbanState.sleeping && !_showAllActionBubbles)
                                   const Positioned(
                                     top: -30,
                                     right: -15,
@@ -563,11 +566,11 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
 
                         // Action prompt bubbles ("去睡觉" / "去学习" / "去玩耍" - 点击状态栏时全部显示)
                         if (_showAllActionBubbles && state != KanbanState.eating) ...[
-                          // 1. Bed Bubble (水平居中对齐床铺实际中心 X=279.0，底部三角精准指向床头 Y=97.0)
+                          // 1. Bed Bubble (水平居中对齐床铺实际中心 X=255.0，底部三角精准指向床头被褥 Y=142.0)
                           Positioned(
-                            left: 199, // 279 - 160/2
+                            left: 175, // 255 - 160/2
                             width: 160,
-                            top: 66,   // 97 - 31 (气泡高度)
+                            top: 111,  // 142 - 31 (气泡高度)
                             child: Center(
                               child: GestureDetector(
                                 onTap: () => _onBedTapped(context, service),
@@ -593,11 +596,11 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                             ),
                           ),
 
-                          // 2. Desk Bubble (水平居中对齐书桌实际中心 X=260.0，底部三角精准指向书桌上表面 Y=219.0)
+                          // 2. Desk Bubble (水平居中对齐书架实际中心 X=248.0，底部三角精准指向书架顶横梁 Y=238.0)
                           Positioned(
-                            left: 180, // 260 - 160/2
+                            left: 168, // 248 - 160/2
                             width: 160,
-                            top: 188,  // 219 - 31 (气泡高度)
+                            top: 207,  // 238 - 31 (气泡高度)
                             child: Center(
                               child: GestureDetector(
                                 onTap: () => _onDeskTapped(context, service),
@@ -623,11 +626,11 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                             ),
                           ),
 
-                          // 3. Living Room Bubble (水平居中对齐客厅实际中心 X=118.0，底部三角精准指向客厅顶部 Y=244.0)
+                          // 3. Living Room Bubble (水平居中对齐一楼客厅地毯开阔区 X=192.0，底部三角精准指向一楼米黄色地毯 Y=315.0)
                           Positioned(
-                            left: 38,  // 118 - 160/2
+                            left: 112, // 192 - 160/2
                             width: 160,
-                            top: 213,  // 244 - 31 (气泡高度)
+                            top: 284,  // 315 - 31 (气泡高度)
                             child: Center(
                               child: GestureDetector(
                                 onTap: () => _onLivingRoomTapped(context, service),
@@ -695,35 +698,66 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                 ),
               ),
 
-              // 7. Right-Bottom Feed Container Button
+              // 7. Right-Bottom Gourmet Food Bar (位于美食按钮上方的一排已获得美食)
+              if (_showGourmetBar)
+                Positioned(
+                  right: 20,
+                  bottom: 105,
+                  child: _buildGourmetBar(theme, service, showNightScene),
+                ),
+
+              // 8. Right-Bottom Action Buttons: Gourmet Button + Feed Bag Button
               Positioned(
                 right: 20,
                 bottom: 20,
-                child: _FeedStockBagButton(
-                  service: service,
-                  isDark: showNightScene,
-                  onTap: () async {
-                    if (service.currentState == KanbanState.eating) {
-                      _showBowlActionDialog(context, service);
-                      return;
-                    }
-                    if (service.doubleFeedCardCount > 0 && service.feedStock >= 200) {
-                      _showFeedChoiceDialog(context, service);
-                      return;
-                    }
-                    final success = await service.feedMascot();
-                    if (success) {
-                      if (mounted) {
-                        ToastHelper.show(context, '倒入饲料，萌哩开始干饭啦！', type: ToastType.success);
-                        final size = MediaQuery.of(context).size;
-                        _triggerConfetti(Offset(size.width / 2 + 50, size.height / 2 + 90), isHearts: false);
-                      }
-                    } else {
-                      if (service.feedStock < 100) {
-                        _triggerTemporaryAction('hungry');
-                      }
-                    }
-                  },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // 美食按钮 (点击展开/折叠上方美食投喂栏)
+                    _GourmetButton(
+                      service: service,
+                      isDark: showNightScene,
+                      isActive: _showGourmetBar,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _showGourmetBar = !_showGourmetBar;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // 饲料喂食按钮
+                    _FeedStockBagButton(
+                      service: service,
+                      isDark: showNightScene,
+                      onTap: () async {
+                        if (_showGourmetBar) {
+                          setState(() => _showGourmetBar = false);
+                        }
+                        if (service.currentState == KanbanState.eating) {
+                          _showBowlActionDialog(context, service);
+                          return;
+                        }
+                        if (service.doubleFeedCardCount > 0 && service.feedStock >= 200) {
+                          _showFeedChoiceDialog(context, service);
+                          return;
+                        }
+                        final success = await service.feedMascot();
+                        if (success) {
+                          if (mounted) {
+                            ToastHelper.show(context, '倒入饲料，萌哩开始干饭啦！', type: ToastType.success);
+                            final size = MediaQuery.of(context).size;
+                            _triggerConfetti(Offset(size.width / 2 + 50, size.height / 2 + 90), isHearts: false);
+                          }
+                        } else {
+                          if (service.feedStock < 100) {
+                            _triggerTemporaryAction('hungry');
+                          }
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ),
 
@@ -744,14 +778,14 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
 
               // Floating lucky wheel on the right side
               Positioned(
-                right: 12,
+                right: 0,
                 bottom: 295,
                 child: _buildFloatingLuckyWheel(theme, service),
               ),
 
               // Floating task board on the right side
               Positioned(
-                right: 12,
+                right: 0,
                 bottom: 220,
                 child: _buildFloatingTaskBoard(theme, service),
               ),
@@ -863,6 +897,197 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGourmetBar(ThemeData theme, KanbanService service, bool isDark) {
+    final ownedList = service.ownedGourmets;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutBack,
+      builder: (context, val, child) {
+        return Transform.scale(
+          scale: val,
+          alignment: Alignment.bottomRight,
+          child: child,
+        );
+      },
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 320),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF1E293B).withValues(alpha: 0.96)
+              : Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFFB7185).withValues(alpha: 0.6),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.pink.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 顶部标题栏
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.stars_rounded, color: Colors.amber, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  '投喂美食 (立即 +0.1 星星)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _showGourmetBar = false);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // 已获得的美食横向列表
+            if (ownedList.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 16,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '暂无美食库存，快去完成任务获取吧~',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: ownedList.map((gourmet) {
+                    final count = service.gourmetInventory[gourmet.id] ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: GestureDetector(
+                        onTap: () async {
+                          HapticFeedback.lightImpact();
+                          final success = await service.feedGourmet(gourmet.id);
+                          if (success && mounted) {
+                            ToastHelper.show(
+                              context,
+                              '投喂【${gourmet.name}】成功！获得了 0.1 颗星星',
+                              type: ToastType.success,
+                            );
+                            final size = MediaQuery.of(context).size;
+                            _triggerConfetti(
+                              Offset(size.width / 2 + 10, size.height / 2 + 40),
+                              isHearts: true,
+                            );
+                          }
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: gourmet.color.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: gourmet.color.withValues(alpha: 0.65),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    gourmet.icon,
+                                    color: gourmet.color,
+                                    size: 26,
+                                  ),
+                                ),
+                                Positioned(
+                                  right: -2,
+                                  top: -2,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: gourmet.color,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.white, width: 1),
+                                    ),
+                                    child: Text(
+                                      'x$count',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              gourmet.name,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -4222,6 +4447,123 @@ class _FeedStockBagButtonState extends State<_FeedStockBagButton> {
             ]
           ),
         )
+      ],
+    );
+  }
+}
+
+class _GourmetButton extends StatefulWidget {
+  final KanbanService service;
+  final bool isDark;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _GourmetButton({
+    required this.service,
+    required this.isDark,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  State<_GourmetButton> createState() => _GourmetButtonState();
+}
+
+class _GourmetButtonState extends State<_GourmetButton> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.service.totalGourmetCount;
+    final buttonColors = widget.isActive
+        ? [const Color(0xFFF43F5E), const Color(0xFFBE123C)]
+        : [const Color(0xFFFB7185), const Color(0xFFE11D48)];
+    final shadowColor = widget.isActive ? Colors.redAccent : Colors.pinkAccent;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTapDown: (_) => setState(() => _scale = 0.88),
+          onTapUp: (_) {
+            setState(() => _scale = 1.0);
+            widget.onTap();
+          },
+          onTapCancel: () => setState(() => _scale = 1.0),
+          child: Transform.scale(
+            scale: _scale,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: buttonColors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: widget.isActive ? Colors.amberAccent : Colors.white,
+                      width: 3,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: shadowColor.withValues(alpha: 0.55),
+                        blurRadius: widget.isActive ? 16 : 12,
+                        spreadRadius: widget.isActive ? 2 : 0,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.restaurant_menu_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                Positioned(
+                  bottom: -5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF881337),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      '$count份',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '美食 (+0.1⭐)',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                color: Colors.black54,
+                offset: Offset(0, 1),
+                blurRadius: 2,
+              )
+            ],
+          ),
+        ),
       ],
     );
   }

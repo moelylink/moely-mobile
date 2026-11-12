@@ -5,7 +5,7 @@ import 'services/settings_service.dart';
 import 'services/url_handler_service.dart';
 import 'services/log_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Redirect debugPrint to capture application logs in Debug Mode
@@ -21,6 +21,10 @@ void main() {
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+
+  // Load settings before first frame so AnimatedBuilder never triggers a
+  // mid-splash rebuild that resets the Lottie animation.
+  await AppSettings.instance.init();
 
   // Instantly mount app so first frame renders immediately and dismisses system splash
   runApp(const MoelyApp());

@@ -169,8 +169,97 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
     final success = await WidgetService.pinWidget(providerName);
     print('[MyWidgetsScreen] pinWidget returned: $success');
     if (mounted) {
+      final romType = (await WidgetService.getDeviceRomInfo())['romType'] ?? 'other';
+      final isLayoutLockRisk = romType == 'coloros' || romType == 'originos';
+
       if (success) {
-        ToastHelper.show(context, '请在系统底部弹窗中点击「添加」即可固定到桌面', type: ToastType.success);
+        if (isLayoutLockRisk) {
+          // ColorOS/OriginOS 上 requestPinAppWidget 即使返回 true，
+          // 若桌面「锁定布局」开启，AddItemActivity 会立即 finish() 且静默无响应。
+          final lockGuide = romType == 'coloros'
+              ? '长按桌面空白处 → 点击右上角🔒图标（或进入「桌面设置」→ 关闭「锁定布局」），解锁后再试。'
+              : '长按桌面空白处 → 进入「桌面设置」→ 关闭「锁定布局」，解锁后再试。';
+          showDialog(
+            context: context,
+            builder: (context) {
+              final theme = Theme.of(context);
+              final isDark = theme.brightness == Brightness.dark;
+              return AlertDialog(
+                backgroundColor: theme.colorScheme.surface,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+                title: Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 22),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('已发送添加请求', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17))),
+                  ],
+                ),
+                content: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.85,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '已向系统发送小组件添加请求。若屏幕上出现了「添加到桌面」确认弹窗，请点击添加即可。',
+                          style: TextStyle(fontSize: 13, height: 1.5, color: theme.colorScheme.onSurface),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+                                  SizedBox(width: 6),
+                                  Text('没有弹出确认窗口？', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '您的桌面布局可能已被锁定，系统将静默拒绝添加请求。\n\n解除方法：$lockGuide',
+                                style: TextStyle(fontSize: 12, height: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.8)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('知道了', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      WidgetService.openShortcutPermissionSettings();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('检查权限与锁定'),
+                  ),
+                ],
+              );
+            },
+          );
+        } else {
+          ToastHelper.show(context, '请在系统底部弹窗中点击「添加」即可固定到桌面', type: ToastType.success);
+        }
       } else {
         showDialog(
           context: context,
