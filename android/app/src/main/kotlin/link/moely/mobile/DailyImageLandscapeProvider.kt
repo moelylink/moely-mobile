@@ -17,12 +17,29 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 
+import android.util.Log
+import java.util.concurrent.atomic.AtomicInteger
+
 class DailyImageLandscapeProvider : AppWidgetProvider() {
 
+    companion object {
+        private const val TAG = "MoelyWidget"
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        Log.i(TAG, "[DailyImageLandscapeProvider] onUpdate triggered. widgetIds count=${appWidgetIds.size}: ${appWidgetIds.joinToString()}")
+        if (appWidgetIds.isEmpty()) return
+
+        val pendingResult = goAsync()
+        val remaining = AtomicInteger(appWidgetIds.size)
+
         for (appWidgetId in appWidgetIds) {
-            val pendingResult = goAsync()
-            updateAppWidget(context, appWidgetManager, appWidgetId, pendingResult)
+            updateAppWidget(context, appWidgetManager, appWidgetId) {
+                if (remaining.decrementAndGet() == 0) {
+                    Log.i(TAG, "[DailyImageLandscapeProvider] All pending landscape widget updates finished.")
+                    pendingResult?.finish()
+                }
+            }
         }
     }
 
@@ -30,7 +47,7 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        pendingResult: BroadcastReceiver.PendingResult? = null
+        onComplete: () -> Unit
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_daily_image_landscape)
 
@@ -42,12 +59,17 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.widget_image, defaultPI)
 
+        // 立即提交首帧占位视图，防止桌面小组件在网络拉取期间显示未初始化的全黑空状态
+        views.setTextViewText(R.id.widget_author, "壁纸同步中...")
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+
         // Fetch daily random image from cache or moely API in a background thread
         thread {
             try {
                 // Try cache first
                 val cached = WidgetCacheManager.getAndPopCachedImage(context, isLandscape = true)
                 if (cached != null) {
+                    Log.i(TAG, "[DailyImageLandscapeProvider] Loaded image from local cache for widgetId=$appWidgetId: ${cached.localPath}")
                     val bitmap = BitmapFactory.decodeFile(cached.localPath)
                     if (bitmap != null) {
                         views.setImageViewBitmap(R.id.widget_image, bitmap)
@@ -65,11 +87,15 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
                         views.setOnClickPendingIntent(R.id.widget_image, clickPI)
                         
                         appWidgetManager.updateAppWidget(appWidgetId, views)
+                        Log.i(TAG, "[DailyImageLandscapeProvider] Successfully updated widgetId=$appWidgetId from cache")
                         return@thread
+                    } else {
+                        Log.w(TAG, "[DailyImageLandscapeProvider] Cache file exists but decode failed: ${cached.localPath}")
                     }
                 }
 
                 // If cache is empty or fails, fall back to direct request (with landscape filtering)
+                Log.i(TAG, "[DailyImageLandscapeProvider] Cache missed, fetching index.json from network for widgetId=$appWidgetId")
                 val url = URL("https://www.moely.link/index.json")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 8000
@@ -77,7 +103,10 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("User-Agent", getUserAgent(context))
 
-                if (conn.responseCode == 200) {
+                val responseCode = conn.responseCode
+                Log.i(TAG, "[DailyImageLandscapeProvider] index.json responseCode=$responseCode")
+
+                if (responseCode == 200) {
                     val reader = BufferedReader(InputStreamReader(conn.inputStream))
                     val response = StringBuilder()
                     var line: String?
@@ -88,7 +117,7 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
 
                     val jsonArray = JSONArray(response.toString())
                     if (jsonArray.length() > 0) {
-                        val indices = (0 until jsonArray.length()).toList().shuffled()
+                        val indices = (0 until jsonArray.length()).toList().shuffled().take(15)
                         var found = false
                         for (randomIndex in indices) {
                             val imgObject = jsonArray.getJSONObject(randomIndex)
@@ -112,6 +141,7 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
                             val height = options.outHeight
 
                             if (width >= height && width > 0) {
+                                Log.i(TAG, "[DailyImageLandscapeProvider] Found matching landscape image ($width x $height), id=$id, author=$author")
                                 // Download full image
                                 val fullConn = imgUrl.openConnection() as HttpURLConnection
                                 fullConn.connectTimeout = 10000
@@ -133,6 +163,7 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
                                     views.setOnClickPendingIntent(R.id.widget_image, clickPI)
                                     
                                     appWidgetManager.updateAppWidget(appWidgetId, views)
+                                    Log.i(TAG, "[DailyImageLandscapeProvider] Successfully updated widgetId=$appWidgetId from network")
                                     found = true
                                     break
                                 }
@@ -141,6 +172,7 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
                         
                         // If we didn't find any landscape image in shuffled list, do a simple random fallback
                         if (!found) {
+                            Log.w(TAG, "[DailyImageLandscapeProvider] No strict landscape orientation found, using random fallback")
                             val randomIndex = (0 until jsonArray.length()).random()
                             val imgObject = jsonArray.getJSONObject(randomIndex)
                             val imageUrl = imgObject.getString("urls")
@@ -167,16 +199,19 @@ class DailyImageLandscapeProvider : AppWidgetProvider() {
                                 views.setOnClickPendingIntent(R.id.widget_image, clickPI)
                                 
                                 appWidgetManager.updateAppWidget(appWidgetId, views)
+                                Log.i(TAG, "[DailyImageLandscapeProvider] Fallback updated widgetId=$appWidgetId")
                             }
                         }
                     }
+                } else {
+                    Log.w(TAG, "[DailyImageLandscapeProvider] Network response not 200, code=$responseCode")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "[DailyImageLandscapeProvider] Exception updating widgetId=$appWidgetId: ${e.message}", e)
             } finally {
                 // Trigger prefetch to fill queue for next time
                 WidgetCacheManager.triggerPrefetch(context, isLandscape = true)
-                pendingResult?.finish()
+                onComplete()
             }
         }
     }

@@ -109,7 +109,7 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
       ToastHelper.show(context, '当前平台不支持添加桌面小组件', type: ToastType.warning);
       return;
     }
-    
+
     final hasPermission = await WidgetService.checkShortcutPermission();
     if (!hasPermission) {
       if (!mounted) return;
@@ -119,10 +119,16 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
           final theme = Theme.of(context);
           final isDark = theme.brightness == Brightness.dark;
           return AlertDialog(
+            backgroundColor: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
             title: const Text('需要桌面快捷方式权限'),
-            content: const Text(
-              '由于您的系统限制，快捷添加小组件需要「创建桌面快捷方式」权限。\n\n'
-              '请点击“去开启”前往设置界面手动允许该权限，然后再试。'
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.85,
+              child: const Text(
+                '由于您的系统限制，快捷添加小组件需要「创建桌面快捷方式」权限。\n\n'
+                '请点击”去开启”前往设置界面手动允许该权限，然后再试。',
+              ),
             ),
             actions: [
               TextButton(
@@ -138,7 +144,7 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: theme.colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: const Text('去开启'),
@@ -152,27 +158,43 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
       }
       return;
     }
-    
+
+    // 等待至少两帧，确保此前所有 BottomSheet/Dialog 的关闭动画已结束、
+    // Activity window focus 已完整归还前台。部分国产 Launcher（ColorOS/OriginOS）
+    // 会在 Binder 侧检测 caller 的前台状态，focus 空窗期内调用会被静默拒绝。
+    await Future.delayed(const Duration(milliseconds: 320));
+    if (!mounted) return;
+
     print('[MyWidgetsScreen] Requesting pinWidget for providerName: $providerName');
     final success = await WidgetService.pinWidget(providerName);
     print('[MyWidgetsScreen] pinWidget returned: $success');
     if (mounted) {
       if (success) {
+        ToastHelper.show(context, '请在系统底部弹窗中点击「添加」即可固定到桌面', type: ToastType.success);
+      } else {
         showDialog(
           context: context,
           builder: (context) {
             final theme = Theme.of(context);
             final isDark = theme.brightness == Brightness.dark;
             return AlertDialog(
-              title: const Text('添加请求已发送'),
-              content: const Text(
-                '已向系统桌面发送小组件添加请求。\n\n'
-                '说明与排查：\n'
-                '1. 如果桌面未出现确认弹窗，请检查是否已授予应用「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」；\n'
-                '2. 国产系统手动添加指引（推荐）：\n'
-                '• ColorOS / Realme：桌面双指捏合或长按 -> 点击「微件」（注意非「卡片」）-> 找到「萌哩」添加；\n'
-                '• OriginOS：长按桌面空白处 -> 进入「原子组件/组件」-> 滑到底部「经典组件/安卓微件」-> 添加；\n'
-                '• MIUI / HyperOS：长按桌面 -> 点击「添加小部件」-> 滑到底部「支持小部件的应用」-> 添加。'
+              backgroundColor: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              title: const Text('系统桌面未响应'),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: const SingleChildScrollView(
+                  child: Text(
+                    '已向系统桌面发送小组件添加请求。\n\n'
+                    '说明与排查：\n'
+                    '1. 如果桌面未出现确认弹窗，请检查是否已授予应用「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」；\n'
+                    '2. 国产系统手动添加指引（推荐）：\n'
+                    '• ColorOS / Realme：桌面双指捏合或长按 -> 点击「微件」（注意非「卡片」）-> 找到「萌哩」添加；\n'
+                    '• OriginOS：长按桌面空白处 -> 进入「原子组件/组件」-> 滑到底部「经典组件/安卓微件」-> 添加；\n'
+                    '• MIUI / HyperOS：长按桌面 -> 点击「添加小部件」-> 滑到底部「支持小部件的应用」-> 添加。',
+                  ),
+                ),
               ),
               actions: [
                 TextButton(
@@ -200,8 +222,6 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
             );
           },
         );
-      } else {
-        ToastHelper.show(context, '桌面暂未响应快捷添加，建议长按桌面从「微件/组件」手动添加！', type: ToastType.warning);
       }
     }
   }
@@ -803,6 +823,7 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
                                       child: isLocal
                                           ? Image.file(File(imgPath), fit: BoxFit.cover)
                                           : CachedNetworkImage(
+                                              cacheManager: AppImageCacheManager(),
                                               imageUrl: imgPath,
                                               httpHeaders: UserAgentService.headers,
                                               fit: BoxFit.cover,
@@ -1343,6 +1364,7 @@ class _MyWidgetsScreenState extends State<MyWidgetsScreen> {
                                 child: isOffline
                                     ? Image.file(localFile, fit: BoxFit.cover)
                                     : CachedNetworkImage(
+                                        cacheManager: AppImageCacheManager(),
                                         imageUrl: imageUrl,
                                         httpHeaders: UserAgentService.headers,
                                         fit: BoxFit.cover,

@@ -14,6 +14,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/update_service.dart';
 
 class SettingsTab extends StatefulWidget {
@@ -212,6 +213,15 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
     );
   }
 
+  void _showFontSettingDialog(ThemeData theme) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _FontSettingDialog(theme: theme);
+      },
+    );
+  }
+
   Widget _buildThemeModeSelector(ThemeData theme) {
     final currentMode = AppSettings.instance.themeMode;
     return Padding(
@@ -321,6 +331,8 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
           fontWeight: FontWeight.bold,
           fontSize: 14,
           color: isEnabled ? null : theme.colorScheme.onSurface.withOpacity(0.38),
+          fontFamily: AppSettings.instance.currentFontFamily,
+          fontFamilyFallback: const ['sans-serif'],
         ),
       ),
       subtitle: Text(
@@ -328,6 +340,8 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
         style: TextStyle(
           fontSize: 12,
           color: isEnabled ? null : theme.colorScheme.onSurface.withOpacity(0.38),
+          fontFamily: AppSettings.instance.currentFontFamily,
+          fontFamilyFallback: const ['sans-serif'],
         ),
       ),
       trailing: Opacity(
@@ -348,11 +362,40 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
               color: isEnabled ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.38),
               fontWeight: FontWeight.bold,
               fontSize: 13,
+              fontFamily: AppSettings.instance.currentFontFamily,
+              fontFamilyFallback: const ['sans-serif'],
             ),
-            items: const [
-              DropdownMenuItem(value: 'microsoft', child: Text(' Microsoft ')),
-              DropdownMenuItem(value: 'google', child: Text(' Google ')),
-              DropdownMenuItem(value: 'reverso', child: Text(' Reverso ')),
+            items: [
+              DropdownMenuItem(
+                value: 'microsoft',
+                child: Text(
+                  ' Microsoft ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
+              DropdownMenuItem(
+                value: 'google',
+                child: Text(
+                  ' Google ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
+              DropdownMenuItem(
+                value: 'reverso',
+                child: Text(
+                  ' Reverso ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
             ],
             onChanged: isEnabled
                 ? (engine) {
@@ -381,6 +424,8 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
           fontWeight: FontWeight.bold,
           fontSize: 14,
           color: isEnabled ? null : theme.colorScheme.onSurface.withOpacity(0.38),
+          fontFamily: AppSettings.instance.currentFontFamily,
+          fontFamilyFallback: const ['sans-serif'],
         ),
       ),
       subtitle: Text(
@@ -388,6 +433,8 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
         style: TextStyle(
           fontSize: 12,
           color: isEnabled ? null : theme.colorScheme.onSurface.withOpacity(0.38),
+          fontFamily: AppSettings.instance.currentFontFamily,
+          fontFamilyFallback: const ['sans-serif'],
         ),
       ),
       trailing: Opacity(
@@ -408,13 +455,60 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
               color: isEnabled ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.38),
               fontWeight: FontWeight.bold,
               fontSize: 13,
+              fontFamily: AppSettings.instance.currentFontFamily,
+              fontFamilyFallback: const ['sans-serif'],
             ),
-            items: const [
-              DropdownMenuItem(value: 'zh-CN', child: Text(' 简体中文 ')),
-              DropdownMenuItem(value: 'zh-TW', child: Text(' 繁体中文 ')),
-              DropdownMenuItem(value: 'en', child: Text(' English ')),
-              DropdownMenuItem(value: 'ja', child: Text(' 日本語 ')),
-              DropdownMenuItem(value: 'ko', child: Text(' 한국어 ')),
+            items: [
+              DropdownMenuItem(
+                value: 'zh-CN',
+                child: Text(
+                  ' 简体中文 ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
+              DropdownMenuItem(
+                value: 'zh-TW',
+                child: Text(
+                  ' 繁体中文 ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
+              DropdownMenuItem(
+                value: 'en',
+                child: Text(
+                  ' English ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
+              DropdownMenuItem(
+                value: 'ja',
+                child: Text(
+                  ' 日本語 ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
+              DropdownMenuItem(
+                value: 'ko',
+                child: Text(
+                  ' 한국어 ',
+                  style: TextStyle(
+                    fontFamily: AppSettings.instance.currentFontFamily,
+                    fontFamilyFallback: const ['sans-serif'],
+                  ),
+                ),
+              ),
             ],
             onChanged: isEnabled
                 ? (lang) {
@@ -494,6 +588,21 @@ class _SettingsTabState extends State<SettingsTab> with AutomaticKeepAliveClient
                             ),
                           ),
                         ),
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+
+                      // Application Font trigger
+                      ListTile(
+                        leading: Icon(Icons.font_download_rounded, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                        title: const Text('应用字体', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: Text(
+                          AppSettings.instance.fontModeDescription,
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                        onTap: () => _showFontSettingDialog(theme),
                       ),
                     ],
                   ),
@@ -1930,3 +2039,482 @@ class _AppInfoDialogState extends State<_AppInfoDialog> {
     );
   }
 }
+
+class _FontSettingDialog extends StatefulWidget {
+  final ThemeData theme;
+
+  const _FontSettingDialog({
+    required this.theme,
+  });
+
+  @override
+  State<_FontSettingDialog> createState() => _FontSettingDialogState();
+}
+
+class _FontSettingDialogState extends State<_FontSettingDialog> {
+  late AppFontMode _selectedMode;
+  bool _isImporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMode = AppSettings.instance.fontMode;
+  }
+
+  Future<void> _pickAndImportFont() async {
+    setState(() => _isImporting = true);
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['ttf', 'otf'],
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        final path = file.path;
+        if (path != null) {
+          final fileName = file.name.isNotEmpty ? file.name : p.basename(path);
+          // 导入字体并载入内存，但不立即切换全局字体，等待用户点击“确定”
+          final success = await AppSettings.instance.importCustomFont(path, fileName, applyImmediately: false);
+          if (mounted) {
+            if (success) {
+              setState(() {
+                _selectedMode = AppFontMode.custom;
+              });
+              ToastHelper.show(context, '字体文件加载成功，请点击确定以应用', type: ToastType.success);
+            } else {
+              ToastHelper.show(context, '字体文件加载失败，请确保格式有效', type: ToastType.error);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.show(context, '选择字体文件出错: $e', type: ToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isImporting = false);
+      }
+    }
+  }
+
+  String _getFileSizeString(String? path) {
+    if (path == null) return '';
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return '';
+      final bytes = file.lengthSync();
+      if (bytes < 1024 * 1024) {
+        return '${(bytes / 1024).toStringAsFixed(1)} KB';
+      } else {
+        return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+      }
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String? get _systemFontFamily {
+    if (Platform.isAndroid) return 'sans-serif';
+    if (Platform.isIOS || Platform.isMacOS) return '.AppleSystemUIFont';
+    if (Platform.isWindows) return 'Microsoft YaHei';
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppSettings.instance,
+      builder: (context, _) {
+        final activeColor = AppSettings.instance.themeColor;
+        final hasCustom = AppSettings.instance.hasCustomFont;
+        final customName = AppSettings.instance.customFontName;
+        final customPath = AppSettings.instance.customFontPath;
+        final customSize = _getFileSizeString(customPath);
+
+        // 解析当前所选预览字体的 FontFamily 与 Fallback
+        String? previewFont;
+        List<String>? previewFallback;
+        String previewFontLabel;
+        switch (_selectedMode) {
+          case AppFontMode.noto:
+            previewFont = 'NotoSansSC';
+            previewFallback = const ['sans-serif'];
+            previewFontLabel = '默认 (思源黑体)';
+            break;
+          case AppFontMode.system:
+            previewFont = _systemFontFamily;
+            previewFallback = const ['sans-serif'];
+            previewFontLabel = '系统默认字体';
+            break;
+          case AppFontMode.custom:
+            previewFont = AppSettings.instance.customFontFamily ?? 'NotoSansSC';
+            previewFallback = const ['sans-serif'];
+            previewFontLabel = customName != null ? '自定义 ($customName)' : '自定义字体';
+            break;
+        }
+
+        return AlertDialog(
+          backgroundColor: widget.theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+          title: Row(
+            children: [
+              Icon(Icons.font_download_rounded, color: activeColor),
+              const SizedBox(width: 12),
+              const Text('应用字体设置', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. 上方：三个字体选择框
+                  _buildFontRadioItem(
+                    title: '默认 (思源黑体)',
+                    isSelected: _selectedMode == AppFontMode.noto,
+                    activeColor: activeColor,
+                    onTap: () {
+                      setState(() {
+                        _selectedMode = AppFontMode.noto;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildFontRadioItem(
+                    title: '系统默认字体',
+                    subtitle: '跟随设备系统当前的字体',
+                    isSelected: _selectedMode == AppFontMode.system,
+                    activeColor: activeColor,
+                    onTap: () {
+                      setState(() {
+                        _selectedMode = AppFontMode.system;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildCustomFontRadioItem(
+                    activeColor: activeColor,
+                    isSelected: _selectedMode == AppFontMode.custom,
+                    hasCustom: hasCustom,
+                    customName: customName,
+                    customSize: customSize,
+                    onTap: () {
+                      if (hasCustom) {
+                        setState(() {
+                          _selectedMode = AppFontMode.custom;
+                        });
+                      } else {
+                        _pickAndImportFont();
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 2. 下方：统一字体预览框
+                  Row(
+                    children: [
+                      Icon(Icons.preview_rounded, size: 16, color: activeColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        '字体预览：$previewFontLabel',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: widget.theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: widget.theme.colorScheme.onSurface.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: widget.theme.colorScheme.onSurface.withOpacity(0.09),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '萌哩 - 收藏美图，收获美好',
+                          style: TextStyle(
+                            inherit: false,
+                            fontFamily: previewFont,
+                            fontFamilyFallback: previewFallback,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: widget.theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'AaBbCcDdEeFf 01234567890 moely.link',
+                          style: TextStyle(
+                            inherit: false,
+                            fontFamily: previewFont,
+                            fontFamilyFallback: previewFallback,
+                            fontSize: 13,
+                            height: 1.45,
+                            fontWeight: FontWeight.w400,
+                            color: widget.theme.colorScheme.onSurface.withOpacity(0.85),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'かわいいイラスト · 桜が咲く季節に',
+                          style: TextStyle(
+                            inherit: false,
+                            fontFamily: previewFont,
+                            fontFamilyFallback: previewFallback,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w400,
+                            color: widget.theme.colorScheme.onSurface.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          // 3. 右下角操作按钮：取消 与 确定
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                '取消',
+                style: TextStyle(
+                  inherit: false,
+                  fontFamily: AppSettings.instance.currentFontFamily,
+                  fontFamilyFallback: const ['sans-serif'],
+                  color: widget.theme.colorScheme.primary,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (_selectedMode != AppSettings.instance.fontMode) {
+                  AppSettings.instance.setFontMode(_selectedMode);
+                  if (mounted) {
+                    ToastHelper.show(
+                      context,
+                      '已应用字体：${AppSettings.instance.fontModeDescription}',
+                      type: ToastType.success,
+                    );
+                  }
+                }
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: activeColor,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                '确定',
+                style: TextStyle(
+                  inherit: false,
+                  fontFamily: previewFont,
+                  fontFamilyFallback: previewFallback,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFontRadioItem({
+    required String title,
+    String? subtitle,
+    required bool isSelected,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withOpacity(0.08)
+              : widget.theme.colorScheme.onSurface.withOpacity(0.025),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? activeColor : widget.theme.colorScheme.onSurface.withOpacity(0.1),
+            width: isSelected ? 1.8 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? activeColor : widget.theme.colorScheme.onSurface.withOpacity(0.4),
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      fontSize: 14,
+                      color: isSelected ? activeColor : widget.theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  if (subtitle != null && subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: widget.theme.colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomFontRadioItem({
+    required Color activeColor,
+    required bool isSelected,
+    required bool hasCustom,
+    required String? customName,
+    required String customSize,
+    required VoidCallback onTap,
+  }) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? activeColor.withOpacity(0.08)
+            : widget.theme.colorScheme.onSurface.withOpacity(0.025),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isSelected ? activeColor : widget.theme.colorScheme.onSurface.withOpacity(0.1),
+          width: isSelected ? 1.8 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+                  color: isSelected ? activeColor : widget.theme.colorScheme.onSurface.withOpacity(0.4),
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '自定义字体',
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          fontSize: 14,
+                          color: isSelected ? activeColor : widget.theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        hasCustom
+                            ? '已载入: ${customName ?? '自定义字体'}${customSize.isNotEmpty ? ' ($customSize)' : ''}'
+                            : '支持导入本地 .ttf 或 .otf 格式文件',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: widget.theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const SizedBox(width: 32), // 与左侧单选对齐
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isImporting ? null : _pickAndImportFont,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    side: BorderSide(color: activeColor.withOpacity(0.35)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: _isImporting
+                      ? SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: activeColor),
+                        )
+                      : Icon(hasCustom ? Icons.refresh_rounded : Icons.file_upload_outlined, size: 15, color: activeColor),
+                  label: Text(
+                    hasCustom ? '更换字体文件' : '导入字体 (.ttf/.otf)',
+                    style: TextStyle(fontSize: 11, color: activeColor, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              if (hasCustom) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: '清除自定义字体',
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                  onPressed: () async {
+                    await AppSettings.instance.removeCustomFont();
+                    setState(() {
+                      _selectedMode = AppFontMode.noto;
+                    });
+                    if (mounted) {
+                      ToastHelper.show(context, '已清除自定义字体', type: ToastType.info);
+                    }
+                  },
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+

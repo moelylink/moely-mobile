@@ -11,12 +11,20 @@ import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 
+import android.util.Log
+
 class PetWidgetProvider : AppWidgetProvider() {
 
+    companion object {
+        private const val TAG = "MoelyWidget"
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        Log.i(TAG, "[PetWidgetProvider] onUpdate triggered. widgetIds count=${appWidgetIds.size}: ${appWidgetIds.joinToString()}")
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_pet)
             val isUnlocked = isPremiumUnlocked(context)
+            Log.i(TAG, "[PetWidgetProvider] widgetId=$appWidgetId, isUnlocked=$isUnlocked")
 
             if (!isUnlocked) {
                 views.setViewVisibility(R.id.lock_overlay, View.VISIBLE)
@@ -38,6 +46,7 @@ class PetWidgetProvider : AppWidgetProvider() {
                 setupKanbanWidget(context, views)
             }
             appWidgetManager.updateAppWidget(appWidgetId, views)
+            Log.i(TAG, "[PetWidgetProvider] Updated widgetId=$appWidgetId")
         }
     }
 

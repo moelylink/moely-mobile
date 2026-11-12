@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_image_cache_manager.dart';
 
 class SmoothAspectRatioImage extends StatefulWidget {
   final String? imageUrl;
@@ -63,6 +64,7 @@ class _SmoothAspectRatioImageState extends State<SmoothAspectRatioImage> {
           : CachedNetworkImageProvider(
               widget.imageUrl!,
               headers: widget.httpHeaders,
+              cacheManager: AppImageCacheManager(),
             ) as ImageProvider;
 
       final ImageStream stream = provider.resolve(ImageConfiguration.empty);

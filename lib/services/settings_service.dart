@@ -1,8 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../utils/cache_helper.dart';
+
+enum AppFontMode {
+  noto, // 默认 (思源黑体 Noto Sans SC)
+  system, // 系统字体
+  custom, // 自定义导入字体
+}
 
 class AppSettings extends ChangeNotifier {
   static final AppSettings instance = AppSettings._();
@@ -11,6 +19,10 @@ class AppSettings extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   Color _themeColor = const Color(0xFF8B5CF6); // Royal Purple default
   Color _customColor = const Color(0xFF3B82F6); // Vibrant Blue default custom
+  AppFontMode _fontMode = AppFontMode.noto; // 默认使用打包的思源黑体
+  String? _customFontPath;
+  String? _customFontName;
+  String? _activeCustomFamily;
   bool _enableTranslation = true;
   String _translationLanguage = 'zh-CN';
   String _translationEngine = 'microsoft'; // 'microsoft' or 'google'
@@ -28,6 +40,33 @@ class AppSettings extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   Color get themeColor => _themeColor;
   Color get customColor => _customColor;
+  AppFontMode get fontMode => _fontMode;
+  String? get customFontName => _customFontName;
+  String? get customFontPath => _customFontPath;
+  String? get customFontFamily => _activeCustomFamily;
+  bool get hasCustomFont => _customFontPath != null && File(_customFontPath!).existsSync();
+
+  String? get currentFontFamily {
+    switch (_fontMode) {
+      case AppFontMode.noto:
+        return 'NotoSansSC';
+      case AppFontMode.system:
+        return null;
+      case AppFontMode.custom:
+        return _activeCustomFamily ?? 'NotoSansSC';
+    }
+  }
+
+  String get fontModeDescription {
+    switch (_fontMode) {
+      case AppFontMode.noto:
+        return '默认 (思源黑体 Noto Sans SC)';
+      case AppFontMode.system:
+        return '系统字体';
+      case AppFontMode.custom:
+        return _customFontName != null ? '自定义 ($_customFontName)' : '自定义字体';
+    }
+  }
   bool get enableTranslation => _enableTranslation;
   String get translationLanguage => _translationLanguage;
   String get translationEngine => _translationEngine;
@@ -112,8 +151,48 @@ class AppSettings extends ChangeNotifier {
         if (data['autoClearDaysIndex'] != null) {
           _autoClearDaysIndex = data['autoClearDaysIndex'];
         }
+        if (data['fontMode'] != null && data['fontMode'] is int) {
+          final int modeIndex = data['fontMode'];
+          if (modeIndex >= 0 && modeIndex < AppFontMode.values.length) {
+            _fontMode = AppFontMode.values[modeIndex];
+          }
+        }
+        if (data['customFontPath'] != null) {
+          _customFontPath = data['customFontPath'];
+        }
+        if (data['customFontName'] != null) {
+          _customFontName = data['customFontName'];
+        }
+
+        if (_customFontPath != null && File(_customFontPath!).existsSync()) {
+          final loaded = await _loadCustomFontFromFile(_customFontPath!);
+          if (!loaded && _fontMode == AppFontMode.custom) {
+            _fontMode = AppFontMode.noto;
+          }
+        } else if (_fontMode == AppFontMode.custom) {
+          _fontMode = AppFontMode.noto;
+        }
       }
     } catch (_) {}
+    notifyListeners();
+  }
+
+  /// 动态从本地字体文件加载字体并注入 Flutter 运行时
+  Future<bool> _loadCustomFontFromFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) return false;
+      final bytes = await file.readAsBytes();
+      final newFamily = 'CustomAppFont_${DateTime.now().millisecondsSinceEpoch}';
+      final fontLoader = FontLoader(newFamily);
+      fontLoader.addFont(Future.value(ByteData.sublistView(Uint8List.fromList(bytes))));
+      await fontLoader.load();
+      _activeCustomFamily = newFamily;
+      return true;
+    } catch (e) {
+      debugPrint('加载自定义字体失败: $e');
+      return false;
+    }
   }
 
   /// Save current settings to disk
@@ -129,6 +208,9 @@ class AppSettings extends ChangeNotifier {
         'themeMode': _themeMode.index,
         'themeColor': _themeColor.value,
         'customColor': _customColor.value,
+        'fontMode': _fontMode.index,
+        'customFontPath': _customFontPath,
+        'customFontName': _customFontName,
         'enableTranslation': _enableTranslation,
         'translationLanguage': _translationLanguage,
         'translationEngine': _translationEngine,
@@ -161,6 +243,61 @@ class AppSettings extends ChangeNotifier {
 
   void setCustomColor(Color color) {
     _customColor = color;
+    save();
+    notifyListeners();
+  }
+
+  void setFontMode(AppFontMode mode) {
+    if (mode == AppFontMode.custom && !hasCustomFont) return;
+    _fontMode = mode;
+    save();
+    notifyListeners();
+  }
+
+  Future<bool> importCustomFont(String sourcePath, String originalName, {bool applyImmediately = true}) async {
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return false;
+
+      final isOtf = sourcePath.toLowerCase().endsWith('.otf');
+      final ext = isOtf ? 'otf' : 'ttf';
+
+      final supportDir = await getApplicationSupportDirectory();
+      final fontDir = Directory('${supportDir.path}/settings/fonts');
+      if (!fontDir.existsSync()) {
+        fontDir.createSync(recursive: true);
+      }
+      final targetPath = '${fontDir.path}/custom_font.$ext';
+
+      // 覆盖写入目标文件
+      await sourceFile.copy(targetPath);
+
+      final success = await _loadCustomFontFromFile(targetPath);
+      if (!success) {
+        return false;
+      }
+
+      _customFontPath = targetPath;
+      _customFontName = originalName;
+      if (applyImmediately) {
+        _fontMode = AppFontMode.custom;
+      }
+      save();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('导入字体出错: $e');
+      return false;
+    }
+  }
+
+  Future<void> removeCustomFont() async {
+    _customFontName = null;
+    _customFontPath = null;
+    _activeCustomFamily = null;
+    if (_fontMode == AppFontMode.custom) {
+      _fontMode = AppFontMode.noto;
+    }
     save();
     notifyListeners();
   }

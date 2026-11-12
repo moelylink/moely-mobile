@@ -1,45 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'views/home_screen.dart';
-import 'views/video_splash_screen.dart';
-import 'services/user_agent_service.dart';
+import 'views/lottie_splash_screen.dart';
 import 'services/settings_service.dart';
-import 'services/kanban_service.dart';
 import 'services/url_handler_service.dart';
 import 'services/log_service.dart';
-import 'services/auth_service.dart';
-import 'utils/notification_helper.dart';
-import 'utils/cache_helper.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize notifications
-  await NotificationHelper.init();
-  
-  // Initialize Supabase Client
-  await Supabase.initialize(
-    url: 'https://fefckqwvcvuadiixvhns.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlZmNrcXd2Y3Z1YWRpaXh2aG5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYzNDE5OTUsImV4cCI6MjA1MTkxNzk5NX0.-OUllwH7v2K-j4uIx7QQaV654R5Gz5_1jP4BGdkWWfg',
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
-  );
-  
-  // Initialize dynamic Native User-Agent resolution from platform version definitions
-  await UserAgentService.initialize();
-  
-  // Load AppSettings persistent configurations
-  await AppSettings.instance.init();
-
-  // Trigger low-priority background auto cache cleanup (delay 3 seconds so startup UI is not affected)
-  Future.delayed(const Duration(seconds: 3), () {
-    CacheHelper.performAutoCacheCleanup();
-  });
-
-  // Load Kanban Mascot persistent configurations
-  await KanbanService.instance.init();
 
   // Redirect debugPrint to capture application logs in Debug Mode
   final originalDebugPrint = debugPrint;
@@ -49,18 +16,13 @@ void main() async {
     }
     originalDebugPrint(message, wrapWidth: wrapWidth);
   };
-  
-  // Initialize Deep Linking listeners
-  UrlHandlerService.initialize();
-  
-  // Pre-initialize AuthService to ensure it starts listening to session recovery events immediately
-  AuthService.instance;
-  
-  // Set preferred orientations and custom system UI overlay styling
+
+  // Set preferred orientations
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
-  
+
+  // Instantly mount app so first frame renders immediately and dismisses system splash
   runApp(const MoelyApp());
 }
 
@@ -73,6 +35,7 @@ class MoelyApp extends StatelessWidget {
       animation: AppSettings.instance,
       builder: (context, _) {
         final seedColor = AppSettings.instance.themeColor;
+        final currentFont = AppSettings.instance.currentFontFamily;
         
         // Curated Harmonious premium colors matching modern sleek guidelines
         final lightColorScheme = ColorScheme.fromSeed(
@@ -107,6 +70,7 @@ class MoelyApp extends StatelessWidget {
           // Light Mode Theme config
           theme: ThemeData(
             useMaterial3: true,
+            fontFamily: currentFont,
             colorScheme: lightColorScheme,
             scaffoldBackgroundColor: lightColorScheme.background,
             cardTheme: CardThemeData(
@@ -122,6 +86,7 @@ class MoelyApp extends StatelessWidget {
                 color: lightColorScheme.onBackground,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                fontFamily: currentFont,
               ),
             ),
             snackBarTheme: SnackBarThemeData(
@@ -131,6 +96,7 @@ class MoelyApp extends StatelessWidget {
                 color: lightColorScheme.onSurface,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
+                fontFamily: currentFont,
               ),
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -146,6 +112,7 @@ class MoelyApp extends StatelessWidget {
           // Dark Mode Theme config
           darkTheme: ThemeData(
             useMaterial3: true,
+            fontFamily: currentFont,
             colorScheme: darkColorScheme,
             scaffoldBackgroundColor: darkColorScheme.background,
             cardTheme: CardThemeData(
@@ -161,6 +128,7 @@ class MoelyApp extends StatelessWidget {
                 color: darkColorScheme.onBackground,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                fontFamily: currentFont,
               ),
             ),
             snackBarTheme: SnackBarThemeData(
@@ -170,6 +138,7 @@ class MoelyApp extends StatelessWidget {
                 color: darkColorScheme.onSurface,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
+                fontFamily: currentFont,
               ),
               elevation: 6,
               shape: RoundedRectangleBorder(
@@ -183,7 +152,7 @@ class MoelyApp extends StatelessWidget {
           ),
           
           themeMode: AppSettings.instance.themeMode,
-          home: const VideoSplashScreen(),
+          home: const LottieSplashScreen(),
         );
       },
     );

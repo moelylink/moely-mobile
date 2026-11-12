@@ -197,4 +197,32 @@ class WidgetService {
       return false;
     }
   }
+
+  /// Get device ROM and manufacturer information for tailored system guidance
+  static Future<Map<String, String>> getDeviceRomInfo() async {
+    if (!isPlatformAndroid) {
+      return {
+        'romType': 'other',
+        'romName': '非 Android 平台',
+        'manufacturer': '',
+        'brand': '',
+        'model': '',
+      };
+    }
+    try {
+      final Map? result = await _channel.invokeMapMethod('getDeviceRomInfo');
+      if (result != null) {
+        return result.map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
+      }
+    } on PlatformException catch (e) {
+      print('Failed to get device ROM info: ${e.message}');
+    }
+    return {
+      'romType': 'other',
+      'romName': 'Android 原生系统',
+      'manufacturer': '',
+      'brand': '',
+      'model': '',
+    };
+  }
 }

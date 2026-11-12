@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_image_cache_manager.dart';
 import '../models/promo_item.dart';
 import '../services/url_handler_service.dart';
 import '../services/user_agent_service.dart';
@@ -32,6 +33,7 @@ class PromoCard extends StatelessWidget {
             Stack(
               children: [
                 CachedNetworkImage(
+                  cacheManager: AppImageCacheManager(),
                   imageUrl: promo.fullImgUrl,
                   httpHeaders: {'User-Agent': UserAgentService.userAgent},
                   fit: BoxFit.cover,

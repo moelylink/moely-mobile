@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">萌哩</string>
+    
+    <!-- Desktop Widgets Titles -->
+    <string name="widget_classic_name">萌哩 · 每日壁纸 (经典)</string>
+    <string name="widget_classic_desc">每日随机插画与壁纸推荐</string>
+    
+    <string name="widget_portrait_name">萌哩 · 每日壁纸 (竖屏)</string>
+    <string name="widget_portrait_desc">精选竖屏大图壁纸，适配手机桌面</string>
+    
+    <string name="widget_landscape_name">萌哩 · 每日壁纸 (横屏)</string>
+    <string name="widget_landscape_desc">电影感横屏宽幅插画，每日精选更新</string>
+    
+    <string name="widget_pet_name">萌哩 · 随机探索看板娘</string>
+    <string name="widget_pet_desc">桌面可爱看板娘微件，支持互动与状态查看</string>
+    
+    <string name="widget_gallery_name">萌哩 · DIY自定义画廊</string>
+    <string name="widget_gallery_desc">多张精选照片轮播，打造专属桌面画廊</string>
+</resources>

@@ -232,7 +232,7 @@ class HtmlParserService {
 
     File? cacheFile;
     try {
-      final cacheDir = await getTemporaryDirectory();
+      final cacheDir = await getApplicationSupportDirectory();
       cacheFile = File('${cacheDir.path}/algolia_config.json');
       
       // 1. Try reading from persistent cache
@@ -343,16 +343,16 @@ class HtmlParserService {
           final pageId = idMatch.group(1)!;
 
           // Parse artist and category from description
-          // Example description: "由 @username 创作的插画 - ID: 1234，发布于Twitter"
+          // Example description: "由 @username 创作的插画 - ID: 1234，发布于Twitter" 或 "由 username 创作的插画..."
           final String desc = hit['description'] ?? '';
-          String user = 'Unknown';
+          String user = hit['artist']?.toString().trim() ?? 'Unknown';
           String category = 'Other';
 
           if (desc.isNotEmpty) {
-            final authorMatch = RegExp(r'由\s*@([^\s，\-]+)\s*创作').firstMatch(desc) ??
-                                RegExp(r'由\s*@([^\s]+)\s*创作').firstMatch(desc);
-            if (authorMatch != null) {
-              user = authorMatch.group(1)?.trim() ?? 'Unknown';
+            final artistMatch = RegExp(r'由\s*@?\s*([^\s，\-]+)\s*创作').firstMatch(desc) ??
+                                RegExp(r'由\s*@?\s*([^\s]+)\s*创作').firstMatch(desc);
+            if (artistMatch != null) {
+              user = artistMatch.group(1)?.trim() ?? user;
             }
 
             final lowerDesc = desc.toLowerCase();
@@ -361,6 +361,10 @@ class HtmlParserService {
             } else if (lowerDesc.contains('twitter')) {
               category = 'Twitter';
             }
+          }
+
+          if (user.startsWith('@')) {
+            user = user.substring(1).trim();
           }
 
           // Get image preview URL or fallback

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_image_cache_manager.dart';
 import '../services/user_agent_service.dart';
 import 'my_widgets_screen.dart';
 
@@ -66,6 +67,7 @@ class WidgetImageViewerScreen extends StatelessWidget {
                         ),
                       )
                     : CachedNetworkImage(
+                        cacheManager: AppImageCacheManager(),
                         imageUrl: imageUrl,
                         httpHeaders: UserAgentService.headers,
                         fit: BoxFit.contain,

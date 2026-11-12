@@ -175,6 +175,7 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
     }
     
     final excludedFolders = [
+      imgDir.path,
       ...detDirs.map((d) => d.path),
       ...idxDirs.map((d) => d.path),
       favDir.path,
@@ -380,8 +381,10 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
         Directory('${docDir.path}/index_cache'),
       ];
       final favDir = await CacheHelper.getFavoritesCacheDir();
+      final imgDir = await CacheHelper.getImagesCacheDir();
 
       final excludedFolders = [
+        imgDir.path,
         ...detDirs.map((d) => d.path),
         ...idxDirs.map((d) => d.path),
         favDir.path,
@@ -1278,6 +1281,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
+                  fontFamily: AppSettings.instance.currentFontFamily,
+                  fontFamilyFallback: const ['sans-serif'],
                 ),
               ),
               Text(
@@ -1286,6 +1291,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,
+                  fontFamily: AppSettings.instance.currentFontFamily,
+                  fontFamilyFallback: const ['sans-serif'],
                 ),
               ),
             ],
@@ -1329,6 +1336,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
+                  fontFamily: AppSettings.instance.currentFontFamily,
+                  fontFamilyFallback: const ['sans-serif'],
                 ),
               ),
               Text(
@@ -1337,6 +1346,8 @@ class _CacheManagementScreenState extends State<CacheManagementScreen> with Tick
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,
+                  fontFamily: AppSettings.instance.currentFontFamily,
+                  fontFamilyFallback: const ['sans-serif'],
                 ),
               ),
             ],
@@ -1420,10 +1431,11 @@ class _DiscreteSegmentSliderState extends State<_DiscreteSegmentSlider> {
                   Widget textWidget = AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 150),
                     style: TextStyle(
-                      fontFamily: 'NotoSansSC',
                       fontSize: 12,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                       color: labelColor,
+                      fontFamily: AppSettings.instance.currentFontFamily,
+                      fontFamilyFallback: const ['sans-serif'],
                     ),
                     child: Text(widget.options[i]),
                   );

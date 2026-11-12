@@ -84,6 +84,9 @@ class UrlHandlerService {
     debugPrint("Intercepted Authentication Callback Deep Link: $url");
 
     try {
+      // Small pause to allow OS radio/network stack to stabilize after returning from background browser
+      await Future.delayed(const Duration(milliseconds: 150));
+
       final uri = Uri.parse(url);
       final params = <String, String>{};
       params.addAll(uri.queryParameters);
@@ -136,28 +139,22 @@ class UrlHandlerService {
         } catch (e) {
           retryCount++;
           debugPrint("Attempt $retryCount failed with error: $e");
+          // If it is an explicit AuthException (e.g. invalid grant), rethrow without futile retry
+          if (e is AuthException) {
+            rethrow;
+          }
           if (retryCount >= maxRetries) {
             rethrow;
           }
+          // Backoff delay before reconnecting
           await Future.delayed(Duration(milliseconds: 500 * retryCount));
         }
       }
 
       if (session != null) {
         debugPrint("Session successfully recovered: ${session.user.email}");
+        // AuthService handles smooth transition to HomeScreen internally
         AuthService.instance.updateSession(session);
-
-        final navState = navigatorKey.currentState;
-        if (navState != null) {
-          if (navState.canPop()) {
-            navState.popUntil((route) => route.isFirst);
-          } else {
-            navState.pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => HomeScreen()),
-              (route) => false,
-            );
-          }
-        }
 
         final targetCtx = navigatorKey.currentContext;
         if (targetCtx != null && targetCtx.mounted) {

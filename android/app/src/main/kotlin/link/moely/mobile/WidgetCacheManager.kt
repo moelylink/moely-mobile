@@ -53,8 +53,41 @@ object WidgetCacheManager {
     private fun getPrefs(context: Context) =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    private var isMigrated = false
+
+    private fun migrateLegacyCache(context: Context) {
+        if (isMigrated) return
+        isMigrated = true
+        try {
+            val oldDir = File(context.cacheDir, CACHE_DIR_NAME)
+            val newDir = File(context.filesDir, CACHE_DIR_NAME)
+            if (oldDir.exists()) {
+                if (!newDir.exists()) {
+                    newDir.mkdirs()
+                }
+                val oldFiles = oldDir.listFiles()
+                if (oldFiles != null) {
+                    for (file in oldFiles) {
+                        try {
+                            val targetFile = File(newDir, file.name)
+                            if (!targetFile.exists()) {
+                                file.renameTo(targetFile)
+                            } else {
+                                file.delete()
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                try {
+                    oldDir.delete()
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+    }
+
     private fun getCacheDir(context: Context): File {
-        val dir = File(context.cacheDir, CACHE_DIR_NAME)
+        migrateLegacyCache(context)
+        val dir = File(context.filesDir, CACHE_DIR_NAME)
         if (!dir.exists()) {
             dir.mkdirs()
         }
@@ -214,7 +247,11 @@ object WidgetCacheManager {
                 val width = options.outWidth
                 val height = options.outHeight
                 if (width > 0 && height > 0) {
-                    val isLandscape = width >= height
+                    if (width == height) {
+                        // 540x540 等正方形缩略图同时适配横竖屏小组件
+                        return true
+                    }
+                    val isLandscape = width > height
                     return isLandscape == requireLandscape
                 }
             }

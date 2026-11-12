@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_image_cache_manager.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../models/artist_item.dart';
 import '../models/image_item.dart';
@@ -238,6 +239,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                               child: ClipOval(
                                 child: avatarUrl.isNotEmpty
                                     ? CachedNetworkImage(
+                                        cacheManager: AppImageCacheManager(),
                                         imageUrl: avatarUrl,
                                         httpHeaders: {'User-Agent': UserAgentService.userAgent},
                                         fit: BoxFit.cover,

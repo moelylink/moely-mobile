@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_image_cache_manager.dart';
 import '../models/artist_item.dart';
 import '../services/html_parser_service.dart';
 import '../services/user_agent_service.dart';
@@ -426,6 +427,7 @@ class _ArtistsListScreenState extends State<ArtistsListScreen> {
                     child: ClipOval(
                       child: artist.avatar.isNotEmpty
                           ? CachedNetworkImage(
+                              cacheManager: AppImageCacheManager(),
                               imageUrl: artist.avatar,
                               httpHeaders: {'User-Agent': UserAgentService.userAgent},
                               fit: BoxFit.cover,

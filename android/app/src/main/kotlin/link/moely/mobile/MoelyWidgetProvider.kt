@@ -19,12 +19,29 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 
+import android.util.Log
+import java.util.concurrent.atomic.AtomicInteger
+
 class MoelyWidgetProvider : AppWidgetProvider() {
 
+    companion object {
+        private const val TAG = "MoelyWidget"
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        Log.i(TAG, "[MoelyWidgetProvider] onUpdate triggered. widgetIds count=${appWidgetIds.size}: ${appWidgetIds.joinToString()}")
+        if (appWidgetIds.isEmpty()) return
+
+        val pendingResult = goAsync()
+        val remaining = AtomicInteger(appWidgetIds.size)
+
         for (appWidgetId in appWidgetIds) {
-            val pendingResult = goAsync()
-            updateAppWidget(context, appWidgetManager, appWidgetId, pendingResult)
+            updateAppWidget(context, appWidgetManager, appWidgetId) {
+                if (remaining.decrementAndGet() == 0) {
+                    Log.i(TAG, "[MoelyWidgetProvider] All pending widget updates finished.")
+                    pendingResult?.finish()
+                }
+            }
         }
     }
 
@@ -32,7 +49,7 @@ class MoelyWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        pendingResult: BroadcastReceiver.PendingResult? = null
+        onComplete: () -> Unit
     ) {
         val views = RemoteViews(context.packageName, R.layout.moely_widget_layout)
 
@@ -44,10 +61,14 @@ class MoelyWidgetProvider : AppWidgetProvider() {
         )
         views.setOnClickPendingIntent(R.id.widget_image, pendingIntent)
 
+        // 立即提交首帧占位视图，防止桌面小组件在网络拉取期间显示未初始化的全黑空状态
+        views.setTextViewText(R.id.widget_author, "壁纸同步中...")
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+
         // Start thread to fetch daily random image safely without blocking main thread
         thread {
             try {
-                // 1. Fetch index.json
+                Log.i(TAG, "[MoelyWidgetProvider] Fetching index.json for widgetId=$appWidgetId")
                 val url = URL("https://www.moely.link/index.json")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 8000
@@ -55,7 +76,10 @@ class MoelyWidgetProvider : AppWidgetProvider() {
                 conn.requestMethod = "GET"
                 conn.setRequestProperty("User-Agent", getUserAgent(context))
 
-                if (conn.responseCode == 200) {
+                val responseCode = conn.responseCode
+                Log.i(TAG, "[MoelyWidgetProvider] index.json responseCode=$responseCode")
+
+                if (responseCode == 200) {
                     val reader = BufferedReader(InputStreamReader(conn.inputStream))
                     val response = StringBuilder()
                     var line: String?
@@ -64,15 +88,14 @@ class MoelyWidgetProvider : AppWidgetProvider() {
                     }
                     reader.close()
 
-                    // 2. Parse random image
                     val jsonArray = JSONArray(response.toString())
                     if (jsonArray.length() > 0) {
                         val randomIndex = (0 until jsonArray.length()).random()
                         val imgObject = jsonArray.getJSONObject(randomIndex)
                         val imageUrl = imgObject.getString("urls")
                         val author = imgObject.getString("user")
+                        Log.i(TAG, "[MoelyWidgetProvider] Selected image url=$imageUrl, author=$author")
 
-                        // 3. Load image stream
                         val imgUrl = URL(imageUrl)
                         val imgConn = imgUrl.openConnection() as HttpURLConnection
                         imgConn.connectTimeout = 10000
@@ -85,15 +108,19 @@ class MoelyWidgetProvider : AppWidgetProvider() {
                             views.setImageViewBitmap(R.id.widget_image, bitmap)
                             views.setTextViewText(R.id.widget_author, "画师: $author")
                             
-                            // Apply changes to widget manager
                             appWidgetManager.updateAppWidget(appWidgetId, views)
+                            Log.i(TAG, "[MoelyWidgetProvider] Successfully updated widgetId=$appWidgetId")
+                        } else {
+                            Log.w(TAG, "[MoelyWidgetProvider] Failed to decode bitmap stream for widgetId=$appWidgetId")
                         }
                     }
+                } else {
+                    Log.w(TAG, "[MoelyWidgetProvider] Failed to fetch index.json, HTTP code=$responseCode")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "[MoelyWidgetProvider] Exception updating widgetId=$appWidgetId: ${e.message}", e)
             } finally {
-                pendingResult?.finish()
+                onComplete()
             }
         }
     }

@@ -100,17 +100,20 @@ class _AutoScrollingTextState extends State<AutoScrollingText> with SingleTicker
           );
         }
 
-        // Measure exact text width using TextPainter with device textScaler
+        final defaultTextStyle = DefaultTextStyle.of(context).style;
+        final effectiveStyle = defaultTextStyle.merge(widget.style);
+
+        // Measure exact text width using TextPainter with device textScaler and inherited typography styles
         final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
+          text: TextSpan(text: widget.text, style: effectiveStyle),
           textDirection: TextDirection.ltr,
           textScaler: textScaler,
           maxLines: 1,
         )..layout();
 
         final textWidth = textPainter.width;
-        // Trigger scrolling if forceScroll is enabled or text width (plus 2px buffer) exceeds container width
-        final shouldScroll = widget.forceScroll || (textWidth + 2.0) > containerWidth;
+        // Trigger scrolling if forceScroll is enabled or text width exceeds container width (with sub-pixel tolerance)
+        final shouldScroll = widget.forceScroll || (textWidth > containerWidth - 0.5);
         final unitWidth = textWidth + widget.blankSpacing;
 
         _setupAnimation(shouldScroll, unitWidth);

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/kanban_service.dart';
 import '../services/widget_service.dart';
 import '../utils/toast_helper.dart';
@@ -15,14 +16,47 @@ class KanbanScreen extends StatefulWidget {
   State<KanbanScreen> createState() => _KanbanScreenState();
 }
 
-class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderStateMixin {
+class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _breathingController;
   Timer? _countdownTimer;
   String? _temporaryAction;
   Timer? _temporaryActionTimer;
 
+  bool _showAllActionBubbles = false;
+  Timer? _actionBubblesDismissTimer;
+
   final List<_EffectParticle> _confettiParticles = [];
   Timer? _confettiTimer;
+
+  void _toggleAllActionBubbles(KanbanService service) {
+    HapticFeedback.lightImpact();
+    if (service.currentState == KanbanState.eating) {
+      ToastHelper.show(context, '萌哩正在努力干饭，等吃饱再做别的事吧~', type: ToastType.warning);
+      return;
+    }
+    _actionBubblesDismissTimer?.cancel();
+    setState(() {
+      _showAllActionBubbles = !_showAllActionBubbles;
+    });
+    if (_showAllActionBubbles) {
+      _actionBubblesDismissTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted) {
+          setState(() {
+            _showAllActionBubbles = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _dismissAllActionBubbles() {
+    if (_showAllActionBubbles) {
+      _actionBubblesDismissTimer?.cancel();
+      setState(() {
+        _showAllActionBubbles = false;
+      });
+    }
+  }
 
   void _triggerConfetti(Offset origin, {bool isHearts = false}) {
     final random = math.Random();
@@ -85,6 +119,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -97,14 +132,27 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         setState(() {});
       }
     });
+
+    // Check and pull cloud sync on entering screen
+    KanbanService.instance.pullFromCloud();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      KanbanService.instance.pushToCloud();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    KanbanService.instance.pushToCloud();
     _breathingController.dispose();
     _countdownTimer?.cancel();
     _temporaryActionTimer?.cancel();
     _confettiTimer?.cancel();
+    _actionBubblesDismissTimer?.cancel();
     super.dispose();
   }
 
@@ -423,6 +471,42 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                             ),
                           ),
 
+                        // Hotspot 1: Bed (二楼卧室床铺 X:[224..334], Y:[98..171]，点击触发去睡觉)
+                        Positioned(
+                          left: 215,
+                          top: 85,
+                          width: 125,
+                          height: 95,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _onBedTapped(context, service),
+                          ),
+                        ),
+
+                        // Hotspot 2: Desk (一楼书房书桌 X:[204..317], Y:[220..305]，点击触发去学习)
+                        Positioned(
+                          left: 200,
+                          top: 215,
+                          width: 125,
+                          height: 100,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _onDeskTapped(context, service),
+                          ),
+                        ),
+
+                        // Hotspot 3: Living Room (一楼客厅/地毯 X:[81..154], Y:[244..325]，点击触发去玩耍/去休息)
+                        Positioned(
+                          left: 75,
+                          top: 235,
+                          width: 90,
+                          height: 100,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _onLivingRoomTapped(context, service),
+                          ),
+                        ),
+
                         // The Pet (Capoo) Sticker
                         Positioned(
                           left: petX,
@@ -476,6 +560,99 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                             top: bowlY,
                             child: _buildFoodBowl(theme, service.currentBowlFeed, showNightScene),
                           ),
+
+                        // Action prompt bubbles ("去睡觉" / "去学习" / "去玩耍" - 点击状态栏时全部显示)
+                        if (_showAllActionBubbles && state != KanbanState.eating) ...[
+                          // 1. Bed Bubble (水平居中对齐床铺实际中心 X=279.0，底部三角精准指向床头 Y=97.0)
+                          Positioned(
+                            left: 199, // 279 - 160/2
+                            width: 160,
+                            top: 66,   // 97 - 31 (气泡高度)
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: () => _onBedTapped(context, service),
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  duration: const Duration(milliseconds: 220),
+                                  curve: Curves.easeOutBack,
+                                  builder: (context, val, child) {
+                                    return Transform.scale(
+                                      scale: val,
+                                      alignment: Alignment.bottomCenter,
+                                      child: child,
+                                    );
+                                  },
+                                  child: _buildActionBubble(
+                                    service.isSleepTime ? '去睡觉' : '晚上才睡哦',
+                                    service.isSleepTime ? Icons.hotel_rounded : Icons.nights_stay_rounded,
+                                    service.isSleepTime ? const Color(0xFF60A5FA) : Colors.blueGrey,
+                                    showNightScene,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // 2. Desk Bubble (水平居中对齐书桌实际中心 X=260.0，底部三角精准指向书桌上表面 Y=219.0)
+                          Positioned(
+                            left: 180, // 260 - 160/2
+                            width: 160,
+                            top: 188,  // 219 - 31 (气泡高度)
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: () => _onDeskTapped(context, service),
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  duration: const Duration(milliseconds: 220),
+                                  curve: Curves.easeOutBack,
+                                  builder: (context, val, child) {
+                                    return Transform.scale(
+                                      scale: val,
+                                      alignment: Alignment.bottomCenter,
+                                      child: child,
+                                    );
+                                  },
+                                  child: _buildActionBubble(
+                                    service.feedStock >= 5 ? '去学习' : '饲料不足',
+                                    Icons.menu_book_rounded,
+                                    service.feedStock >= 5 ? Colors.orangeAccent : Colors.redAccent,
+                                    showNightScene,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // 3. Living Room Bubble (水平居中对齐客厅实际中心 X=118.0，底部三角精准指向客厅顶部 Y=244.0)
+                          Positioned(
+                            left: 38,  // 118 - 160/2
+                            width: 160,
+                            top: 213,  // 244 - 31 (气泡高度)
+                            child: Center(
+                              child: GestureDetector(
+                                onTap: () => _onLivingRoomTapped(context, service),
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  duration: const Duration(milliseconds: 220),
+                                  curve: Curves.easeOutBack,
+                                  builder: (context, val, child) {
+                                    return Transform.scale(
+                                      scale: val,
+                                      alignment: Alignment.bottomCenter,
+                                      child: child,
+                                    );
+                                  },
+                                  child: _buildActionBubble(
+                                    '去玩耍',
+                                    Icons.pets_rounded,
+                                    const Color(0xFF34D399),
+                                    showNightScene,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -591,6 +768,101 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
           );
         },
       ),
+    );
+  }
+
+  void _onBedTapped(BuildContext context, KanbanService service) {
+    HapticFeedback.lightImpact();
+    _dismissAllActionBubbles();
+
+    if (service.currentState == KanbanState.eating) {
+      ToastHelper.show(context, '萌哩正在努力干饭，等吃饱再去睡觉吧~', type: ToastType.warning);
+      return;
+    }
+    if (service.currentState == KanbanState.sleeping) {
+      return;
+    }
+    if (!service.isSleepTime) {
+      ToastHelper.show(context, '现在还是白天呢，萌哩还不困哦~（晚上 20:00 之后才开放睡觉）', type: ToastType.info);
+      return;
+    }
+    service.updateState(KanbanState.sleeping);
+  }
+
+  void _onDeskTapped(BuildContext context, KanbanService service) {
+    HapticFeedback.lightImpact();
+    _dismissAllActionBubbles();
+
+    if (service.currentState == KanbanState.eating) {
+      ToastHelper.show(context, '萌哩正在努力干饭，等吃饱再去学习吧~', type: ToastType.warning);
+      return;
+    }
+    if (service.currentState == KanbanState.studying) {
+      return;
+    }
+    if (service.feedStock < 5) {
+      ToastHelper.show(context, '家里的饲料不足 5g，无法开启学习模式哦！快去完成任务领饲料吧~', type: ToastType.warning);
+      return;
+    }
+    service.updateState(KanbanState.studying);
+  }
+
+  void _onLivingRoomTapped(BuildContext context, KanbanService service) {
+    HapticFeedback.lightImpact();
+    _dismissAllActionBubbles();
+
+    if (service.currentState == KanbanState.eating) {
+      ToastHelper.show(context, '萌哩正在努力干饭，等吃饱再玩耍吧~', type: ToastType.warning);
+      return;
+    }
+    if (service.currentState == KanbanState.idle) {
+      service.touchMascot();
+      return;
+    }
+    service.updateState(KanbanState.idle);
+  }
+
+  Widget _buildActionBubble(String text, IconData icon, Color color, bool isDark) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B).withOpacity(0.96) : Colors.white.withOpacity(0.96),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.7), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.35),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+        ),
+        CustomPaint(
+          size: const Size(10, 5),
+          painter: _BubbleTrianglePainter(
+            color: color.withOpacity(0.85),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1318,27 +1590,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
     }
 
     return GestureDetector(
-      onTap: () {
-        if (service.currentState == KanbanState.eating) {
-          ToastHelper.show(context, '萌哩正在努力干饭，吃饱前不要打扰它哦~', type: ToastType.warning);
-          return;
-        }
-        
-        KanbanState nextState;
-        switch (service.currentState) {
-          case KanbanState.idle:
-            nextState = KanbanState.studying;
-            break;
-          case KanbanState.studying:
-            nextState = KanbanState.sleeping;
-            break;
-          case KanbanState.sleeping:
-          default:
-            nextState = KanbanState.idle;
-            break;
-        }
-        service.updateState(nextState);
-      },
+      onTap: () => _toggleAllActionBubbles(service),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(
@@ -1370,8 +1622,6 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
                      color: statusColor,
                    ),
                 ),
-                const SizedBox(width: 4),
-                Icon(Icons.swap_horiz_rounded, color: statusColor.withOpacity(0.6), size: 14),
               ],
             ),
           ),
@@ -1463,44 +1713,28 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
   }
 
   Widget _buildPetImage(KanbanState state, String emoji, String? temporaryAction, String currentSkin) {
+    const validSkins = ['capoo', 'siamese', 'salary'];
+    final skinFolder = validSkins.contains(currentSkin) ? currentSkin : 'capoo';
     String assetPath;
-    final skinFolder = (currentSkin == 'classic') ? 'capoo' : currentSkin;
     
-    if (currentSkin == 'classic' && temporaryAction == null) {
+    if (temporaryAction != null) {
+      assetPath = 'assets/pet/$skinFolder/$temporaryAction.webp';
+    } else if (KanbanService.instance.isHungry && state == KanbanState.idle) {
+      assetPath = 'assets/pet/$skinFolder/hungry.webp';
+    } else {
       switch (state) {
         case KanbanState.idle:
-          assetPath = 'assets/pet/work.gif';
+          assetPath = 'assets/pet/$skinFolder/play.webp';
           break;
         case KanbanState.studying:
-          assetPath = 'assets/pet/work.gif';
+          assetPath = 'assets/pet/$skinFolder/work.webp';
           break;
         case KanbanState.sleeping:
-          assetPath = 'assets/pet/sleep.gif';
+          assetPath = 'assets/pet/$skinFolder/sleep.webp';
           break;
         case KanbanState.eating:
-          assetPath = 'assets/pet/capoo/eating.webp';
+          assetPath = 'assets/pet/$skinFolder/eating.webp';
           break;
-      }
-    } else {
-      if (temporaryAction != null) {
-        assetPath = 'assets/pet/$skinFolder/$temporaryAction.webp';
-      } else if (KanbanService.instance.isHungry && state == KanbanState.idle) {
-        assetPath = 'assets/pet/$skinFolder/hungry.webp';
-      } else {
-        switch (state) {
-          case KanbanState.idle:
-            assetPath = 'assets/pet/$skinFolder/play.webp';
-            break;
-          case KanbanState.studying:
-            assetPath = 'assets/pet/$skinFolder/work.webp';
-            break;
-          case KanbanState.sleeping:
-            assetPath = 'assets/pet/$skinFolder/sleep.webp';
-            break;
-          case KanbanState.eating:
-            assetPath = 'assets/pet/$skinFolder/eating.webp';
-            break;
-        }
       }
     }
     
@@ -1555,12 +1789,13 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         insetPadding: _dialogInsetPadding,
         title: const Text('如何玩转萌哩小屋？', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text(
-          '1. 🥣 **干饭升级**：倒入 100g 饲料需要吃 1 小时。吃完增加经验升级！等级越高，学习与工作速度越快！\n'
-          '2. 📝 **学习模式**：每 2 小时消耗 50g 饲料，收获 1 颗星星 ⭐（受等级加速！）。\n'
-          '3. 💤 **睡觉模式**：无需消耗饲料，每 6 小时自动产出 1 颗星星 ⭐。\n'
-          '4. ⭐ **星星兑换**：收获的星星类似庄园金蛋，可在衣帽间兑换限定专属皮肤装扮！\n'
-          '5. ❤️ **抚摸互动**：点击萌哩摸摸头增进感情，每天摸头最多可获得 10 点经验值！\n'
-          '6. 📱 **桌面小组件**：可将萌哩添加到手机桌面，随时互动看护！',
+          '1. 🏠 **场景点击切换**：直接点击小屋中的床铺、书桌或客厅，即可让萌哩「去睡觉」、「去学习」或「去玩耍」！\n'
+          '2. 🥣 **干饭升级**：倒入 100g 饲料需要吃 1 小时。吃完增加经验升级！等级越高，学习与工作速度越快！\n'
+          '3. 📝 **书桌学习**：点击一楼书桌开启学习模式。每 2 小时消耗 50g 饲料，收获 1 颗星星 ⭐（受等级加速！）。\n'
+          '4. 💤 **床铺睡觉**：点击二楼床铺去睡觉。仅在晚上开放（20:00~06:00），到了早上会自动醒来。无需消耗饲料，每 6 小时自动产出 1 颗星星 ⭐。\n'
+          '5. ⭐ **星星兑换**：收获的星星可在良品铺兑换加速卡、加饭卡，或在衣帽间兑换限定专属皮肤装扮！\n'
+          '6. ❤️ **抚摸互动**：点击萌哩摸摸头增进感情，每天摸头最多可获得 10 点经验值！\n'
+          '7. 📱 **桌面小组件**：可将萌哩添加到手机桌面，随时互动看护！',
           style: TextStyle(height: 1.6),
         ),
         actions: [
@@ -2356,20 +2591,6 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         'icon': '🐱',
       },
       {
-        'id': 'classic',
-        'name': '经典小鸟萌哩',
-        'cost': 0,
-        'desc': '勤劳可爱的小黄鸟萌哩。',
-        'icon': '🐣',
-      },
-      {
-        'id': 'kitty',
-        'name': '粉嫩小猫咪',
-        'cost': 3,
-        'desc': '傲娇可爱的粉红小野猫。',
-        'icon': '🐈',
-      },
-      {
         'id': 'siamese',
         'name': '优雅暹罗猫',
         'cost': 4,
@@ -2382,13 +2603,6 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
         'cost': 5,
         'desc': '打工人的月薪喵，疯狂赚喵粮！',
         'icon': '💰',
-      },
-      {
-        'id': 'space',
-        'name': '太空探险猫',
-        'cost': 6,
-        'desc': '来自赛博坦星的机甲猫。',
-        'icon': '🚀',
       },
     ];
 
@@ -2422,7 +2636,7 @@ class _KanbanScreenState extends State<KanbanScreen> with SingleTickerProviderSt
               ),
               content: SizedBox(
                 width: double.maxFinite,
-                height: 350,
+                height: 250,
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const BouncingScrollPhysics(),
@@ -2743,7 +2957,10 @@ class _LuckyWheelDialogContentState extends State<_LuckyWheelDialogContent>
     );
 
     _spinController.reset();
-    _spinController.forward().then((_) {
+    _spinController.forward().then((_) async {
+      // 动画停止后正式发放奖品与通知数据更新
+      await widget.service.claimWheelPrize(prize);
+
       if (!mounted) return;
       _currentRotation = endAngle % (2 * math.pi);
       setState(() {
@@ -2964,31 +3181,6 @@ class _LuckyWheelDialogContentState extends State<_LuckyWheelDialogContent>
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-
-              // 奖品速览胶囊
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                alignment: WrapAlignment.center,
-                children: _prizeConfigs.map((p) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: (p['bgColor'] as Color),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      p['name'] as String,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: p['textColor'] as Color,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
             ],
           ),
         ),
@@ -3006,7 +3198,7 @@ class _LuckyWheelDialogContentState extends State<_LuckyWheelDialogContent>
             elevation: 0,
           ),
           onPressed: _isSpinning ? null : _startSpin,
-          child: Text(_isSpinning ? '抽奖中...' : '抽奖 (消耗100g)'),
+          child: Text(_isSpinning ? '抽奖中...' : '抽奖'),
         ),
       ],
     );

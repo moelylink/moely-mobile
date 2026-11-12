@@ -13,13 +13,185 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.app.AppOpsManager
+import android.os.Bundle
+import android.widget.RemoteViews
 import android.util.Log
 import java.io.File
+import com.airbnb.lottie.LottieAnimationView
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.ViewTreeObserver
 
 class MainActivity : FlutterActivity() {
     private val TAG = "MoelyWidget"
     private val CHANNEL = "link.moely.mobile/wallpaper"
     private val BROWSER_CHANNEL = "link.moely.mobile/browser"
+
+    private var nativeSplashContainer: FrameLayout? = null
+    private var systemSplashScreenView: android.window.SplashScreenView? = null
+    private var isLottieDrawn = false
+    private var isFlutterUiDisplayed = false
+    private var isSplashDismissed = false
+    private var pendingDismiss = false
+
+    private fun dpToPx(dp: Float): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            dp,
+            resources.displayMetrics
+        ).toInt()
+    }
+
+    private fun getStatusBarHeight(): Int {
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else dpToPx(24f)
+    }
+
+    private fun dismissSystemSplashScreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            systemSplashScreenView?.let { view ->
+                view.remove()
+                systemSplashScreenView = null
+            }
+        }
+    }
+
+    private fun setupNativeLottieSplash() {
+        val isNight = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val bgColor = if (isNight) Color.parseColor("#222222") else Color.parseColor("#FFFFFF")
+
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(bgColor)
+            isClickable = true
+            isFocusable = true
+        }
+
+        val sizePx = dpToPx(320f)
+        val lottieView = LottieAnimationView(this).apply {
+            setAnimation("moely_loader.json")
+            repeatCount = 0
+            layoutParams = FrameLayout.LayoutParams(sizePx, sizePx).apply {
+                gravity = Gravity.CENTER
+            }
+        }
+        container.addView(lottieView)
+
+        val skipButton = TextView(this).apply {
+            text = "跳过"
+            textSize = 13f
+            setTextColor(if (isNight) Color.WHITE else Color.parseColor("#222222"))
+            setPadding(
+                dpToPx(14f),
+                dpToPx(6f),
+                dpToPx(14f),
+                dpToPx(6f)
+            )
+            val bgDrawable = GradientDrawable().apply {
+                cornerRadius = dpToPx(16f).toFloat()
+                setColor(if (isNight) Color.parseColor("#20FFFFFF") else Color.parseColor("#15000000"))
+                setStroke(
+                    dpToPx(1f),
+                    if (isNight) Color.parseColor("#30FFFFFF") else Color.parseColor("#25000000")
+                )
+            }
+            background = bgDrawable
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.END
+                topMargin = getStatusBarHeight() + dpToPx(16f)
+                marginEnd = dpToPx(16f)
+            }
+            setOnClickListener {
+                dismissNativeSplash()
+            }
+        }
+        container.addView(skipButton)
+
+        this.nativeSplashContainer = container
+        addContentView(
+            container,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        // 核心锁相：在 Lottie 容器完成测量布局、即将绘制首帧的瞬间移出系统原生启动遮罩，杜绝黑屏空窗期
+        container.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (container.viewTreeObserver.isAlive) {
+                    container.viewTreeObserver.removeOnPreDrawListener(this)
+                }
+                isLottieDrawn = true
+                dismissSystemSplashScreen()
+                return true
+            }
+        })
+
+        // 超时兜底（1.5s）：避免极端系统异常导致原生 Splash 未能释放
+        container.postDelayed({
+            dismissSystemSplashScreen()
+        }, 1500)
+
+        lottieView.addAnimatorListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                dismissNativeSplash()
+            }
+        })
+
+        lottieView.playAnimation()
+    }
+
+    private fun dismissNativeSplash() {
+        if (isSplashDismissed) return
+        if (!isFlutterUiDisplayed) {
+            // 若 Flutter 首帧尚未完成，挂起等待首帧上屏的一瞬间平滑移交
+            pendingDismiss = true
+            return
+        }
+        isSplashDismissed = true
+        nativeSplashContainer?.let { container ->
+            container.animate()
+                .alpha(0f)
+                .setDuration(350)
+                .withEndAction {
+                    (container.parent as? ViewGroup)?.removeView(container)
+                    nativeSplashContainer = null
+                }
+                .start()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setupNativeLottieSplash()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            splashScreen.setOnExitAnimationListener { splashScreenView ->
+                if (isLottieDrawn) {
+                    splashScreenView.remove()
+                } else {
+                    this.systemSplashScreenView = splashScreenView
+                }
+            }
+        }
+    }
+
+    override fun onFlutterUiDisplayed() {
+        super.onFlutterUiDisplayed()
+        isFlutterUiDisplayed = true
+        if (pendingDismiss) {
+            dismissNativeSplash()
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -57,19 +229,114 @@ class MainActivity : FlutterActivity() {
                     Log.i(TAG, "[pinWidget] Default Launcher: $launcherPkg, AppOps Shortcut Permission Granted: $shortcutPermissionGranted")
 
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        val appWidgetManager = AppWidgetManager.getInstance(applicationContext)
+                        val appWidgetManager = AppWidgetManager.getInstance(this@MainActivity)
                         val myProvider = ComponentName(applicationContext, cls)
                         val isSupported = appWidgetManager.isRequestPinAppWidgetSupported
-                        Log.i(TAG, "[pinWidget] AppWidgetManager.isRequestPinAppWidgetSupported: $isSupported for component ${myProvider.flattenToShortString()}")
+                        val hasWindowFocus = this@MainActivity.hasWindowFocus()
+                        Log.i(TAG, "[pinWidget] AppWidgetManager.isRequestPinAppWidgetSupported: $isSupported, hasWindowFocus=$hasWindowFocus for component ${myProvider.flattenToShortString()}")
                         
                         if (isSupported) {
                             try {
-                                Log.i(TAG, "[pinWidget] Executing requestPinAppWidget(provider=${myProvider.shortClassName}, null, null)...")
-                                // 传 null 作为 successCallback：
-                                // 在 Android 14、ColorOS 14、MIUI、OriginOS 等定制系统中，跨进程传递 FLAG_MUTABLE PendingIntent
-                                // 极易触发系统桌面安全沙箱拦截导致请求静默抛弃。传 null 时由系统桌面接管添加流程，组件放置后系统会自动回调 onUpdate。
-                                val pinned = appWidgetManager.requestPinAppWidget(myProvider, null, null)
+                                // 构造指向 WidgetPinCallbackReceiver 的标准广播 PendingIntent。
+                                // Android 12+ (API 31+) 跨进程回调必须指定 FLAG_MUTABLE，以便系统桌面填充 EXTRA_APPWIDGET_ID。
+                                val callbackIntent = Intent(applicationContext, WidgetPinCallbackReceiver::class.java).apply {
+                                    action = WidgetPinCallbackReceiver.ACTION_PIN_WIDGET_SUCCESS
+                                    putExtra("provider_class", cls.name)
+                                }
+                                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                                } else {
+                                    PendingIntent.FLAG_UPDATE_CURRENT
+                                }
+                                val successCallback = PendingIntent.getBroadcast(
+                                    this@MainActivity,
+                                    cls.name.hashCode(),
+                                    callbackIntent,
+                                    flags
+                                )
+
+                                // 构造微件预览 RemoteViews，解决 ColorOS / OneUI 等系统 Launcher 缺少预览导致的弹窗放弃
+                                val layoutId = when (providerName) {
+                                    "MoelyWidgetProvider" -> R.layout.moely_widget_layout
+                                    "DailyImagePortraitProvider" -> R.layout.widget_daily_image_portrait
+                                    "DailyImageLandscapeProvider" -> R.layout.widget_daily_image_landscape
+                                    "PetWidgetProvider" -> R.layout.widget_pet
+                                    "GalleryWidgetProvider" -> R.layout.widget_gallery
+                                    else -> null
+                                }
+                                val extras: Bundle? = if (layoutId != null) {
+                                    Bundle().apply {
+                                        putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, RemoteViews(packageName, layoutId))
+                                    }
+                                } else {
+                                    null
+                                }
+
+                                Log.i(TAG, "[pinWidget] Executing requestPinAppWidget with extras (layoutId=$layoutId) and successCallback PendingIntent...")
+                                var pinned = false
+                                try {
+                                    pinned = appWidgetManager.requestPinAppWidget(myProvider, extras, successCallback)
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "[pinWidget] requestPinAppWidget with preview extras failed: ${e.message}, retrying fallback...")
+                                    try {
+                                        pinned = appWidgetManager.requestPinAppWidget(myProvider, null, successCallback)
+                                    } catch (se: SecurityException) {
+                                        Log.w(TAG, "[pinWidget] requestPinAppWidget callback failed with SecurityException: ${se.message}")
+                                        pinned = appWidgetManager.requestPinAppWidget(myProvider, null, null)
+                                    }
+                                }
+
                                 Log.i(TAG, "[pinWidget] requestPinAppWidget call returned: $pinned")
+
+                                // 仅在桌面上已有该 Provider 的现有实例时，才发送刷新广播以同步它们的数据。
+                                // 避免在 requestPinAppWidget 的 Binder 请求尚未被 Launcher 处理时，
+                                // 过早触发 ACTION_APPWIDGET_UPDATE 广播干扰 pin 确认弹窗的调起。
+                                val currentIds = appWidgetManager.getAppWidgetIds(myProvider)
+                                if (currentIds.isNotEmpty()) {
+                                    val initialUpdateIntent = Intent(applicationContext, cls).apply {
+                                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, currentIds)
+                                    }
+                                    sendBroadcast(initialUpdateIntent)
+                                    Log.i(TAG, "[pinWidget] Dispatched initial ACTION_APPWIDGET_UPDATE broadcast for provider ${cls.simpleName}, currentIds count=${currentIds.size}")
+                                } else {
+                                    Log.i(TAG, "[pinWidget] No existing instances for ${cls.simpleName}, skipping pre-pin broadcast to avoid interfering with pin confirmation")
+                                }
+
+                                // 增加 1.2s 和 2.8s 延迟兜底刷新：应对用户点击系统弹窗添加后，个别系统 Launcher 不触发 callback 的场景
+                                val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                                mainHandler.postDelayed({
+                                    try {
+                                        val updatedIds = appWidgetManager.getAppWidgetIds(myProvider)
+                                        if (updatedIds.isNotEmpty()) {
+                                            val delayedIntent = Intent(applicationContext, cls).apply {
+                                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, updatedIds)
+                                            }
+                                            sendBroadcast(delayedIntent)
+                                            Log.i(TAG, "[pinWidget] Fallback delayed (1.2s) update dispatched for ${cls.simpleName}, count=${updatedIds.size}")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "[pinWidget] Fallback delayed update error: ${e.message}")
+                                    }
+                                }, 1200)
+
+                                mainHandler.postDelayed({
+                                    try {
+                                        val finalIds = appWidgetManager.getAppWidgetIds(myProvider)
+                                        if (finalIds.isNotEmpty()) {
+                                            val delayedIntent2 = Intent(applicationContext, cls).apply {
+                                                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, finalIds)
+                                            }
+                                            sendBroadcast(delayedIntent2)
+                                            Log.i(TAG, "[pinWidget] Fallback delayed (2.8s) update dispatched for ${cls.simpleName}, count=${finalIds.size}")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "[pinWidget] Final fallback delayed update error: ${e.message}")
+                                    }
+                                }, 2800)
+
                                 result.success(pinned)
                             } catch (e: Exception) {
                                 Log.e(TAG, "[pinWidget] Exception during requestPinAppWidget: ${e.javaClass.name} - ${e.message}", e)
@@ -323,6 +590,24 @@ class MainActivity : FlutterActivity() {
                                     "customName" to customName
                                 ))
                             }
+                            // 自动兜底：对已识别到的桌面微件主动派发一次刷新广播，确保未初始化微件点亮
+                            val providersToSync = listOf(
+                                GalleryWidgetProvider::class.java to galleryProvider,
+                                PetWidgetProvider::class.java to petProvider,
+                                MoelyWidgetProvider::class.java to moelyProvider,
+                                DailyImagePortraitProvider::class.java to portraitProvider,
+                                DailyImageLandscapeProvider::class.java to landscapeProvider
+                            )
+                            for ((cls, comp) in providersToSync) {
+                                val activeIds = appWidgetManager.getAppWidgetIds(comp)
+                                if (activeIds != null && activeIds.isNotEmpty()) {
+                                    val syncIntent = Intent(applicationContext, cls).apply {
+                                        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, activeIds)
+                                    }
+                                    sendBroadcast(syncIntent)
+                                }
+                            }
                         }
                         
                         result.success(list)
@@ -360,6 +645,9 @@ class MainActivity : FlutterActivity() {
                 "openShortcutPermissionSettings" -> {
                     openShortcutPermissionSettings(this)
                     result.success(true)
+                }
+                "getDeviceRomInfo" -> {
+                    result.success(getDeviceRomInfo())
                 }
                 else -> {
                     result.notImplemented()
@@ -519,16 +807,61 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun getDeviceRomInfo(): Map<String, String> {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
+        val model = Build.MODEL
+        
+        var romType = "other"
+        var romName = "Android 原生系统"
+
+        when {
+            manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || brand.contains("xiaomi") || brand.contains("redmi") -> {
+                romType = "hyperos"
+                romName = "小米 HyperOS / MIUI"
+            }
+            manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme") || brand.contains("oppo") || brand.contains("oneplus") || brand.contains("realme") -> {
+                romType = "coloros"
+                romName = "OPPO ColorOS / Realme UI"
+            }
+            manufacturer.contains("vivo") || manufacturer.contains("iqoo") || brand.contains("vivo") || brand.contains("iqoo") -> {
+                romType = "originos"
+                romName = "vivo OriginOS"
+            }
+            manufacturer.contains("honor") || brand.contains("honor") -> {
+                romType = "magicos"
+                romName = "荣耀 MagicOS"
+            }
+            manufacturer.contains("huawei") || brand.contains("huawei") -> {
+                romType = "harmonyos"
+                romName = "华为 HarmonyOS / EMUI"
+            }
+            manufacturer.contains("samsung") || brand.contains("samsung") -> {
+                romType = "oneui"
+                romName = "三星 One UI"
+            }
+        }
+
+        return mapOf(
+            "romType" to romType,
+            "romName" to romName,
+            "manufacturer" to Build.MANUFACTURER,
+            "brand" to Build.BRAND,
+            "model" to model
+        )
+    }
+
     private fun checkShortcutPermission(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
             Log.d(TAG, "[checkShortcutPermission] SDK < KITKAT, return true")
             return true
         }
         val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
         val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         
-        // 1. 小米 / 红米 (MIUI / HyperOS)：10017 为其私有 OP_INSTALL_SHORTCUT
-        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
+        // 1. 小米 / 红米 (MIUI / HyperOS)：10017 为其私有 OP_INSTALL_SHORTCUT 真实受管控
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || brand.contains("xiaomi") || brand.contains("redmi")) {
             try {
                 val checkOpNoThrow = appOpsManager.javaClass.getMethod(
                     "checkOpNoThrow",
@@ -542,36 +875,27 @@ class MainActivity : FlutterActivity() {
                     android.os.Process.myUid(),
                     context.packageName
                 ) as Int
-                val allowed = mode == AppOpsManager.MODE_ALLOWED
-                Log.i(TAG, "[checkShortcutPermission] Xiaomi/Redmi OP 10017 check mode=$mode (allowed=$allowed)")
+                // MODE_DEFAULT (3) 表示权限尚未被用户明确设置，HyperOS/MIUI 会在首次
+                // requestPinAppWidget 时自动弹出授权对话框，不应误判为"已拒绝"。
+                val allowed = mode == AppOpsManager.MODE_ALLOWED || mode == AppOpsManager.MODE_DEFAULT
+                Log.i(TAG, "[checkShortcutPermission] Xiaomi/Redmi OP 10017 check mode=$mode (allowed=$allowed, MODE_DEFAULT=${AppOpsManager.MODE_DEFAULT})")
                 return allowed
             } catch (e: Exception) {
                 Log.w(TAG, "[checkShortcutPermission] Xiaomi/Redmi OP 10017 reflection failed: ${e.message}")
             }
         }
 
-        // 2. Vivo / iQOO (OriginOS)：部分版本使用 OP 10017 作为桌面快捷方式管控
-        if (manufacturer.contains("vivo") || manufacturer.contains("iqoo")) {
+        // 2. 其他定制系统（ColorOS, OriginOS, MagicOS, One UI, HarmonyOS 等）：
+        // 其系统桌面并没有将桌面微件管控暴露在私有 10017/65 上，盲目检查会造成误杀。
+        // 在 Android 8.0+ 上，只要底层桌面支持 isRequestPinAppWidgetSupported，默认放行请求，由桌面原生交互接管。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                val checkOpNoThrow = appOpsManager.javaClass.getMethod(
-                    "checkOpNoThrow",
-                    java.lang.Integer.TYPE,
-                    java.lang.Integer.TYPE,
-                    java.lang.String::class.java
-                )
-                val mode = checkOpNoThrow.invoke(
-                    appOpsManager,
-                    10017,
-                    android.os.Process.myUid(),
-                    context.packageName
-                ) as Int
-                val allowed = mode == AppOpsManager.MODE_ALLOWED
-                Log.i(TAG, "[checkShortcutPermission] Vivo/iQOO OP 10017 check mode=$mode (allowed=$allowed)")
-                if (!allowed) {
-                    return false
-                }
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val isSupported = appWidgetManager.isRequestPinAppWidgetSupported
+                Log.i(TAG, "[checkShortcutPermission] isRequestPinAppWidgetSupported=$isSupported for manufacturer=$manufacturer")
+                return isSupported
             } catch (e: Exception) {
-                Log.w(TAG, "[checkShortcutPermission] Vivo/iQOO OP 10017 reflection failed: ${e.message}")
+                Log.w(TAG, "[checkShortcutPermission] AppWidgetManager check failed: ${e.message}")
             }
         }
 
@@ -583,11 +907,12 @@ class MainActivity : FlutterActivity() {
     private fun openShortcutPermissionSettings(context: Context) {
         val packageName = context.packageName
         val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
         var success = false
-        Log.i(TAG, "[openShortcutPermissionSettings] Opening settings for manufacturer: $manufacturer, pkg: $packageName")
+        Log.i(TAG, "[openShortcutPermissionSettings] Opening settings for manufacturer: $manufacturer, brand: $brand, pkg: $packageName")
 
         // 1. 小米 / 红米 (MIUI / HyperOS)
-        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi")) {
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || brand.contains("xiaomi") || brand.contains("redmi")) {
             try {
                 val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
                     setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.AppPermissionsEditorActivity")
@@ -613,8 +938,7 @@ class MainActivity : FlutterActivity() {
         }
 
         // 2. Vivo / iQOO (OriginOS)
-        if (!success && (manufacturer.contains("vivo") || manufacturer.contains("iqoo"))) {
-            // 尝试拉起 OriginOS 权限详情页
+        if (!success && (manufacturer.contains("vivo") || manufacturer.contains("iqoo") || brand.contains("vivo") || brand.contains("iqoo"))) {
             try {
                 val intent = Intent("permission.intent.action.softPermissionDetail").apply {
                     putExtra("packagename", packageName)
@@ -651,34 +975,75 @@ class MainActivity : FlutterActivity() {
         }
 
         // 3. OPPO / OnePlus / Realme (ColorOS / Realme UI)
-        if (!success && (manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme"))) {
-            try {
-                val intent = Intent().apply {
+        if (!success && (manufacturer.contains("oppo") || manufacturer.contains("oneplus") || manufacturer.contains("realme") || brand.contains("oppo") || brand.contains("oneplus") || brand.contains("realme"))) {
+            val intents = listOf(
+                Intent().apply {
+                    component = ComponentName("com.oplus.securitypermission", "com.oplus.securitypermission.permission.PermissionTopActivity")
+                    putExtra("package_name", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+                Intent().apply {
                     component = ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.PermissionTopActivity")
                     putExtra("package_name", packageName)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+                Intent().apply {
+                    component = ComponentName("com.oplus.safecenter", "com.oplus.safecenter.permission.PermissionTopActivity")
+                    putExtra("package_name", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+                Intent().apply {
+                    component = ComponentName("com.coloros.safecenter", "com.coloros.privacypermissionsentry.PermissionTopActivity")
+                    putExtra("package_name", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+                Intent("coloros.intent.action.APPDETAIL").apply {
+                    putExtra("packageName", packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                context.startActivity(intent)
-                success = true
-                Log.i(TAG, "[openShortcutPermissionSettings] Started ColorOS PermissionTopActivity")
-            } catch (e: Exception) {
+            )
+            for (intent in intents) {
                 try {
-                    val intent = Intent().apply {
-                        component = ComponentName("com.oplus.securitypermission", "com.oplus.securitypermission.permission.PermissionTopActivity")
-                        putExtra("package_name", packageName)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
                     context.startActivity(intent)
                     success = true
-                    Log.i(TAG, "[openShortcutPermissionSettings] Started OPlus PermissionTopActivity")
-                } catch (e2: Exception) {
-                    Log.w(TAG, "[openShortcutPermissionSettings] Failed to launch ColorOS/OPlus perm manager: ${e2.message}")
+                    Log.i(TAG, "[openShortcutPermissionSettings] Started ColorOS/OPlus activity: ${intent.component?.className ?: intent.action}")
+                    break
+                } catch (e: Exception) {
+                    // Try next
                 }
             }
         }
 
-        // 4. 华为 / 荣耀 (HarmonyOS / EMUI / MagicOS)
-        if (!success && (manufacturer.contains("huawei") || manufacturer.contains("honor"))) {
+        // 4. 荣耀 (MagicOS)
+        if (!success && (manufacturer.contains("honor") || brand.contains("honor"))) {
+            val honorIntents = listOf(
+                Intent().apply {
+                    component = ComponentName("com.hihonor.systemmanager", "com.hihonor.permissionmanager.ui.MainActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+                Intent().apply {
+                    component = ComponentName("com.hihonor.systemmanager", "com.hihonor.systemmanager.mainscreen.MainScreenActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+                Intent().apply {
+                    component = ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            for (intent in honorIntents) {
+                try {
+                    context.startActivity(intent)
+                    success = true
+                    Log.i(TAG, "[openShortcutPermissionSettings] Started Honor MagicOS: ${intent.component?.className}")
+                    break
+                } catch (e: Exception) {
+                    // Try next
+                }
+            }
+        }
+
+        // 5. 华为 (HarmonyOS / EMUI)
+        if (!success && (manufacturer.contains("huawei") || brand.contains("huawei"))) {
             try {
                 val intent = Intent().apply {
                     component = ComponentName("com.huawei.systemmanager", "com.huawei.permissionmanager.ui.MainActivity")
@@ -692,7 +1057,22 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // 5. 通用兜底：打开系统标准应用详情页（可直达权限设置）
+        // 6. 三星 (One UI)
+        if (!success && (manufacturer.contains("samsung") || brand.contains("samsung"))) {
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                success = true
+                Log.i(TAG, "[openShortcutPermissionSettings] Started Samsung One UI Application Details")
+            } catch (e: Exception) {
+                Log.w(TAG, "[openShortcutPermissionSettings] Failed to launch Samsung settings: ${e.message}")
+            }
+        }
+
+        // 7. 通用兜底：打开系统标准应用详情页（可直达权限设置）
         if (!success) {
             try {
                 val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {

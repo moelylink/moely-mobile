@@ -5,12 +5,14 @@ import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../services/settings_service.dart';
+import 'app_image_cache_manager.dart';
+export 'app_image_cache_manager.dart';
 
 class CacheHelper {
   // Directory retrievers
   static Future<Directory> getImagesCacheDir() async {
-    final tempDir = await getTemporaryDirectory();
-    final dir = Directory('${tempDir.path}/libCachedImageData');
+    final supportDir = await getApplicationSupportDirectory();
+    final dir = Directory('${supportDir.path}/libCachedImageData');
     if (!dir.existsSync()) dir.createSync(recursive: true);
     return dir;
   }
@@ -133,6 +135,10 @@ class CacheHelper {
       for (final dir in imgDirs) {
         await clearDir(dir);
       }
+
+      try {
+        await AppImageCacheManager().emptyCache();
+      } catch (_) {}
 
       try {
         await DefaultCacheManager().emptyCache();

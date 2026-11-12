@@ -16,10 +16,12 @@ import android.widget.RemoteViews
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import android.util.Log
 
 class GalleryWidgetProvider : AppWidgetProvider() {
 
     companion object {
+        private const val TAG = "MoelyWidget"
         const val ACTION_PREV = "link.moely.mobile.action.GALLERY_PREV"
         const val ACTION_NEXT = "link.moely.mobile.action.GALLERY_NEXT"
 
@@ -33,6 +35,7 @@ class GalleryWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        Log.i(TAG, "[GalleryWidgetProvider] onUpdate triggered. widgetIds count=${appWidgetIds.size}: ${appWidgetIds.joinToString()}")
         for (appWidgetId in appWidgetIds) {
             updateWidgetState(context, appWidgetManager, appWidgetId)
         }

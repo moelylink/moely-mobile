@@ -524,6 +524,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                                 );
                               } else {
                                 return CachedNetworkImage(
+                                  cacheManager: AppImageCacheManager(),
                                   imageUrl: imageUrl,
                                   fit: BoxFit.cover,
                                   width: double.infinity,

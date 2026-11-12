@@ -4,7 +4,9 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'widget_service.dart';
+import 'auth_service.dart';
 import 'package:flutter/services.dart';
 
 enum KanbanState {
@@ -19,6 +21,7 @@ class KanbanService extends ChangeNotifier {
   KanbanService._();
 
   static const MethodChannel _widgetChannel = MethodChannel('link.moely.mobile/widget');
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   KanbanState _currentState = KanbanState.idle;
   int _dailyTouches = 0;
@@ -26,12 +29,12 @@ class KanbanService extends ChangeNotifier {
   String _lastTouchDate = '';
   String _currentBubbleText = '你好呀，今天又是美好的一天！';
 
-  // Moe Manor properties (Test / Debug Mode)
-  int _feedStock = 99999; // Abundant feed for testing
+  // Moe Manor properties
+  int _feedStock = 200; // Default starter feed
   int _currentBowlFeed = 0; // Current feed in bowl (0, 100, or 200)
-  int _speedCardCount = 99; // Speed-up cards in bag
-  int _doubleFeedCardCount = 99; // Double-feed cards in bag
-  double _collectedStars = 9999.0;
+  int _speedCardCount = 0; // Speed-up cards in bag
+  int _doubleFeedCardCount = 0; // Double-feed cards in bag
+  double _collectedStars = 0.0;
   int _level = 1;
   int _exp = 0;
   String _lastClaimDate = '';
@@ -39,12 +42,13 @@ class KanbanService extends ChangeNotifier {
   DateTime? _stateStartTime;
   Timer? _eatingTimer;
   Duration _serverTimeOffset = Duration.zero;
+  bool _isSyncingWithCloud = false;
 
   /// Get true current DateTime calibrated with cloud UTC time when available
   DateTime get nowTime => DateTime.now().add(_serverTimeOffset);
 
   String _currentSkin = 'capoo';
-  List<String> _unlockedSkins = ['capoo', 'classic', 'kitty', 'siamese', 'salary', 'space'];
+  List<String> _unlockedSkins = ['capoo', 'siamese', 'salary'];
 
   String get currentSkin => _currentSkin;
   List<String> get unlockedSkins => _unlockedSkins;
@@ -67,6 +71,16 @@ class KanbanService extends ChangeNotifier {
 
   /// Check if pet is hungry (been in idle state for >= 4 hours)
   bool get isHungry => _currentState == KanbanState.idle && _stateStartTime != null && nowTime.difference(_stateStartTime!).inSeconds >= 14400;
+
+  static const int sleepStartHour = 20; // 晚上 20:00 (8:00 PM) 开放入睡
+  static const int sleepEndHour = 6;    // 早上 06:00 (6:00 AM) 自动醒来
+
+  /// 检查当前是否在允许睡觉的时间段（晚上 20:00 ~ 早上 06:00）
+  bool get isSleepTime => isHourInSleepWindow(nowTime.hour);
+
+  static bool isHourInSleepWindow(int hour) {
+    return hour >= sleepStartHour || hour < sleepEndHour;
+  }
 
   /// Get the emoji associated with the current state
   String get stateEmoji {
@@ -110,25 +124,21 @@ class KanbanService extends ChangeNotifier {
         if (data['currentBubbleText'] != null) {
           _currentBubbleText = data['currentBubbleText'] as String;
         }
-        // Moe Manor properties (Test mode boost: preserve or top up to high amounts)
+        // Moe Manor properties
         if (data['feedStock'] != null) {
-          _feedStock = math.max(data['feedStock'] as int, 99999);
+          _feedStock = data['feedStock'] as int;
         }
         if (data['currentBowlFeed'] != null) {
           _currentBowlFeed = data['currentBowlFeed'] as int;
         }
         if (data['speedCardCount'] != null) {
-          _speedCardCount = math.max(data['speedCardCount'] as int, 99);
-        } else {
-          _speedCardCount = 99;
+          _speedCardCount = data['speedCardCount'] as int;
         }
         if (data['doubleFeedCardCount'] != null) {
-          _doubleFeedCardCount = math.max(data['doubleFeedCardCount'] as int, 99);
-        } else {
-          _doubleFeedCardCount = 99;
+          _doubleFeedCardCount = data['doubleFeedCardCount'] as int;
         }
         if (data['collectedStars'] != null) {
-          _collectedStars = math.max((data['collectedStars'] as num).toDouble(), 9999.0);
+          _collectedStars = (data['collectedStars'] as num).toDouble();
         }
         if (data['level'] != null) {
           _level = data['level'] as int;
@@ -146,10 +156,13 @@ class KanbanService extends ChangeNotifier {
           _stateStartTime = DateTime.tryParse(data['stateStartTime'] as String);
         }
         if (data['currentSkin'] != null) {
-          _currentSkin = data['currentSkin'] as String;
+          final loadedSkin = data['currentSkin'] as String;
+          _currentSkin = ['capoo', 'siamese', 'salary'].contains(loadedSkin) ? loadedSkin : 'capoo';
         }
-        // Unlock all skins for testing
-        _unlockedSkins = ['capoo', 'classic', 'kitty', 'siamese', 'salary', 'space'];
+        if (data['unlockedSkins'] != null) {
+          final loadedSkins = (data['unlockedSkins'] as List<dynamic>).map((e) => e.toString()).toList();
+          _unlockedSkins = loadedSkins.isNotEmpty ? loadedSkins : ['capoo'];
+        }
       }
 
       // Sync cloud UTC time asynchronously
@@ -177,6 +190,13 @@ class KanbanService extends ChangeNotifier {
           _startEatingTimer(remaining);
         }
       }
+
+      // Auto sync from cloud if logged in, and listen to future login changes
+      if (AuthService.instance.isLoggedIn) {
+        pullFromCloud();
+      }
+      AuthService.instance.addListener(_onAuthStatusChanged);
+      notifyListeners();
     } catch (e) {
       debugPrint('Failed to initialize KanbanService: $e');
     }
@@ -404,15 +424,38 @@ class KanbanService extends ChangeNotifier {
     } else if (_currentState == KanbanState.sleeping) {
       // Base: Every 6 hours (21600s) yields 1 star ⭐ (no feed consumed)
       // Each 0.1 star step takes (2160 / speedMultiplier) seconds
-      final double stepSeconds = 2160 / speedMultiplier;
-      final int completedSteps = (elapsedSeconds / stepSeconds).floor();
+      DateTime sleepEndTime = now;
+      bool shouldWakeUp = false;
 
-      if (completedSteps > 0) {
-        _collectedStars += completedSteps * 0.1;
-        _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
-        _stateStartTime = _stateStartTime!.add(Duration(seconds: (completedSteps * stepSeconds).round()));
-        final earnedStars = (completedSteps * 0.1).toStringAsFixed(1);
-        _currentBubbleText = '萌哩在美梦中收获了 $earnedStars 颗星星 ⭐！';
+      // 检查当前是否已过早晨醒来时间（即不在睡眠时间窗口内）
+      if (!isSleepTime) {
+        shouldWakeUp = true;
+        // 计算早晨自动醒来的具体时间点 (当天 06:00)
+        final morningWakeUp = DateTime(now.year, now.month, now.day, sleepEndHour);
+        if (_stateStartTime!.isBefore(morningWakeUp) && now.isAfter(morningWakeUp)) {
+          sleepEndTime = morningWakeUp;
+        }
+      }
+
+      final sleepDuration = math.min(sleepEndTime.difference(_stateStartTime!).inSeconds, 86400);
+      if (sleepDuration > 0) {
+        final double stepSeconds = 2160 / speedMultiplier;
+        final int completedSteps = (sleepDuration / stepSeconds).floor();
+
+        if (completedSteps > 0) {
+          _collectedStars += completedSteps * 0.1;
+          _collectedStars = double.parse(_collectedStars.toStringAsFixed(1));
+          _stateStartTime = _stateStartTime!.add(Duration(seconds: (completedSteps * stepSeconds).round()));
+          final earnedStars = (completedSteps * 0.1).toStringAsFixed(1);
+          _currentBubbleText = '萌哩在美梦中收获了 $earnedStars 颗星星 ⭐！';
+          stateChanged = true;
+        }
+      }
+
+      if (shouldWakeUp) {
+        _currentState = KanbanState.idle;
+        _stateStartTime = sleepEndTime;
+        _currentBubbleText = '早上好呀！天亮啦，萌哩伸个懒腰醒来啦~';
         stateChanged = true;
       }
     } else if (_currentState == KanbanState.eating) {
@@ -434,20 +477,26 @@ class KanbanService extends ChangeNotifier {
   }
 
   /// Change the current state of the mascot
-  Future<void> updateState(KanbanState newState) async {
+  Future<bool> updateState(KanbanState newState) async {
     checkProgress();
-    if (_currentState == newState) return;
+    if (_currentState == newState) return true;
 
     if (_currentState == KanbanState.eating) {
       _currentBubbleText = '萌哩正在努力干饭，等吃完再做别的事吧！';
       notifyListeners();
-      return;
+      return false;
     }
 
     if (newState == KanbanState.studying && _feedStock < 5) {
       _currentBubbleText = '饲料不足 5g，无法开启学习模式哦！快去完成任务领饲料吧~';
       notifyListeners();
-      return;
+      return false;
+    }
+
+    if (newState == KanbanState.sleeping && !isSleepTime) {
+      _currentBubbleText = '现在还是白天呢，萌哩还不困哦~（晚上 20:00 后才开放睡觉）';
+      notifyListeners();
+      return false;
     }
 
     _currentState = newState;
@@ -455,15 +504,15 @@ class KanbanService extends ChangeNotifier {
 
     switch (newState) {
       case KanbanState.idle:
-        _currentBubbleText = '萌哩休息好啦，主人有什么吩咐？';
+        _currentBubbleText = '萌哩来到客厅休息玩耍啦，主人有什么吩咐？';
         break;
       case KanbanState.studying:
         final double hoursNeeded = (2.0 / speedMultiplier);
-        _currentBubbleText = '萌哩开启学习模式！每 ${hoursNeeded.toStringAsFixed(1)} 小时消耗 50g 饲料获得 1 颗星星 ⭐！';
+        _currentBubbleText = '萌哩去书桌学习啦！每 ${hoursNeeded.toStringAsFixed(1)} 小时消耗 50g 饲料获得 1 颗星星 ⭐！';
         break;
       case KanbanState.sleeping:
         final double hoursNeeded = (6.0 / speedMultiplier);
-        _currentBubbleText = '萌哩准备睡觉觉啦！每 ${hoursNeeded.toStringAsFixed(1)} 小时自动获得 1 颗星星 ⭐，晚安~';
+        _currentBubbleText = '萌哩去床上睡觉觉啦！每 ${hoursNeeded.toStringAsFixed(1)} 小时自动获得 1 颗星星 ⭐，晚安~';
         break;
       case KanbanState.eating:
         _currentBubbleText = '开饭啦！嚼嚼嚼……';
@@ -472,20 +521,29 @@ class KanbanService extends ChangeNotifier {
 
     await save();
     notifyListeners();
+    return true;
   }
 
   // --- Moe Manor Game Actions ---
 
-  bool get canClaimDailyFeed => true;
+  bool get canClaimDailyFeed => _lastClaimDate != nowTime.toIso8601String().substring(0, 10);
 
-  /// Claim daily check-in feed (Test mode: always available)
+  /// Claim daily check-in feed with instant cloud sync
   Future<bool> claimDailyFeed() async {
-    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    final todayStr = nowTime.toIso8601String().substring(0, 10);
+    if (!canClaimDailyFeed) {
+      _currentBubbleText = '今天已经签到过了，明天再来吧~';
+      notifyListeners();
+      return false;
+    }
     _feedStock += 100;
     _lastClaimDate = todayStr;
     _currentBubbleText = '签到成功！领取了 100g 优质饲料。';
     await save();
     notifyListeners();
+
+    // Instant sync to cloud
+    _syncClaimToCloud(todayStr);
     return true;
   }
 
@@ -691,7 +749,7 @@ class KanbanService extends ChangeNotifier {
     _eatingTimer?.cancel();
     _currentState = KanbanState.idle;
     _currentSkin = 'capoo';
-    _unlockedSkins = ['capoo', 'classic', 'kitty', 'siamese', 'salary', 'space'];
+    _unlockedSkins = ['capoo', 'siamese', 'salary'];
     await save();
     notifyListeners();
   }
@@ -709,6 +767,7 @@ class KanbanService extends ChangeNotifier {
     _currentBubbleText = '成功消耗 ${starsCost.toStringAsFixed(1)} 颗星星兑换了 $count 张加速卡！';
     await save();
     notifyListeners();
+    _syncShopPurchaseToCloud();
     return true;
   }
 
@@ -725,6 +784,7 @@ class KanbanService extends ChangeNotifier {
     _currentBubbleText = '成功消耗 ${starsCost.toStringAsFixed(1)} 颗星星兑换了 $count 张加饭卡！';
     await save();
     notifyListeners();
+    _syncShopPurchaseToCloud();
     return true;
   }
 
@@ -741,6 +801,7 @@ class KanbanService extends ChangeNotifier {
     _currentBubbleText = '成功消耗 ${starsCost.toStringAsFixed(1)} 颗星星兑换了 ${amount}g 饲料！';
     await save();
     notifyListeners();
+    _syncShopPurchaseToCloud();
     return true;
   }
 
@@ -760,6 +821,7 @@ class KanbanService extends ChangeNotifier {
     _currentBubbleText = '解锁成功！快给萌哩换上新装扮吧！';
     await save();
     notifyListeners();
+    _syncUnlockSkinToCloud(skinId);
     return true;
   }
 
@@ -772,6 +834,7 @@ class KanbanService extends ChangeNotifier {
     _currentBubbleText = '换装成功！你看我好看吗？';
     await save();
     notifyListeners();
+    _syncSelectSkinToCloud(skinId);
     return true;
   }
 
@@ -787,7 +850,7 @@ class KanbanService extends ChangeNotifier {
     {'id': 'card_double', 'name': '加饭卡', 'weight': 10, 'doubleCard': 1},
   ];
 
-  /// 趣味大转盘抽奖：每次消耗 100g 饲料
+  /// 趣味大转盘抽奖：每次消耗 100g 饲料并计算抽取结果（转盘转动结束前暂不下发奖品）
   Future<Map<String, dynamic>?> spinLuckyWheel() async {
     if (_feedStock < 100) {
       _currentBubbleText = '饲料不足 100g，无法参与转盘抽奖噢~';
@@ -796,6 +859,8 @@ class KanbanService extends ChangeNotifier {
     }
 
     _feedStock -= 100;
+    await save();
+    notifyListeners();
 
     // 根据权重随机抽取
     final totalWeight = wheelPrizes.fold<int>(0, (sum, p) => sum + (p['weight'] as int));
@@ -813,7 +878,14 @@ class KanbanService extends ChangeNotifier {
 
     final prize = wheelPrizes[targetIndex];
 
-    // 发放对应奖励
+    return {
+      'index': targetIndex,
+      'prize': prize,
+    };
+  }
+
+  /// 转盘停止转动后，正式下发抽奖奖励与更新气泡
+  Future<void> claimWheelPrize(Map<String, dynamic> prize) async {
     switch (prize['id']) {
       case 'thanks':
         _currentBubbleText = '差一点点就中大奖啦，下次一定会更幸运的~';
@@ -851,11 +923,6 @@ class KanbanService extends ChangeNotifier {
 
     await save();
     notifyListeners();
-
-    return {
-      'index': targetIndex,
-      'prize': prize,
-    };
   }
 
   /// Sync the current state text and emoji to native Android widget
@@ -871,9 +938,191 @@ class KanbanService extends ChangeNotifier {
     }
   }
 
+  // --- Cloud Sync Implementations (Hybrid Cloud-Save) ---
+
+  void _onAuthStatusChanged() {
+    if (AuthService.instance.isLoggedIn) {
+      pullFromCloud();
+    }
+  }
+
+  /// Pull manor data from Supabase and safely merge with local cache
+  Future<void> pullFromCloud() async {
+    if (_isSyncingWithCloud) return;
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return;
+
+    _isSyncingWithCloud = true;
+    try {
+      final response = await _supabase
+          .from('user_manor')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response == null) {
+        // Cloud record doesn't exist yet: initialize it with current local baseline
+        await _supabase.from('user_manor').insert({
+          'user_id': userId,
+          'collected_stars': _collectedStars,
+          'feed_stock': _feedStock,
+          'speed_card_count': _speedCardCount,
+          'double_feed_card_count': _doubleFeedCardCount,
+          'level': _level,
+          'exp': _exp,
+          'current_skin': _currentSkin,
+          'unlocked_skins': _unlockedSkins,
+          'last_claim_date': _lastClaimDate,
+        });
+        debugPrint('[KanbanService] Initialized user_manor cloud record for $userId');
+      } else {
+        // Merge cloud data safely
+        final cloudStars = (response['collected_stars'] as num?)?.toDouble() ?? 0.0;
+        final cloudFeed = (response['feed_stock'] as int?) ?? 200;
+        final cloudSpeedCards = (response['speed_card_count'] as int?) ?? 0;
+        final cloudDoubleCards = (response['double_feed_card_count'] as int?) ?? 0;
+        final cloudLevel = (response['level'] as int?) ?? 1;
+        final cloudExp = (response['exp'] as int?) ?? 0;
+        final cloudSkin = (response['current_skin'] as String?) ?? 'capoo';
+        final cloudClaimDate = (response['last_claim_date'] as String?) ?? '';
+        
+        List<String> cloudUnlockedSkins = ['capoo'];
+        if (response['unlocked_skins'] != null) {
+          cloudUnlockedSkins = (response['unlocked_skins'] as List<dynamic>).map((e) => e.toString()).toList();
+        }
+
+        // Merge policy: union unlocked skins, take max progression/assets
+        final mergedSkins = {..._unlockedSkins, ...cloudUnlockedSkins}.toList();
+        _unlockedSkins = mergedSkins;
+        _collectedStars = math.max(_collectedStars, cloudStars);
+        _feedStock = math.max(_feedStock, cloudFeed);
+        _speedCardCount = math.max(_speedCardCount, cloudSpeedCards);
+        _doubleFeedCardCount = math.max(_doubleFeedCardCount, cloudDoubleCards);
+
+        if (cloudLevel > _level || (cloudLevel == _level && cloudExp > _exp)) {
+          _level = cloudLevel;
+          _exp = cloudExp;
+        }
+
+        if (cloudSkin.isNotEmpty && _unlockedSkins.contains(cloudSkin)) {
+          _currentSkin = cloudSkin;
+        }
+
+        // If claimed today in cloud, respect it locally
+        final todayStr = nowTime.toIso8601String().substring(0, 10);
+        if (cloudClaimDate == todayStr) {
+          _lastClaimDate = todayStr;
+        }
+
+        await save();
+        notifyListeners();
+        debugPrint('[KanbanService] Synced and merged manor data from cloud.');
+      }
+    } catch (e) {
+      debugPrint('[KanbanService] Cloud pull skipped or failed (graceful degradation): $e');
+    } finally {
+      _isSyncingWithCloud = false;
+    }
+  }
+
+  /// Push current local snapshot to cloud (called on backgrounding or closing)
+  Future<void> pushToCloud() async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return;
+
+    try {
+      await _supabase.from('user_manor').upsert({
+        'user_id': userId,
+        'collected_stars': _collectedStars,
+        'feed_stock': _feedStock,
+        'speed_card_count': _speedCardCount,
+        'double_feed_card_count': _doubleFeedCardCount,
+        'level': _level,
+        'exp': _exp,
+        'current_skin': _currentSkin,
+        'unlocked_skins': _unlockedSkins,
+        'last_claim_date': _lastClaimDate,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      debugPrint('[KanbanService] Snapshot pushed to user_manor successfully.');
+    } catch (e) {
+      debugPrint('[KanbanService] Cloud push failed (graceful degradation): $e');
+    }
+  }
+
+  /// Instant sync for daily claim
+  Future<void> _syncClaimToCloud(String todayStr) async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return;
+
+    try {
+      await _supabase.from('user_manor').upsert({
+        'user_id': userId,
+        'last_claim_date': todayStr,
+        'feed_stock': _feedStock,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[KanbanService] Failed to sync daily claim to cloud: $e');
+    }
+  }
+
+  /// Instant sync for unlocking skin
+  Future<void> _syncUnlockSkinToCloud(String skinId) async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return;
+
+    try {
+      await _supabase.from('user_manor').upsert({
+        'user_id': userId,
+        'unlocked_skins': _unlockedSkins,
+        'collected_stars': _collectedStars,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[KanbanService] Failed to sync skin unlock to cloud: $e');
+    }
+  }
+
+  /// Instant sync for changing skin
+  Future<void> _syncSelectSkinToCloud(String skinId) async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return;
+
+    try {
+      await _supabase.from('user_manor').upsert({
+        'user_id': userId,
+        'current_skin': skinId,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[KanbanService] Failed to sync skin selection to cloud: $e');
+    }
+  }
+
+  /// Instant sync for shop purchases
+  Future<void> _syncShopPurchaseToCloud() async {
+    final userId = AuthService.instance.userId;
+    if (userId.isEmpty) return;
+
+    try {
+      await _supabase.from('user_manor').upsert({
+        'user_id': userId,
+        'collected_stars': _collectedStars,
+        'feed_stock': _feedStock,
+        'speed_card_count': _speedCardCount,
+        'double_feed_card_count': _doubleFeedCardCount,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[KanbanService] Failed to sync shop purchase to cloud: $e');
+    }
+  }
+
   @override
   void dispose() {
     _eatingTimer?.cancel();
+    AuthService.instance.removeListener(_onAuthStatusChanged);
     super.dispose();
   }
 }

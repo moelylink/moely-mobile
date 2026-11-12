@@ -61,7 +61,10 @@
             android:value="2" />
 
         <!-- Moely Custom Desktop Widget Provider -->
-        <receiver android:name=".MoelyWidgetProvider" android:exported="true">
+        <receiver
+            android:name=".MoelyWidgetProvider"
+            android:label="@string/widget_classic_name"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -71,7 +74,10 @@
         </receiver>
 
         <!-- 3x2 Portrait Daily Image (Columns: 2, Rows: 3) -->
-        <receiver android:name=".DailyImagePortraitProvider" android:exported="true">
+        <receiver
+            android:name=".DailyImagePortraitProvider"
+            android:label="@string/widget_portrait_name"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -81,7 +87,10 @@
         </receiver>
 
         <!-- 2x3 Landscape Daily Image (Columns: 3, Rows: 2) -->
-        <receiver android:name=".DailyImageLandscapeProvider" android:exported="true">
+        <receiver
+            android:name=".DailyImageLandscapeProvider"
+            android:label="@string/widget_landscape_name"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -91,7 +100,10 @@
         </receiver>
 
         <!-- 3x4 Desktop Pet Widget -->
-        <receiver android:name=".PetWidgetProvider" android:exported="true">
+        <receiver
+            android:name=".PetWidgetProvider"
+            android:label="@string/widget_pet_name"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="link.moely.mobile.action.PET_FEED" />
@@ -104,7 +116,10 @@
         </receiver>
 
         <!-- 3x3 Custom Gallery Widget -->
-        <receiver android:name=".GalleryWidgetProvider" android:exported="true">
+        <receiver
+            android:name=".GalleryWidgetProvider"
+            android:label="@string/widget_gallery_name"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="link.moely.mobile.action.GALLERY_PREV" />
@@ -113,6 +128,15 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_gallery_info" />
+        </receiver>
+
+        <!-- Widget Pin Callback Receiver for Launcher success broadcast -->
+        <receiver
+            android:name=".WidgetPinCallbackReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="link.moely.mobile.action.PIN_WIDGET_SUCCESS" />
+            </intent-filter>
         </receiver>
     </application>
     <!-- Required to query activities that can process text, see:

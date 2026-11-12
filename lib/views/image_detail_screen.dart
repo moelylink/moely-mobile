@@ -190,7 +190,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
 
   Future<void> _checkThumbnailCache() async {
     try {
-      final fileInfo = await DefaultCacheManager().getFileFromCache(_currentImage.urls);
+      final fileInfo = await AppImageCacheManager().getFileFromCache(_currentImage.urls);
       if (mounted) {
         setState(() {
           _isThumbnailCached = fileInfo != null;
@@ -232,6 +232,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
         alignment: Alignment.center,
         children: [
           CachedNetworkImage(
+            cacheManager: AppImageCacheManager(),
             imageUrl: _currentImage.urls,
             httpHeaders: {'User-Agent': UserAgentService.userAgent},
             fit: BoxFit.fitWidth,
@@ -457,6 +458,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
           CachedNetworkImageProvider(
             firstImgUrl,
             headers: {'User-Agent': UserAgentService.userAgent},
+            cacheManager: AppImageCacheManager(),
           ),
           context,
         );
@@ -466,6 +468,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
           CachedNetworkImageProvider(
             fallbackUrl,
             headers: {'User-Agent': UserAgentService.userAgent},
+            cacheManager: AppImageCacheManager(),
           ),
           context,
         );
@@ -655,7 +658,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
     // Evict all random and preloaded image and details cache dynamically upon exit
     for (final url in _randomImageUrlsToEvict) {
       try {
-        CachedNetworkImage.evictFromCache(url);
+        CachedNetworkImage.evictFromCache(url, cacheManager: AppImageCacheManager());
       } catch (_) {}
     }
     for (final id in _randomImageIds) {
@@ -1571,6 +1574,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                           ),
                                         )
                                       : CachedNetworkImage(
+                                          cacheManager: AppImageCacheManager(),
                                           imageUrl: imgUrl,
                                           httpHeaders: {'User-Agent': UserAgentService.userAgent},
                                           fit: BoxFit.fitWidth,
@@ -1599,7 +1603,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> with SingleTicker
                                                 const SizedBox(height: 12),
                                                 ElevatedButton.icon(
                                                   onPressed: () {
-                                                    CachedNetworkImage.evictFromCache(imgUrl);
+                                                    CachedNetworkImage.evictFromCache(imgUrl, cacheManager: AppImageCacheManager());
                                                     setState(() {
                                                       _loadDetails(forceRefresh: true);
                                                     });
@@ -2772,6 +2776,7 @@ class _FullscreenImageItemState extends State<FullscreenImageItem> with SingleTi
         maxScale: 4.0,
         child: Center(
           child: CachedNetworkImage(
+            cacheManager: AppImageCacheManager(),
             imageUrl: widget.imageUrl,
             httpHeaders: {'User-Agent': UserAgentService.userAgent},
             fit: BoxFit.contain,

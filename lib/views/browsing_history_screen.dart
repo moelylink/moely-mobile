@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_image_cache_manager.dart';
 import '../utils/history_helper.dart';
 import '../utils/toast_helper.dart';
 import 'image_detail_screen.dart';
@@ -304,6 +305,7 @@ class _BrowsingHistoryScreenState extends State<BrowsingHistoryScreen> {
       );
     } else {
       return CachedNetworkImage(
+        cacheManager: AppImageCacheManager(),
         imageUrl: item.thumbnailUrl,
         httpHeaders: {'User-Agent': UserAgentService.userAgent},
         fit: BoxFit.cover,

@@ -21,14 +21,28 @@ class WidgetStoreScreen extends StatefulWidget {
   State<WidgetStoreScreen> createState() => _WidgetStoreScreenState();
 }
 
+class _RomGuidance {
+  final String title;
+  final String permissionDesc;
+  final String manualSteps;
+
+  const _RomGuidance({
+    required this.title,
+    required this.permissionDesc,
+    required this.manualSteps,
+  });
+}
+
 class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
   bool _isPremiumUnlocked = false;
   bool _isLoadingPremium = true;
+  Map<String, String>? _romInfo;
 
   @override
   void initState() {
     super.initState();
     _checkPremiumStatus();
+    _initRomInfoAndCheckPermission();
   }
 
   Future<void> _checkPremiumStatus() async {
@@ -64,11 +78,219 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
         _isLoadingPremium = false;
       });
       if (success) {
-        ToastHelper.show(context, '🎉 恭喜！高级版桌宠已成功解锁！', type: ToastType.success);
+        ToastHelper.show(context, '恭喜！高级版桌宠已成功解锁！', type: ToastType.success);
       } else {
         ToastHelper.show(context, '解锁失败，请重试', type: ToastType.error);
       }
     }
+  }
+
+  Future<void> _initRomInfoAndCheckPermission() async {
+    if (!WidgetService.isPlatformAndroid) return;
+    final info = await WidgetService.getDeviceRomInfo();
+    if (mounted) {
+      setState(() {
+        _romInfo = info;
+      });
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        final supportDir = await getApplicationSupportDirectory();
+        final flagFile = File('${supportDir.path}/settings/widget_perm_prompt_shown.flag');
+        final alreadyShown = flagFile.existsSync();
+        final hasPermission = await WidgetService.checkShortcutPermission();
+        
+        // 若尚未授权或首次进入小部件商城，主动弹出授权引导对话框
+        if (!hasPermission || !alreadyShown) {
+          if (!alreadyShown) {
+            try {
+              flagFile.createSync(recursive: true);
+            } catch (_) {}
+          }
+          if (mounted) {
+            final romName = _romInfo != null && _romInfo!['romType'] != 'other'
+                ? _romInfo!['romName']!
+                : '';
+            final dialogTitle = romName.isNotEmpty ? '$romName 桌面小组件授权提示' : '桌面小组件授权提示';
+            _showPermissionGuidanceDialog(
+              title: dialogTitle,
+              isStartupPrompt: true,
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('[WidgetStoreScreen] initRomInfo error: $e');
+      }
+    });
+  }
+
+  _RomGuidance _getRomGuidance() {
+    final romType = _romInfo?['romType'] ?? 'other';
+    switch (romType) {
+      case 'coloros':
+        return const _RomGuidance(
+          title: 'OPPO ColorOS / OnePlus / Realme',
+          permissionDesc: 'ColorOS / Realme UI 系统默认对桌面微件设置了严格的权限管控。请进入系统设置允许「桌面快捷方式」权限，并确保桌面设置中未开启「锁定桌面布局」。',
+          manualSteps: '在桌面双指捏合或长按空白处 -> 点击「微件」（注意选择「微件」而非系统卡片）-> 找到「萌哩」即可拖动添加至桌面。',
+        );
+      case 'originos':
+        return const _RomGuidance(
+          title: 'vivo OriginOS / iQOO',
+          permissionDesc: 'OriginOS 系统默认拦截第三方应用的小部件自动添加广播。请前往系统应用权限管理开启「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」。',
+          manualSteps: '长按桌面空白处 -> 进入「原子组件」-> 滑到底部点击「经典组件 / 安卓微件」-> 找到「萌哩」添加。',
+        );
+      case 'hyperos':
+        return const _RomGuidance(
+          title: '小米 HyperOS / MIUI',
+          permissionDesc: 'HyperOS / MIUI 系统默认禁止应用创建桌面快捷方式。必须在应用权限设置中将「桌面快捷方式」权限手动设为「始终允许」。',
+          manualSteps: '长按桌面空白处或双指捏合 -> 点击「添加小部件」-> 滑到底部「支持小部件的应用 / 安卓小部件」-> 找到「萌哩」添加。',
+        );
+      case 'magicos':
+        return const _RomGuidance(
+          title: '荣耀 MagicOS',
+          permissionDesc: 'MagicOS 默认对第三方桌面小部件有安全限制。请在荣耀手机管家或系统权限管理中允许「桌面快捷方式」权限，并确认主屏幕未锁定。',
+          manualSteps: '在桌面双指捏合或长按空白处 -> 点击「卡片」并切换至「窗口小工具」-> 找到「萌哩」小组件拖动至桌面。',
+        );
+      case 'harmonyos':
+        return const _RomGuidance(
+          title: '华为 HarmonyOS / EMUI',
+          permissionDesc: 'HarmonyOS 默认对桌面微件有防护管控。请进入系统应用权限管理，确认已开启「创建桌面快捷方式」权限。',
+          manualSteps: '桌面双指捏合 -> 点击「服务卡片」并切换至「窗口小工具」-> 滑动找到经典微件中的「萌哩」添加。',
+        );
+      case 'oneui':
+        return const _RomGuidance(
+          title: '三星 One UI',
+          permissionDesc: 'One UI 原生支持桌面微件。若添加失败，请确认「萌哩」未处于系统「深度休眠」列表，并在主屏幕设置中确认未开启「锁定主屏幕布局」。',
+          manualSteps: '长按桌面空白处 -> 点击底部「微件 (Widgets)」-> 展开「萌哩」列表并长按拖动到桌面合适位置。',
+        );
+      default:
+        return const _RomGuidance(
+          title: 'Android 系统桌面',
+          permissionDesc: '部分定制系统默认限制应用向桌面添加组件。如无法自动弹出添加弹窗，请检查是否已在系统设置中授予「创建桌面快捷方式」权限，且桌面未开启「锁定桌面布局」。',
+          manualSteps: '• ColorOS / Realme：桌面双指捏合 -> 点击「微件」-> 找到「萌哩」添加；\n• OriginOS：桌面长按 ->「原子组件」-> 底部「经典组件 / 微件」-> 找到「萌哩」；\n• HyperOS / MIUI：桌面长按 ->「添加小部件」-> 底部「支持小部件的应用」-> 找到「萌哩」；\n• MagicOS：桌面双指捏合 ->「卡片」->「窗口小工具」-> 找到「萌哩」；\n• One UI：桌面长按 ->「微件」-> 展开「萌哩」长按拖出。',
+        );
+    }
+  }
+
+  void _showPermissionGuidanceDialog({
+    required String title,
+    bool isStartupPrompt = false,
+  }) {
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final guidance = _getRomGuidance();
+    final isSpecificRom = _romInfo != null && _romInfo!['romType'] != 'other';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          title: Row(
+            children: [
+              Icon(Icons.dashboard_customize_rounded, color: theme.colorScheme.primary, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                if (isSpecificRom) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '已适配当前系统：${guidance.title}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Text(
+                  '系统权限说明：',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  guidance.permissionDesc,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: theme.colorScheme.onSurface.withOpacity(0.75),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  isSpecificRom ? '推荐添加方式（手动添加）：' : '主流定制系统手动添加指引：',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  guidance.manualSteps,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: theme.colorScheme.onSurface.withOpacity(0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                isStartupPrompt ? '我知道了' : '关闭',
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                WidgetService.openShortcutPermissionSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('前往设置允许权限'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _handlePinWidget(String providerName, String widgetName) async {
@@ -76,70 +298,63 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
       ToastHelper.show(context, '当前平台不支持添加桌面小组件', type: ToastType.warning);
       return;
     }
-    
+
     final hasPermission = await WidgetService.checkShortcutPermission();
     if (!hasPermission) {
       if (!mounted) return;
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (context) {
-          final theme = Theme.of(context);
-          final isDark = theme.brightness == Brightness.dark;
-          return AlertDialog(
-            title: const Text('需要桌面快捷方式权限'),
-            content: const Text(
-              '由于您的系统限制，快捷添加小组件需要「创建桌面快捷方式」权限。\n\n'
-              '请点击“去开启”前往设置界面手动允许该权限，然后再试。'
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(
-                  '取消',
-                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('去开启'),
-              ),
-            ],
-          );
-        },
+      _showPermissionGuidanceDialog(
+        title: '需要桌面快捷方式权限',
       );
-      if (result == true) {
-        await WidgetService.openShortcutPermissionSettings();
-      }
       return;
     }
-    
+
+    // 等待至少两帧，确保此前所有 BottomSheet/Dialog 的关闭动画已结束、
+    // Activity window focus 已完整归还前台。部分国产 Launcher（ColorOS/OriginOS）
+    // 会在 Binder 侧检测 caller 的前台状态，focus 空窗期内调用会被静默拒绝。
+    await Future.delayed(const Duration(milliseconds: 320));
+    if (!mounted) return;
+
     print('[WidgetStoreScreen] Requesting pinWidget for providerName: $providerName');
     final success = await WidgetService.pinWidget(providerName);
     print('[WidgetStoreScreen] pinWidget returned: $success');
     if (mounted) {
       if (success) {
+        ToastHelper.show(context, '请在系统底部弹窗中点击「添加」即可固定到桌面', type: ToastType.success);
+      } else {
+        final guidance = _getRomGuidance();
+        final isSpecificRom = _romInfo != null && _romInfo!['romType'] != 'other';
         showDialog(
           context: context,
           builder: (context) {
             final theme = Theme.of(context);
             final isDark = theme.brightness == Brightness.dark;
             return AlertDialog(
-              title: const Text('添加请求已发送'),
-              content: const Text(
-                '已向系统桌面发送小组件添加请求。\n\n'
-                '说明与排查：\n'
-                '1. 如果桌面未出现确认弹窗，请检查是否已授予应用「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」；\n'
-                '2. 国产系统手动添加指引（推荐）：\n'
-                '• ColorOS / Realme：桌面双指捏合或长按 -> 点击「微件」（注意非「卡片」）-> 找到「萌哩」添加；\n'
-                '• OriginOS：长按桌面空白处 -> 进入「原子组件/组件」-> 滑到底部「经典组件/安卓微件」-> 添加；\n'
-                '• MIUI / HyperOS：长按桌面 -> 点击「添加小部件」-> 滑到底部「支持小部件的应用」-> 添加。'
+              backgroundColor: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              title: const Text('系统桌面未响应', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('未能自动调起系统添加弹窗。\n'),
+                      if (isSpecificRom) ...[
+                        Text('【${guidance.title} 专属说明】', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        const SizedBox(height: 4),
+                        Text(guidance.permissionDesc, style: const TextStyle(fontSize: 13, height: 1.4)),
+                        const SizedBox(height: 10),
+                        const Text('请按下方指引手动添加：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        const SizedBox(height: 4),
+                        Text(guidance.manualSteps, style: const TextStyle(fontSize: 13, height: 1.4)),
+                      ] else ...[
+                        const Text('说明与排查：\n1. 请检查是否已授予应用「桌面快捷方式」权限，并确认桌面未开启「锁定桌面布局」；\n2. 建议通过桌面空白处长按选择「小部件/微件」手动添加。'),
+                      ],
+                    ],
+                  ),
+                ),
               ),
               actions: [
                 TextButton(
@@ -157,18 +372,14 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: theme.colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('去开启权限'),
+                  child: const Text('检查权限设置'),
                 ),
               ],
             );
           },
         );
-      } else {
-        ToastHelper.show(context, '桌面暂未响应快捷添加，建议长按桌面从「微件/组件」手动添加！', type: ToastType.warning);
       }
     }
   }
@@ -497,6 +708,22 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline_rounded),
+            tooltip: '权限与添加指引',
+            onPressed: () {
+              final romName = _romInfo != null && _romInfo!['romType'] != 'other'
+                  ? _romInfo!['romName']!
+                  : '';
+              final dialogTitle = romName.isNotEmpty ? '$romName 桌面小组件授权与添加指引' : '桌面小组件授权与添加指引';
+              _showPermissionGuidanceDialog(
+                title: dialogTitle,
+                isStartupPrompt: false,
+              );
+            },
+          ),
+        ],
       ),
       body: CustomScrollView(
         slivers: [
@@ -857,6 +1084,7 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
                                       child: isLocal
                                           ? Image.file(File(imgPath), fit: BoxFit.cover)
                                           : CachedNetworkImage(
+                                              cacheManager: AppImageCacheManager(),
                                               imageUrl: imgPath,
                                               httpHeaders: UserAgentService.headers,
                                               fit: BoxFit.cover,
@@ -1114,6 +1342,7 @@ class _WidgetStoreScreenState extends State<WidgetStoreScreen> {
                                 child: isOffline
                                     ? Image.file(localFile, fit: BoxFit.cover)
                                     : CachedNetworkImage(
+                                        cacheManager: AppImageCacheManager(),
                                         imageUrl: imageUrl,
                                         httpHeaders: UserAgentService.headers,
                                         fit: BoxFit.cover,
